@@ -19,8 +19,8 @@ const WhatsAppConnect = () => {
     setTimeout(() => {
       updateUser({ whatsappConnected: true });
       toast({
-        title: "WhatsApp Connected!",
-        description: "Your WhatsApp is now connected and ready to send messages.",
+        title: "וואטסאפ מחובר!",
+        description: "הוואטסאפ שלך מחובר עכשיו ומוכן לשליחת הודעות.",
       });
       setConnecting(false);
     }, 3000);
@@ -29,8 +29,8 @@ const WhatsAppConnect = () => {
   const handleDisconnect = () => {
     updateUser({ whatsappConnected: false });
     toast({
-      title: "WhatsApp Disconnected",
-      description: "Your WhatsApp has been disconnected.",
+      title: "וואטסאפ מנותק",
+      description: "הוואטסאפ שלך נותק.",
     });
   };
 
@@ -39,8 +39,8 @@ const WhatsAppConnect = () => {
       <Layout>
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">WhatsApp Connected</h1>
-            <p className="text-gray-600">Your WhatsApp is connected and ready to use!</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">וואטסאפ מחובר</h1>
+            <p className="text-gray-600">הוואטסאפ שלך מחובר ומוכן לשימוש!</p>
           </div>
 
           <Card>
@@ -50,11 +50,11 @@ const WhatsAppConnect = () => {
               </div>
               
               <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Connection Successful
+                החיבור הצליח
               </h2>
               
               <p className="text-gray-600 mb-6">
-                Your WhatsApp is now connected to our service. You can start sending messages to your groups.
+                הוואטסאפ שלך מחובר עכשיו לשירות שלנו. אתה יכול להתחיל לשלוח הודעות לקבוצות שלך.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -62,14 +62,14 @@ const WhatsAppConnect = () => {
                   onClick={() => window.location.href = '/compose'}
                   className="bg-green-600 hover:bg-green-700"
                 >
-                  Start Messaging
+                  התחל לשלוח הודעות
                 </Button>
                 <Button 
                   onClick={handleDisconnect}
                   variant="outline"
                   className="text-red-600 border-red-600 hover:bg-red-50"
                 >
-                  Disconnect
+                  נתק
                 </Button>
               </div>
             </CardContent>
@@ -77,21 +77,21 @@ const WhatsAppConnect = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Connection Details</CardTitle>
+              <CardTitle>פרטי החיבור</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Status:</span>
-                  <span className="text-green-600 font-medium">Connected</span>
+                  <span className="text-gray-600">סטטוס:</span>
+                  <span className="text-green-600 font-medium">מחובר</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Connected Groups:</span>
-                  <span className="font-medium">8 groups</span>
+                  <span className="text-gray-600">קבוצות מחוברות:</span>
+                  <span className="font-medium">8 קבוצות</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Last Activity:</span>
-                  <span className="font-medium">2 minutes ago</span>
+                  <span className="text-gray-600">פעילות אחרונה:</span>
+                  <span className="font-medium">לפני דקותיים</span>
                 </div>
               </div>
             </CardContent>
@@ -105,8 +105,8 @@ const WhatsAppConnect = () => {
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Connect Your WhatsApp</h1>
-          <p className="text-gray-600">Scan the QR code with your WhatsApp to connect your account</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">חבר את הוואטסאפ שלך</h1>
+          <p className="text-gray-600">סרוק את קוד ה-QR עם הוואטסאפ שלך כדי לחבר את החשבון</p>
         </div>
 
         <Card>
@@ -117,10 +117,10 @@ const WhatsAppConnect = () => {
                   <Smartphone className="h-12 w-12 text-blue-600 animate-pulse" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                  Connecting...
+                  מתחבר...
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  Please wait while we establish the connection with your WhatsApp.
+                  אנא המתן בזמן שאנו יוצרים את החיבור עם הוואטסאפ שלך.
                 </p>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div className="bg-blue-600 h-2 rounded-full animate-pulse" style={{ width: '60%' }}></div>
@@ -137,21 +137,21 @@ const WhatsAppConnect = () => {
                 </div>
                 
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                  Scan QR Code
+                  סרוק קוד QR
                 </h2>
                 
-                <div className="text-left space-y-3 mb-6 bg-gray-50 p-4 rounded-lg">
+                <div className="text-right space-y-3 mb-6 bg-gray-50 p-4 rounded-lg">
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
-                    <p className="text-sm text-gray-700">Open WhatsApp on your phone</p>
+                    <p className="text-sm text-gray-700">פתח וואטסאפ בטלפון שלך</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
-                    <p className="text-sm text-gray-700">Go to Settings → Linked Devices</p>
+                    <p className="text-sm text-gray-700">עבור להגדרות ← מכשירים מקושרים</p>
                   </div>
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
-                    <p className="text-sm text-gray-700">Tap "Link a Device" and scan this QR code</p>
+                    <p className="text-sm text-gray-700">לחץ על "קשר מכשיר" וסרוק את קוד ה-QR הזה</p>
                   </div>
                 </div>
 
@@ -160,7 +160,7 @@ const WhatsAppConnect = () => {
                   className="bg-green-600 hover:bg-green-700 w-full"
                   disabled={connecting}
                 >
-                  I've Scanned the Code
+                  סרקתי את הקוד
                 </Button>
               </div>
             )}
@@ -172,11 +172,11 @@ const WhatsAppConnect = () => {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-gray-900 mb-2">Important Notes</h3>
+                <h3 className="font-semibold text-gray-900 mb-2">הערות חשובות</h3>
                 <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Keep your phone connected to the internet</li>
-                  <li>• WhatsApp Web sessions expire after some time of inactivity</li>
-                  <li>• You can disconnect at any time from your phone or this dashboard</li>
+                  <li>• השאר את הטלפון שלך מחובר לאינטרנט</li>
+                  <li>• חיבורי וואטסאפ ווב פגים לאחר זמן של חוסר פעילות</li>
+                  <li>• אתה יכול להתנתק בכל עת מהטלפון או מהדשבורד הזה</li>
                 </ul>
               </div>
             </div>

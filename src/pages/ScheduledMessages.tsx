@@ -20,24 +20,24 @@ const ScheduledMessages = () => {
   const [messages, setMessages] = useState<ScheduledMessage[]>([
     {
       id: '1',
-      message: 'Don\'t forget about our special promotion ending tomorrow! Get 50% off all premium features.',
-      groups: ['Marketing Team', 'VIP Customers'],
+      message: 'אל תשכחו מהמבצע המיוחד שלנו שמסתיים מחר! קבלו 50% הנחה על כל התכונות הפרימיום.',
+      groups: ['צוות שיווק', 'לקוחות VIP'],
       scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000),
       status: 'pending',
       hasAttachment: true,
     },
     {
       id: '2',
-      message: 'Weekly team update: Please submit your reports by Friday.',
-      groups: ['Sales Team'],
+      message: 'עדכון שבועי לצוות: אנא הגישו את הדוחות שלכם עד יום שישי.',
+      groups: ['צוות מכירות'],
       scheduledFor: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       status: 'pending',
       hasAttachment: false,
     },
     {
       id: '3',
-      message: 'Holiday greetings from our team to yours!',
-      groups: ['All Groups'],
+      message: 'ברכות חג מהצוות שלנו לצוות שלכם!',
+      groups: ['כל הקבוצות'],
       scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       status: 'pending',
       hasAttachment: true,
@@ -46,34 +46,34 @@ const ScheduledMessages = () => {
 
   const handleEdit = (id: string) => {
     toast({
-      title: "Edit Message",
-      description: "Edit functionality would open the composer with this message.",
+      title: "ערוך הודעה",
+      description: "תכונת העריכה תפתח את הודעת הכתיבה עם ההודעה הזו.",
     });
   };
 
   const handleDelete = (id: string) => {
     setMessages(messages.filter(msg => msg.id !== id));
     toast({
-      title: "Message Deleted",
-      description: "The scheduled message has been deleted.",
+      title: "הודעה נמחקה",
+      description: "ההודעה המתוזמנת נמחקה.",
     });
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="text-blue-600 border-blue-600">Pending</Badge>;
+        return <Badge variant="outline" className="text-blue-600 border-blue-600">ממתין</Badge>;
       case 'sent':
-        return <Badge variant="outline" className="text-green-600 border-green-600">Sent</Badge>;
+        return <Badge variant="outline" className="text-green-600 border-green-600">נשלח</Badge>;
       case 'failed':
-        return <Badge variant="outline" className="text-red-600 border-red-600">Failed</Badge>;
+        return <Badge variant="outline" className="text-red-600 border-red-600">נכשל</Badge>;
       default:
-        return <Badge variant="outline">Unknown</Badge>;
+        return <Badge variant="outline">לא ידוע</Badge>;
     }
   };
 
   const formatDateTime = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString('he-IL', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -87,14 +87,14 @@ const ScheduledMessages = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Scheduled Messages</h1>
-            <p className="text-gray-600">Manage your upcoming message deliveries</p>
+            <h1 className="text-3xl font-bold text-gray-900">הודעות מתוזמנות</h1>
+            <p className="text-gray-600">נהל את משלוחי ההודעות העתידיים שלך</p>
           </div>
           <Button 
             onClick={() => window.location.href = '/compose'}
             className="bg-green-600 hover:bg-green-700"
           >
-            Schedule New Message
+            תזמן הודעה חדשה
           </Button>
         </div>
 
@@ -107,7 +107,7 @@ const ScheduledMessages = () => {
                   <Calendar className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Scheduled</p>
+                  <p className="text-sm text-gray-600">סך מתוזמנות</p>
                   <p className="text-2xl font-bold">{messages.length}</p>
                 </div>
               </div>
@@ -121,7 +121,7 @@ const ScheduledMessages = () => {
                   <Clock className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Next 24 Hours</p>
+                  <p className="text-sm text-gray-600">ב-24 השעות הבאות</p>
                   <p className="text-2xl font-bold">
                     {messages.filter(msg => msg.scheduledFor.getTime() - Date.now() < 24 * 60 * 60 * 1000).length}
                   </p>
@@ -137,7 +137,7 @@ const ScheduledMessages = () => {
                   <Users className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Groups Targeted</p>
+                  <p className="text-sm text-gray-600">קבוצות ממוקדות</p>
                   <p className="text-2xl font-bold">8</p>
                 </div>
               </div>
@@ -151,13 +151,13 @@ const ScheduledMessages = () => {
             <Card>
               <CardContent className="p-12 text-center">
                 <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No scheduled messages</h3>
-                <p className="text-gray-600 mb-6">You don't have any messages scheduled yet.</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">אין הודעות מתוזמנות</h3>
+                <p className="text-gray-600 mb-6">עדיין לא תזמנת הודעות.</p>
                 <Button 
                   onClick={() => window.location.href = '/compose'}
                   className="bg-green-600 hover:bg-green-700"
                 >
-                  Schedule Your First Message
+                  תזמן את ההודעה הראשונה שלך
                 </Button>
               </CardContent>
             </Card>
@@ -185,7 +185,7 @@ const ScheduledMessages = () => {
                         </div>
                         {message.hasAttachment && (
                           <Badge variant="secondary" className="text-xs">
-                            Has Attachment
+                            יש קובץ מצורף
                           </Badge>
                         )}
                       </div>

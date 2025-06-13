@@ -25,8 +25,8 @@ const SentMessages = () => {
   const [messages] = useState<SentMessage[]>([
     {
       id: '1',
-      message: 'Flash Sale Alert! 🚨 Get 70% off all premium plans for the next 24 hours only. Don\'t miss out!',
-      groups: ['Marketing Team', 'VIP Customers'],
+      message: 'התראת מבצק מבזק! 🚨 קבלו 70% הנחה על כל התוכניות הפרימיום ל-24 השעות הבאות בלבד. אל תפספסו!',
+      groups: ['צוות שיווק', 'לקוחות VIP'],
       sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
       status: 'delivered',
       recipients: 150,
@@ -35,8 +35,8 @@ const SentMessages = () => {
     },
     {
       id: '2',
-      message: 'Good morning team! Here\'s your daily standup reminder. Please join the meeting at 9 AM.',
-      groups: ['Sales Team'],
+      message: 'בוקר טוב צוות! הזכרה לפגישת הסטנדאפ היומית. אנא הצטרפו בשעה 9:00.',
+      groups: ['צוות מכירות'],
       sentAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
       status: 'delivered',
       recipients: 25,
@@ -45,8 +45,8 @@ const SentMessages = () => {
     },
     {
       id: '3',
-      message: 'System maintenance scheduled for tonight from 11 PM to 2 AM. Please plan accordingly.',
-      groups: ['All Groups'],
+      message: 'תחזוקת מערכת מתוכננת הלילה בין 23:00 ל-02:00. אנא תכננו בהתאם.',
+      groups: ['כל הקבוצות'],
       sentAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
       status: 'pending',
       recipients: 200,
@@ -55,8 +55,8 @@ const SentMessages = () => {
     },
     {
       id: '4',
-      message: 'Welcome to our premium service! Here\'s your getting started guide.',
-      groups: ['VIP Customers'],
+      message: 'ברוכים הבאים לשירות הפרימיום שלנו! הנה המדריך להתחלה שלכם.',
+      groups: ['לקוחות VIP'],
       sentAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
       status: 'failed',
       recipients: 50,
@@ -65,8 +65,8 @@ const SentMessages = () => {
     },
     {
       id: '5',
-      message: 'Thank you for your purchase! Your order #12345 has been confirmed and will be shipped soon.',
-      groups: ['Marketing Team'],
+      message: 'תודה על הרכישה! הזמנה מספר 12345 אושרה ותישלח בקרוב.',
+      groups: ['צוות שיווק'],
       sentAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
       status: 'delivered',
       recipients: 75,
@@ -80,26 +80,26 @@ const SentMessages = () => {
       case 'delivered':
         return (
           <Badge variant="outline" className="text-green-600 border-green-600">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Delivered
+            <CheckCircle className="h-3 w-3 ml-1" />
+            נמסר
           </Badge>
         );
       case 'failed':
         return (
           <Badge variant="outline" className="text-red-600 border-red-600">
-            <XCircle className="h-3 w-3 mr-1" />
-            Failed
+            <XCircle className="h-3 w-3 ml-1" />
+            נכשל
           </Badge>
         );
       case 'pending':
         return (
           <Badge variant="outline" className="text-blue-600 border-blue-600">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
+            <Clock className="h-3 w-3 ml-1" />
+            ממתין
           </Badge>
         );
       default:
-        return <Badge variant="outline">Unknown</Badge>;
+        return <Badge variant="outline">לא ידוע</Badge>;
     }
   };
 
@@ -108,11 +108,11 @@ const SentMessages = () => {
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
     
     if (diffInHours < 1) {
-      return 'Just now';
+      return 'עכשיו';
     } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
+      return `לפני ${Math.floor(diffInHours)} שעות`;
     } else {
-      return date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString('he-IL', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -140,8 +140,8 @@ const SentMessages = () => {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Sent Messages</h1>
-          <p className="text-gray-600">View your message history and delivery statistics</p>
+          <h1 className="text-3xl font-bold text-gray-900">הודעות שנשלחו</h1>
+          <p className="text-gray-600">צפה בהיסטוריית ההודעות ובסטטיסטיקות המסירה</p>
         </div>
 
         {/* Summary Stats */}
@@ -153,7 +153,7 @@ const SentMessages = () => {
                   <CheckCircle className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Sent</p>
+                  <p className="text-sm text-gray-600">סך נשלחו</p>
                   <p className="text-2xl font-bold">{totalMessages}</p>
                 </div>
               </div>
@@ -167,7 +167,7 @@ const SentMessages = () => {
                   <CheckCircle className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Delivered</p>
+                  <p className="text-sm text-gray-600">נמסרו</p>
                   <p className="text-2xl font-bold">{deliveredMessages}</p>
                 </div>
               </div>
@@ -181,7 +181,7 @@ const SentMessages = () => {
                   <XCircle className="h-5 w-5 text-red-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Failed</p>
+                  <p className="text-sm text-gray-600">נכשלו</p>
                   <p className="text-2xl font-bold">{failedMessages}</p>
                 </div>
               </div>
@@ -195,7 +195,7 @@ const SentMessages = () => {
                   <Users className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Success Rate</p>
+                  <p className="text-sm text-gray-600">אחוז הצלחה</p>
                   <p className="text-2xl font-bold">
                     {totalMessages > 0 ? Math.round((deliveredMessages / totalMessages) * 100) : 0}%
                   </p>
@@ -208,24 +208,24 @@ const SentMessages = () => {
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
             <Input
-              placeholder="Search messages..."
+              placeholder="חפש הודעות..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pr-10"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full sm:w-48">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filter by status" />
+              <Filter className="h-4 w-4 ml-2" />
+              <SelectValue placeholder="סנן לפי סטטוס" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Messages</SelectItem>
-              <SelectItem value="delivered">Delivered</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
+              <SelectItem value="all">כל ההודעות</SelectItem>
+              <SelectItem value="delivered">נמסרו</SelectItem>
+              <SelectItem value="pending">ממתינות</SelectItem>
+              <SelectItem value="failed">נכשלו</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -236,8 +236,8 @@ const SentMessages = () => {
             <Card>
               <CardContent className="p-12 text-center">
                 <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No messages found</h3>
-                <p className="text-gray-600">Try adjusting your search or filters.</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">לא נמצאו הודעות</h3>
+                <p className="text-gray-600">נסה לתקן את החיפוש או הסינון.</p>
               </CardContent>
             </Card>
           ) : (
@@ -247,7 +247,7 @@ const SentMessages = () => {
                   <div className="flex flex-col lg:flex-row lg:items-start gap-4">
                     <div className="flex-1">
                       <div className="flex items-start justify-between mb-3">
-                        <p className="text-gray-900 font-medium line-clamp-2 pr-4">
+                        <p className="text-gray-900 font-medium line-clamp-2 pl-4">
                           {message.message}
                         </p>
                         {getStatusBadge(message.status)}
@@ -264,15 +264,15 @@ const SentMessages = () => {
                         </div>
                         {message.hasAttachment && (
                           <Badge variant="secondary" className="text-xs">
-                            Has Attachment
+                            יש קובץ מצורף
                           </Badge>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex flex-col items-end text-right">
+                    <div className="flex flex-col items-end text-left">
                       <div className="text-sm text-gray-600 mb-1">
-                        {message.delivered} / {message.recipients} delivered
+                        {message.delivered} / {message.recipients} נמסרו
                       </div>
                       <div className={`text-lg font-semibold ${
                         message.status === 'delivered' ? 'text-green-600' : 

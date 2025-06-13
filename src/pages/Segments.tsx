@@ -30,36 +30,36 @@ const Segments = () => {
   const [segments, setSegments] = useState<Segment[]>([
     {
       id: '1',
-      name: 'Marketing Campaigns',
-      groups: ['Marketing Team', 'VIP Customers'],
+      name: 'קמפיינים שיווקיים',
+      groups: ['צוות שיווק', 'לקוחות VIP'],
       totalMembers: 125,
       createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
     },
     {
       id: '2',
-      name: 'Internal Communications',
-      groups: ['Sales Team', 'Customer Support'],
+      name: 'תקשורת פנימית',
+      groups: ['צוות מכירות', 'שירות לקוחות'],
       totalMembers: 45,
       createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
     },
     {
       id: '3',
-      name: 'Premium Users',
-      groups: ['VIP Customers'],
+      name: 'משתמשים פרימיום',
+      groups: ['לקוחות VIP'],
       totalMembers: 50,
       createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     },
   ]);
 
   const [availableGroups] = useState<Group[]>([
-    { id: '1', name: 'Marketing Team', members: 25, description: 'Marketing department members' },
-    { id: '2', name: 'Sales Team', members: 20, description: 'Sales representatives' },
-    { id: '3', name: 'Customer Support', members: 15, description: 'Support team members' },
-    { id: '4', name: 'VIP Customers', members: 50, description: 'Premium customers' },
-    { id: '5', name: 'Beta Testers', members: 30, description: 'Product beta testers' },
-    { id: '6', name: 'Newsletter Subscribers', members: 200, description: 'Newsletter subscribers' },
-    { id: '7', name: 'Event Attendees', members: 80, description: 'Past event attendees' },
-    { id: '8', name: 'Partners', members: 12, description: 'Business partners' },
+    { id: '1', name: 'צוות שיווק', members: 25, description: 'חברי מחלקת השיווק' },
+    { id: '2', name: 'צוות מכירות', members: 20, description: 'נציגי מכירות' },
+    { id: '3', name: 'שירות לקוחות', members: 15, description: 'צוות שירות לקוחות' },
+    { id: '4', name: 'לקוחות VIP', members: 50, description: 'לקוחות פרימיום' },
+    { id: '5', name: 'בודקי בטא', members: 30, description: 'בודקי המוצר' },
+    { id: '6', name: 'מנויי ניוזלטר', members: 200, description: 'מנויי הניוזלטר' },
+    { id: '7', name: 'משתתפי אירועים', members: 80, description: 'משתתפי אירועים קודמים' },
+    { id: '8', name: 'שותפים עסקיים', members: 12, description: 'שותפים עסקיים' },
   ]);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -70,8 +70,8 @@ const Segments = () => {
   const handleCreateSegment = () => {
     if (!newSegmentName.trim()) {
       toast({
-        title: "Name required",
-        description: "Please enter a segment name.",
+        title: "נדרש שם",
+        description: "אנא הכנס שם לקטגוריה.",
         variant: "destructive",
       });
       return;
@@ -79,8 +79,8 @@ const Segments = () => {
 
     if (selectedGroups.length === 0) {
       toast({
-        title: "Groups required",
-        description: "Please select at least one group.",
+        title: "נדרשות קבוצות",
+        description: "אנא בחר לפחות קבוצה אחת.",
         variant: "destructive",
       });
       return;
@@ -105,8 +105,8 @@ const Segments = () => {
     setIsCreateDialogOpen(false);
     
     toast({
-      title: "Segment created!",
-      description: `"${newSegmentName}" has been created with ${selectedGroups.length} groups.`,
+      title: "קטגוריה נוצרה!",
+      description: `"${newSegmentName}" נוצרה עם ${selectedGroups.length} קבוצות.`,
     });
   };
 
@@ -139,8 +139,8 @@ const Segments = () => {
     setIsCreateDialogOpen(false);
     
     toast({
-      title: "Segment updated!",
-      description: `"${newSegmentName}" has been updated.`,
+      title: "קטגוריה עודכנה!",
+      description: `"${newSegmentName}" עודכנה.`,
     });
   };
 
@@ -148,8 +148,8 @@ const Segments = () => {
     const segment = segments.find(s => s.id === id);
     setSegments(segments.filter(s => s.id !== id));
     toast({
-      title: "Segment deleted",
-      description: `"${segment?.name}" has been deleted.`,
+      title: "קטגוריה נמחקה",
+      description: `"${segment?.name}" נמחקה.`,
     });
   };
 
@@ -172,8 +172,8 @@ const Segments = () => {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Segments</h1>
-            <p className="text-gray-600">Create and manage group segments for targeted messaging</p>
+            <h1 className="text-3xl font-bold text-gray-900">קטגוריות</h1>
+            <p className="text-gray-600">צור ונהל קטגוריות קבוצות להודעות ממוקדות</p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
             setIsCreateDialogOpen(open);
@@ -181,22 +181,22 @@ const Segments = () => {
           }}>
             <DialogTrigger asChild>
               <Button className="bg-green-600 hover:bg-green-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Segment
+                <Plus className="h-4 w-4 ml-2" />
+                צור קטגוריה
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
-                  {editingSegment ? 'Edit Segment' : 'Create New Segment'}
+                  {editingSegment ? 'ערוך קטגוריה' : 'צור קטגוריה חדשה'}
                 </DialogTitle>
               </DialogHeader>
               <div className="space-y-6">
                 <div>
-                  <Label htmlFor="segmentName">Segment Name</Label>
+                  <Label htmlFor="segmentName">שם הקטגוריה</Label>
                   <Input
                     id="segmentName"
-                    placeholder="Enter segment name..."
+                    placeholder="הכנס שם לקטגוריה..."
                     value={newSegmentName}
                     onChange={(e) => setNewSegmentName(e.target.value)}
                     className="mt-1"
@@ -204,10 +204,10 @@ const Segments = () => {
                 </div>
                 
                 <div>
-                  <Label>Select Groups</Label>
+                  <Label>בחר קבוצות</Label>
                   <div className="mt-2 space-y-3 max-h-64 overflow-y-auto">
                     {availableGroups.map((group) => (
-                      <div key={group.id} className="flex items-center space-x-3">
+                      <div key={group.id} className="flex items-center space-x-3 space-x-reverse">
                         <Checkbox
                           id={group.id}
                           checked={selectedGroups.includes(group.name)}
@@ -217,7 +217,7 @@ const Segments = () => {
                           <label htmlFor={group.id} className="text-sm font-medium cursor-pointer">
                             {group.name}
                           </label>
-                          <p className="text-xs text-gray-500">{group.description} • {group.members} members</p>
+                          <p className="text-xs text-gray-500">{group.description} • {group.members} חברים</p>
                         </div>
                       </div>
                     ))}
@@ -226,7 +226,7 @@ const Segments = () => {
 
                 {selectedGroups.length > 0 && (
                   <div className="p-4 bg-green-50 rounded-lg">
-                    <h4 className="font-medium text-green-900 mb-2">Selected Groups:</h4>
+                    <h4 className="font-medium text-green-900 mb-2">קבוצות נבחרות:</h4>
                     <div className="flex flex-wrap gap-2">
                       {selectedGroups.map(group => (
                         <Badge key={group} variant="outline" className="text-green-700 border-green-700">
@@ -235,7 +235,7 @@ const Segments = () => {
                       ))}
                     </div>
                     <p className="text-sm text-green-700 mt-2">
-                      Total members: {selectedGroups.reduce((sum, groupName) => {
+                      סך הכל חברים: {selectedGroups.reduce((sum, groupName) => {
                         const group = availableGroups.find(g => g.name === groupName);
                         return sum + (group?.members || 0);
                       }, 0)}
@@ -248,13 +248,13 @@ const Segments = () => {
                     variant="outline"
                     onClick={() => setIsCreateDialogOpen(false)}
                   >
-                    Cancel
+                    ביטול
                   </Button>
                   <Button
                     onClick={editingSegment ? handleUpdateSegment : handleCreateSegment}
                     className="bg-green-600 hover:bg-green-700"
                   >
-                    {editingSegment ? 'Update Segment' : 'Create Segment'}
+                    {editingSegment ? 'עדכן קטגוריה' : 'צור קטגוריה'}
                   </Button>
                 </div>
               </div>
@@ -271,7 +271,7 @@ const Segments = () => {
                   <Users className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Segments</p>
+                  <p className="text-sm text-gray-600">סך קטגוריות</p>
                   <p className="text-2xl font-bold">{segments.length}</p>
                 </div>
               </div>
@@ -285,7 +285,7 @@ const Segments = () => {
                   <MessageSquare className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Available Groups</p>
+                  <p className="text-sm text-gray-600">קבוצות זמינות</p>
                   <p className="text-2xl font-bold">{availableGroups.length}</p>
                 </div>
               </div>
@@ -299,7 +299,7 @@ const Segments = () => {
                   <Users className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Total Members</p>
+                  <p className="text-sm text-gray-600">סך חברים</p>
                   <p className="text-2xl font-bold">
                     {availableGroups.reduce((sum, group) => sum + group.members, 0)}
                   </p>
@@ -315,13 +315,13 @@ const Segments = () => {
             <Card>
               <CardContent className="p-12 text-center">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No segments created</h3>
-                <p className="text-gray-600 mb-6">Create your first segment to organize your groups for targeted messaging.</p>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">לא נוצרו קטגוריות</h3>
+                <p className="text-gray-600 mb-6">צור את הקטגוריה הראשונה שלך כדי לארגן את הקבוצות שלך להודעות ממוקדות.</p>
                 <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                   <DialogTrigger asChild>
                     <Button className="bg-green-600 hover:bg-green-700">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Your First Segment
+                      <Plus className="h-4 w-4 ml-2" />
+                      צור את הקטגוריה הראשונה
                     </Button>
                   </DialogTrigger>
                 </Dialog>
@@ -336,7 +336,7 @@ const Segments = () => {
                       <div className="flex items-start justify-between mb-3">
                         <h3 className="text-lg font-semibold text-gray-900">{segment.name}</h3>
                         <Badge variant="outline">
-                          {segment.totalMembers} members
+                          {segment.totalMembers} חברים
                         </Badge>
                       </div>
                       
@@ -349,7 +349,7 @@ const Segments = () => {
                       </div>
                       
                       <p className="text-sm text-gray-600">
-                        Created {segment.createdAt.toLocaleDateString('en-US', {
+                        נוצר ב-{segment.createdAt.toLocaleDateString('he-IL', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric'
@@ -378,8 +378,8 @@ const Segments = () => {
                         onClick={() => window.location.href = '/compose'}
                         className="bg-green-600 hover:bg-green-700"
                       >
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        Message
+                        <MessageSquare className="h-4 w-4 ml-1" />
+                        הודעה
                       </Button>
                     </div>
                   </div>

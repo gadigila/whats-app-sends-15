@@ -18,47 +18,47 @@ const Billing = () => {
 
   const plans = [
     {
-      name: 'Starter',
+      name: 'בסיסי',
       price: 19,
-      period: 'month',
-      description: 'Perfect for small teams',
+      period: 'חודש',
+      description: 'מושלם לצוותים קטנים',
       features: [
-        'Up to 5 WhatsApp groups',
-        '100 messages per month',
-        'Basic scheduling',
-        'Email support',
+        'עד 5 קבוצות וואטסאפ',
+        '100 הודעות בחודש',
+        'תזמון בסיסי',
+        'תמיכה באימייל',
       ],
       popular: false,
       color: 'blue',
     },
     {
-      name: 'Pro',
+      name: 'מקצועי',
       price: 49,
-      period: 'month',
-      description: 'Best for growing businesses',
+      period: 'חודש',
+      description: 'הטוב ביותר לעסקים בצמיחה',
       features: [
-        'Up to 25 WhatsApp groups',
-        '1,000 messages per month',
-        'Advanced scheduling',
-        'Message templates',
-        'Priority support',
-        'Analytics dashboard',
+        'עד 25 קבוצות וואטסאפ',
+        '1,000 הודעות בחודש',
+        'תזמון מתקדם',
+        'תבניות הודעות',
+        'תמיכה עדיפות',
+        'דשבורד אנליטיקה',
       ],
       popular: true,
       color: 'green',
     },
     {
-      name: 'Enterprise',
+      name: 'ארגוני',
       price: 99,
-      period: 'month',
-      description: 'For large organizations',
+      period: 'חודש',
+      description: 'לארגונים גדולים',
       features: [
-        'Unlimited WhatsApp groups',
-        'Unlimited messages',
-        'Advanced automation',
-        'Custom integrations',
-        'Dedicated support',
-        'White-label option',
+        'קבוצות וואטסאפ ללא הגבלה',
+        'הודעות ללא הגבלה',
+        'אוטומציה מתקדמת',
+        'אינטגרציות מותאמות',
+        'תמיכה ייעודית',
+        'אפשרות White-label',
       ],
       popular: false,
       color: 'purple',
@@ -77,8 +77,8 @@ const Billing = () => {
     });
     
     toast({
-      title: "Upgrade successful!",
-      description: `You've successfully upgraded to the ${planName} plan.`,
+      title: "השדרוג הצליח!",
+      description: `שדרגת בהצלחה לתוכנית ${planName}.`,
     });
     
     setLoading(false);
@@ -87,8 +87,8 @@ const Billing = () => {
   const handleCancelSubscription = () => {
     updateUser({ isPaid: false });
     toast({
-      title: "Subscription cancelled",
-      description: "Your subscription has been cancelled. You can still use the service until your current period ends.",
+      title: "המנוי בוטל",
+      description: "המנוי שלך בוטל. אתה עדיין יכול להשתמש בשירות עד תום התקופה הנוכחית.",
     });
   };
 
@@ -96,8 +96,8 @@ const Billing = () => {
     <Layout>
       <div className="space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Billing & Subscription</h1>
-          <p className="text-gray-600">Manage your subscription and billing information</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">חיוב ומנוי</h1>
+          <p className="text-gray-600">נהל את המנוי ופרטי החיוב שלך</p>
         </div>
 
         {/* Current Status */}
@@ -105,7 +105,7 @@ const Billing = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CreditCard className="h-5 w-5" />
-              Current Plan
+              תוכנית נוכחית
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -113,22 +113,22 @@ const Billing = () => {
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-lg font-semibold">
-                    {user?.isPaid ? 'Pro Plan' : 'Free Trial'}
+                    {user?.isPaid ? 'תוכנית מקצועי' : 'ניסיון חינם'}
                   </h3>
                   {user?.isPaid ? (
-                    <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    <Badge className="bg-green-100 text-green-800">פעיל</Badge>
                   ) : isTrialActive ? (
-                    <Badge className="bg-blue-100 text-blue-800">Trial Active</Badge>
+                    <Badge className="bg-blue-100 text-blue-800">ניסיון פעיל</Badge>
                   ) : (
-                    <Badge variant="destructive">Trial Expired</Badge>
+                    <Badge variant="destructive">ניסיון פג</Badge>
                   )}
                 </div>
                 <p className="text-gray-600">
                   {user?.isPaid 
-                    ? 'Your subscription is active and will renew automatically.'
+                    ? 'המנוי שלך פעיל ויתחדש אוטומטית.'
                     : isTrialActive
-                      ? `Your free trial ends in ${trialDaysLeft} days.`
-                      : 'Your free trial has expired. Please upgrade to continue using the service.'
+                      ? `תקופת הניסיון החינמית מסתיימת בעוד ${trialDaysLeft} ימים.`
+                      : 'תקופת הניסיון החינמית שלך הסתיימה. אנא שדרג כדי להמשיך להשתמש בשירות.'
                   }
                 </p>
               </div>
@@ -140,15 +140,15 @@ const Billing = () => {
                     onClick={handleCancelSubscription}
                     className="text-red-600 border-red-600 hover:bg-red-50"
                   >
-                    Cancel Subscription
+                    בטל מנוי
                   </Button>
                 ) : (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Calendar className="h-4 w-4" />
                     <span>
                       {isTrialActive 
-                        ? `${trialDaysLeft} days left`
-                        : 'Trial expired'
+                        ? `${trialDaysLeft} ימים נותרו`
+                        : 'ניסיון פג'
                       }
                     </span>
                   </div>
@@ -168,7 +168,7 @@ const Billing = () => {
                     <MessageSquare className="h-5 w-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Messages This Month</p>
+                    <p className="text-sm text-gray-600">הודעות החודש</p>
                     <p className="text-2xl font-bold">127 / {user?.isPaid ? '1,000' : '100'}</p>
                   </div>
                 </div>
@@ -182,7 +182,7 @@ const Billing = () => {
                     <Users className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">Groups Connected</p>
+                    <p className="text-sm text-gray-600">קבוצות מחוברות</p>
                     <p className="text-2xl font-bold">8 / {user?.isPaid ? '25' : '5'}</p>
                   </div>
                 </div>
@@ -196,7 +196,7 @@ const Billing = () => {
                     <Zap className="h-5 w-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-600">API Calls</p>
+                    <p className="text-sm text-gray-600">קריאות API</p>
                     <p className="text-2xl font-bold">1,234</p>
                   </div>
                 </div>
@@ -208,7 +208,7 @@ const Billing = () => {
         {/* Pricing Plans */}
         {!user?.isPaid && (
           <div>
-            <h2 className="text-2xl font-bold text-center text-gray-900 mb-8">Choose Your Plan</h2>
+            <h2 className="text-2xl font-bold text-center text-gray-900 mb-8">בחר את התוכנית שלך</h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {plans.map((plan) => (
                 <Card 
@@ -218,8 +218,8 @@ const Billing = () => {
                   {plan.popular && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <Badge className="bg-green-600 text-white px-4 py-1">
-                        <Crown className="h-3 w-3 mr-1" />
-                        Most Popular
+                        <Crown className="h-3 w-3 ml-1" />
+                        הכי פופולרי
                       </Badge>
                     </div>
                   )}
@@ -227,7 +227,7 @@ const Billing = () => {
                   <CardHeader className="text-center pb-4">
                     <CardTitle className="text-xl">{plan.name}</CardTitle>
                     <div className="mt-2">
-                      <span className="text-3xl font-bold">${plan.price}</span>
+                      <span className="text-3xl font-bold">₪{plan.price}</span>
                       <span className="text-gray-600">/{plan.period}</span>
                     </div>
                     <p className="text-sm text-gray-600">{plan.description}</p>
@@ -252,7 +252,7 @@ const Billing = () => {
                           : 'bg-gray-900 hover:bg-gray-800'
                       }`}
                     >
-                      {loading ? 'Processing...' : `Upgrade to ${plan.name}`}
+                      {loading ? 'מעבד...' : `שדרג ל${plan.name}`}
                     </Button>
                   </CardContent>
                 </Card>
@@ -269,25 +269,25 @@ const Billing = () => {
                 <CreditCard className="h-8 w-8 text-red-600" />
               </div>
               <h3 className="text-lg font-semibold text-red-900 mb-2">
-                Your trial has expired
+                תקופת הניסיון שלך הסתיימה
               </h3>
               <p className="text-red-700 mb-6">
-                Please upgrade to a paid plan to continue using WhatsApp Scheduler.
+                אנא שדרג לתוכנית בתשלום כדי להמשיך להשתמש במתזמן וואטסאפ.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button 
-                  onClick={() => handleUpgrade('Pro', 49)}
+                  onClick={() => handleUpgrade('מקצועי', 49)}
                   className="bg-green-600 hover:bg-green-700"
                   disabled={loading}
                 >
-                  {loading ? 'Processing...' : 'Upgrade to Pro - $49/month'}
+                  {loading ? 'מעבד...' : 'שדרג למקצועי - ₪49/חודש'}
                 </Button>
                 <Button
-                  onClick={() => handleUpgrade('Starter', 19)}
+                  onClick={() => handleUpgrade('בסיסי', 19)}
                   variant="outline"
                   disabled={loading}
                 >
-                  {loading ? 'Processing...' : 'Start with Starter - $19/month'}
+                  {loading ? 'מעבד...' : 'התחל עם בסיסי - ₪19/חודש'}
                 </Button>
               </div>
             </CardContent>
@@ -298,28 +298,28 @@ const Billing = () => {
         {user?.isPaid && (
           <Card>
             <CardHeader>
-              <CardTitle>Payment History</CardTitle>
+              <CardTitle>היסטוריית תשלומים</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between py-3 border-b border-gray-200">
                   <div>
-                    <p className="font-medium">Pro Plan - Monthly</p>
-                    <p className="text-sm text-gray-600">Dec 13, 2024</p>
+                    <p className="font-medium">תוכנית מקצועי - חודשי</p>
+                    <p className="text-sm text-gray-600">13 בדצמבר, 2024</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">$49.00</p>
-                    <Badge variant="outline" className="text-green-600">Paid</Badge>
+                  <div className="text-left">
+                    <p className="font-medium">₪49.00</p>
+                    <Badge variant="outline" className="text-green-600">שולם</Badge>
                   </div>
                 </div>
                 <div className="flex items-center justify-between py-3 border-b border-gray-200">
                   <div>
-                    <p className="font-medium">Pro Plan - Monthly</p>
-                    <p className="text-sm text-gray-600">Nov 13, 2024</p>
+                    <p className="font-medium">תוכנית מקצועי - חודשי</p>
+                    <p className="text-sm text-gray-600">13 בנובמבר, 2024</p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">$49.00</p>
-                    <Badge variant="outline" className="text-green-600">Paid</Badge>
+                  <div className="text-left">
+                    <p className="font-medium">₪49.00</p>
+                    <Badge variant="outline" className="text-green-600">שולם</Badge>
                   </div>
                 </div>
               </div>

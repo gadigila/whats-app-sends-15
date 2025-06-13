@@ -13,28 +13,28 @@ const Dashboard = () => {
   
   const stats = [
     {
-      title: 'Messages Sent',
+      title: 'הודעות שנשלחו',
       value: '127',
       icon: MessageSquare,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Groups Connected',
+      title: 'קבוצות מחוברות',
       value: user?.whatsappConnected ? '8' : '0',
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
-      title: 'Scheduled',
+      title: 'מתוזמנות',
       value: '5',
       icon: Calendar,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
     },
     {
-      title: 'Success Rate',
+      title: 'אחוז הצלחה',
       value: '98%',
       icon: CheckCircle,
       color: 'text-emerald-600',
@@ -49,12 +49,12 @@ const Dashboard = () => {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Welcome back, {user?.name}!
+              ברוך השב, {user?.name}!
             </h1>
             <p className="text-gray-600">
               {user?.isPaid 
-                ? "Your account is active and ready to go."
-                : `You have ${Math.max(0, trialDaysLeft)} days left in your free trial.`
+                ? "החשבון שלך פעיל ומוכן לשימוש."
+                : `נותרו לך ${Math.max(0, trialDaysLeft)} ימים בתקופת הניסיון החינמית.`
               }
             </p>
           </div>
@@ -62,7 +62,7 @@ const Dashboard = () => {
           {!user?.whatsappConnected && (
             <Link to="/connect">
               <Button className="bg-green-600 hover:bg-green-700">
-                Connect WhatsApp
+                חבר וואטסאפ
               </Button>
             </Link>
           )}
@@ -81,18 +81,18 @@ const Dashboard = () => {
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-lg">
-                  WhatsApp Status: {user?.whatsappConnected ? 'Connected' : 'Not Connected'}
+                  סטטוס וואטסאפ: {user?.whatsappConnected ? 'מחובר' : 'לא מחובר'}
                 </h3>
                 <p className="text-gray-600">
                   {user?.whatsappConnected 
-                    ? 'Your WhatsApp is connected and ready to send messages.'
-                    : 'Connect your WhatsApp to start sending messages to your groups.'
+                    ? 'הוואטסאפ שלך מחובר ומוכן לשליחת הודעות.'
+                    : 'חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות לקבוצות.'
                   }
                 </p>
               </div>
               {!user?.whatsappConnected && (
                 <Link to="/connect">
-                  <Button>Connect Now</Button>
+                  <Button>חבר עכשיו</Button>
                 </Link>
               )}
             </div>
@@ -125,25 +125,25 @@ const Dashboard = () => {
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
+              <CardTitle>פעולות מהירות</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Link to="/compose" className="block">
                 <Button variant="outline" className="w-full justify-start">
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Compose New Message
+                  <MessageSquare className="h-4 w-4 ml-2" />
+                  כתוב הודעה חדשה
                 </Button>
               </Link>
               <Link to="/scheduled" className="block">
                 <Button variant="outline" className="w-full justify-start">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  View Scheduled Messages
+                  <Calendar className="h-4 w-4 ml-2" />
+                  צפה בהודעות מתוזמנות
                 </Button>
               </Link>
               <Link to="/segments" className="block">
                 <Button variant="outline" className="w-full justify-start">
-                  <Users className="h-4 w-4 mr-2" />
-                  Manage Segments
+                  <Users className="h-4 w-4 ml-2" />
+                  נהל קטגוריות
                 </Button>
               </Link>
             </CardContent>
@@ -151,21 +151,21 @@ const Dashboard = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
+              <CardTitle>פעילות אחרונה</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>Message sent to "Marketing Team" - 2 hours ago</span>
+                  <span>הודעה נשלחה ל"צוות שיווק" - לפני שעתיים</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span>New segment "VIP Customers" created - 1 day ago</span>
+                  <span>קטגוריה חדשה "לקוחות VIP" נוצרה - לפני יום</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <span>Scheduled message for tomorrow - 2 days ago</span>
+                  <span>הודעה תוזמנה למחר - לפני יומיים</span>
                 </div>
               </div>
             </CardContent>
