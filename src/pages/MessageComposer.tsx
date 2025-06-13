@@ -18,11 +18,11 @@ const MessageComposer = () => {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   
   const groups = [
-    { id: 'all', name: 'All Groups (8)' },
-    { id: 'marketing', name: 'Marketing Team' },
-    { id: 'sales', name: 'Sales Team' },
-    { id: 'support', name: 'Customer Support' },
-    { id: 'vip', name: 'VIP Customers' },
+    { id: 'all', name: 'כל הקבוצות (8)' },
+    { id: 'marketing', name: 'צוות שיווק' },
+    { id: 'sales', name: 'צוות מכירות' },
+    { id: 'support', name: 'שירות לקוחות' },
+    { id: 'vip', name: 'לקוחות VIP' },
   ];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,16 +30,16 @@ const MessageComposer = () => {
     if (file) {
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
         toast({
-          title: "File too large",
-          description: "Please select a file smaller than 10MB.",
+          title: "קובץ גדול מדי",
+          description: "אנא בחר קובץ קטן מ-10MB.",
           variant: "destructive",
         });
         return;
       }
       setAttachedFile(file);
       toast({
-        title: "File attached",
-        description: `${file.name} has been attached to your message.`,
+        title: "קובץ צורף",
+        description: `${file.name} צורף להודעה שלך.`,
       });
     }
   };
@@ -47,8 +47,8 @@ const MessageComposer = () => {
   const handleSendNow = () => {
     if (!message.trim()) {
       toast({
-        title: "Message required",
-        description: "Please enter a message to send.",
+        title: "הודעה נדרשת",
+        description: "אנא הכנס הודעה לשליחה.",
         variant: "destructive",
       });
       return;
@@ -56,16 +56,16 @@ const MessageComposer = () => {
     
     if (!selectedGroups) {
       toast({
-        title: "Select groups",
-        description: "Please select groups to send the message to.",
+        title: "בחר קבוצות",
+        description: "אנא בחר קבוצות לשליחת ההודעה.",
         variant: "destructive",
       });
       return;
     }
 
     toast({
-      title: "Message sent!",
-      description: `Your message has been sent to ${selectedGroups}.`,
+      title: "ההודעה נשלחה!",
+      description: `ההודעה שלך נשלחה ל${selectedGroups}.`,
     });
     
     // Clear form
@@ -77,16 +77,16 @@ const MessageComposer = () => {
   const handleSchedule = () => {
     if (!message.trim() || !selectedGroups || !scheduleDate || !scheduleTime) {
       toast({
-        title: "Missing information",
-        description: "Please fill in all fields to schedule a message.",
+        title: "חסר מידע",
+        description: "אנא מלא את כל השדות כדי לתזמן הודעה.",
         variant: "destructive",
       });
       return;
     }
 
     toast({
-      title: "Message scheduled!",
-      description: `Your message will be sent on ${scheduleDate} at ${scheduleTime}.`,
+      title: "ההודעה תוזמנה!",
+      description: `ההודעה שלך תישלח ב-${scheduleDate} בשעה ${scheduleTime}.`,
     });
     
     // Clear form
@@ -101,8 +101,8 @@ const MessageComposer = () => {
     <Layout>
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Compose Message</h1>
-          <p className="text-gray-600">Create and send messages to your WhatsApp groups</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">כתיבת הודעה</h1>
+          <p className="text-gray-600">צור ושלח הודעות לקבוצות הוואטסאפ שלך</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -110,26 +110,26 @@ const MessageComposer = () => {
             {/* Message Content */}
             <Card>
               <CardHeader>
-                <CardTitle>Message Content</CardTitle>
+                <CardTitle>תוכן ההודעה</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="message">Message Text</Label>
+                  <Label htmlFor="message">טקסט ההודעה</Label>
                   <Textarea
                     id="message"
-                    placeholder="Type your message here..."
+                    placeholder="כתוב את ההודעה שלך כאן..."
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     rows={6}
                     className="mt-1"
                   />
                   <p className="text-sm text-gray-500 mt-1">
-                    {message.length}/4096 characters
+                    {message.length}/4096 תווים
                   </p>
                 </div>
 
                 <div>
-                  <Label>Attachment</Label>
+                  <Label>קובץ מצורף</Label>
                   <div className="mt-1 flex items-center gap-4">
                     <label className="cursor-pointer">
                       <input
@@ -140,7 +140,7 @@ const MessageComposer = () => {
                       />
                       <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
                         <Upload className="h-4 w-4" />
-                        <span className="text-sm">Upload File</span>
+                        <span className="text-sm">העלה קובץ</span>
                       </div>
                     </label>
                     
@@ -168,14 +168,14 @@ const MessageComposer = () => {
             {/* Recipients */}
             <Card>
               <CardHeader>
-                <CardTitle>Recipients</CardTitle>
+                <CardTitle>נמענים</CardTitle>
               </CardHeader>
               <CardContent>
                 <div>
-                  <Label htmlFor="groups">Select Groups</Label>
+                  <Label htmlFor="groups">בחר קבוצות</Label>
                   <Select value={selectedGroups} onValueChange={setSelectedGroups}>
                     <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Choose groups to send to..." />
+                      <SelectValue placeholder="בחר קבוצות לשליחה..." />
                     </SelectTrigger>
                     <SelectContent>
                       {groups.map((group) => (
@@ -194,13 +194,13 @@ const MessageComposer = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />
-                  Schedule (Optional)
+                  תזמון (אופציונלי)
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="date">Date</Label>
+                    <Label htmlFor="date">תאריך</Label>
                     <Input
                       id="date"
                       type="date"
@@ -211,7 +211,7 @@ const MessageComposer = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="time">Time</Label>
+                    <Label htmlFor="time">שעה</Label>
                     <Input
                       id="time"
                       type="time"
@@ -229,13 +229,13 @@ const MessageComposer = () => {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Preview</CardTitle>
+                <CardTitle>תצוגה מקדימה</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="bg-green-50 p-4 rounded-lg">
                   <div className="bg-white p-3 rounded-lg shadow-sm">
                     <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                      {message || "Your message will appear here..."}
+                      {message || "ההודעה שלך תופיע כאן..."}
                     </p>
                     {attachedFile && (
                       <div className="mt-2 p-2 bg-gray-50 rounded flex items-center gap-2">
@@ -254,7 +254,7 @@ const MessageComposer = () => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Actions</CardTitle>
+                <CardTitle>פעולות</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button
@@ -262,8 +262,8 @@ const MessageComposer = () => {
                   className="w-full bg-green-600 hover:bg-green-700"
                   size="lg"
                 >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Now
+                  <Send className="h-4 w-4 ml-2" />
+                  שלח עכשיו
                 </Button>
                 
                 <Button
@@ -273,8 +273,8 @@ const MessageComposer = () => {
                   size="lg"
                   disabled={!scheduleDate || !scheduleTime}
                 >
-                  <Clock className="h-4 w-4 mr-2" />
-                  Schedule Message
+                  <Clock className="h-4 w-4 ml-2" />
+                  תזמן הודעה
                 </Button>
               </CardContent>
             </Card>
@@ -282,12 +282,12 @@ const MessageComposer = () => {
             <Card>
               <CardContent className="p-4">
                 <div className="text-sm text-gray-600 space-y-2">
-                  <p className="font-medium">Tips:</p>
+                  <p className="font-medium">טיפים:</p>
                   <ul className="space-y-1 text-xs">
-                    <li>• Keep messages concise and engaging</li>
-                    <li>• Images get better engagement than text-only</li>
-                    <li>• Best times: 10-11 AM, 7-9 PM</li>
-                    <li>• Test with one group first</li>
+                    <li>• שמור על הודעות קצרות ומעניינות</li>
+                    <li>• תמונות מקבלות יותר מעורבות מטקסט בלבד</li>
+                    <li>• זמנים טובים: 10-11 בבוקר, 7-9 בערב</li>
+                    <li>• נסה קודם עם קבוצה אחת</li>
                   </ul>
                 </div>
               </CardContent>
