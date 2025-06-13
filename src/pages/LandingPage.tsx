@@ -1,11 +1,8 @@
-
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Clock, Users, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
-
 const LandingPage = () => {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white" dir="rtl">
+  return <div className="min-h-screen bg-gradient-to-br from-green-50 to-white" dir="rtl">
       {/* Hero Section */}
       <div className="px-4 py-16 mx-auto max-w-6xl">
         <div className="text-center">
@@ -27,10 +24,7 @@ const LandingPage = () => {
           </p>
           
           <Link to="/auth">
-            <Button 
-              size="lg" 
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg rounded-full shadow-lg hover:shadow-xl transition-all duration-200"
-            >
+            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg rounded-full shadow-lg hover:shadow-xl transition-all duration-200">
               התחל ניסיון חינם
             </Button>
           </Link>
@@ -66,7 +60,7 @@ const LandingPage = () => {
             <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
               <Zap className="h-8 w-8 text-green-600" />
             </div>
-            <h3 className="text-xl font-semibold mb-2">משלוח מיידי</h3>
+            <h3 className="text-xl font-semibold mb-2">מיידי</h3>
             <p className="text-gray-600">
               שלח הודעות לכל הקבוצות שלך בלחיצה אחת. מהיר, אמין ויעיל.
             </p>
@@ -82,17 +76,12 @@ const LandingPage = () => {
             הצטרף לאלפי משתמשים שחוסכים שעות כל שבוע עם הודעות וואטסאפ אוטומטיות.
           </p>
           <Link to="/auth">
-            <Button 
-              size="lg" 
-              className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg rounded-full"
-            >
+            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg rounded-full">
               התחל את הניסיון החינם שלך
             </Button>
           </Link>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default LandingPage;
