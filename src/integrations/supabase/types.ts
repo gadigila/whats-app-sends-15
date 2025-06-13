@@ -9,7 +9,90 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          id: string
+          instance_id: string | null
+          is_active: boolean | null
+          is_onboarded: boolean | null
+          name: string | null
+          plan: string | null
+          role: string | null
+          trial_ends_at: string | null
+          updated_at: string
+          whapi_token: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          id: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          is_onboarded?: boolean | null
+          name?: string | null
+          plan?: string | null
+          role?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          whapi_token?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          id?: string
+          instance_id?: string | null
+          is_active?: boolean | null
+          is_onboarded?: boolean | null
+          name?: string | null
+          plan?: string | null
+          role?: string | null
+          trial_ends_at?: string | null
+          updated_at?: string
+          whapi_token?: string | null
+        }
+        Relationships: []
+      }
+      scheduled_messages: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          group_ids: string[]
+          id: string
+          media_url: string | null
+          message: string
+          send_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          group_ids: string[]
+          id?: string
+          media_url?: string | null
+          message: string
+          send_at: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          group_ids?: string[]
+          id?: string
+          media_url?: string | null
+          message?: string
+          send_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
