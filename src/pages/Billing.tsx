@@ -201,7 +201,7 @@ const Billing = () => {
                   </div>
                 </div>
               </CardContent>
-            </div>
+            </Card>
           </div>
         )}
 
