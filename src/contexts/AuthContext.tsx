@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
-      // Get or create user profile
+      // Get or create user profile - use raw query to access new columns
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -106,10 +106,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: newProfile.name || supabaseUser.email!.split('@')[0],
           trialEndsAt: new Date(newProfile.trial_ends_at!),
           isPaid: newProfile.plan === 'paid',
-          whatsappConnected: newProfile.instance_status === 'connected',
-          instanceId: newProfile.instance_id,
-          instanceStatus: newProfile.instance_status,
-          billingStatus: newProfile.billing_status
+          whatsappConnected: (newProfile as any).instance_status === 'connected',
+          instanceId: (newProfile as any).instance_id,
+          instanceStatus: (newProfile as any).instance_status,
+          billingStatus: (newProfile as any).billing_status
         });
       } else {
         setUser({
@@ -118,10 +118,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: profile.name || supabaseUser.email!.split('@')[0],
           trialEndsAt: new Date(profile.trial_ends_at!),
           isPaid: profile.plan === 'paid',
-          whatsappConnected: profile.instance_status === 'connected',
-          instanceId: profile.instance_id,
-          instanceStatus: profile.instance_status,
-          billingStatus: profile.billing_status
+          whatsappConnected: (profile as any).instance_status === 'connected',
+          instanceId: (profile as any).instance_id,
+          instanceStatus: (profile as any).instance_status,
+          billingStatus: (profile as any).billing_status
         });
       }
     } catch (error) {

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -42,7 +41,7 @@ const WhatsAppConnect = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('instance_id, instance_status')
+        .select('*')
         .eq('id', user?.id)
         .single();
 
@@ -51,9 +50,9 @@ const WhatsAppConnect = () => {
         return;
       }
 
-      if (data?.instance_id) {
-        setInstanceId(data.instance_id);
-        setConnectionStatus(data.instance_status === 'connected' ? 'connected' : 'disconnected');
+      if ((data as any)?.instance_id) {
+        setInstanceId((data as any).instance_id);
+        setConnectionStatus((data as any).instance_status === 'connected' ? 'connected' : 'disconnected');
       }
     } catch (error) {
       console.error('Error checking user instance:', error);
@@ -396,7 +395,7 @@ const WhatsAppConnect = () => {
                     disabled={loading}
                   >
                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    התחبר
+                    התחבר
                   </Button>
                   <Button 
                     onClick={deleteInstance}
