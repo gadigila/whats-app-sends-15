@@ -17,7 +17,8 @@ interface ScheduledMessage {
 }
 
 interface UserProfile {
-  whapi_token: string
+  instance_id: string
+  instance_status: string
 }
 
 Deno.serve(async (req) => {
@@ -30,6 +31,7 @@ Deno.serve(async (req) => {
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -64,22 +66,22 @@ Deno.serve(async (req) => {
       try {
         console.log(`Processing message ${message.id}`)
 
-        // Get user's WHAPI token
+        // Get user's instance ID and status
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('whapi_token')
+          .select('instance_id, instance_status')
           .eq('id', message.user_id)
           .single()
 
-        if (profileError || !profile?.whapi_token) {
-          console.error(`No WHAPI token found for user ${message.user_id}`)
+        if (profileError || !profile?.instance_id) {
+          console.error(`No instance found for user ${message.user_id}`)
           
           // Update message status to failed
           await supabase
             .from('scheduled_messages')
             .update({ 
               status: 'failed',
-              error_message: 'No WHAPI token configured',
+              error_message: 'No WhatsApp instance configured',
               updated_at: new Date().toISOString()
             })
             .eq('id', message.id)
@@ -88,13 +90,30 @@ Deno.serve(async (req) => {
         }
 
         const userProfile = profile as UserProfile
+
+        // Check if instance is connected
+        if (userProfile.instance_status !== 'connected') {
+          console.error(`Instance ${userProfile.instance_id} is not connected`)
+          
+          await supabase
+            .from('scheduled_messages')
+            .update({ 
+              status: 'failed',
+              error_message: 'WhatsApp instance is not connected',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', message.id)
+          
+          continue
+        }
+
         let allMessagesSent = true
         let errorMessage = ''
 
-        // Send message to each group
+        // Send message to each group using the instance
         for (const groupId of message.group_ids) {
           try {
-            console.log(`Sending message to group ${groupId}`)
+            console.log(`Sending message to group ${groupId} via instance ${userProfile.instance_id}`)
 
             // Prepare WHAPI request body
             const requestBody: any = {
@@ -109,11 +128,11 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Send message via WHAPI
-            const whapiResponse = await fetch('https://gate.whapi.cloud/messages/text', {
+            // Send message via WHAPI using instance
+            const whapiResponse = await fetch(`https://gate.whapi.cloud/instances/${userProfile.instance_id}/messages/text`, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${userProfile.whapi_token}`,
+                'Authorization': `Bearer ${whapiPartnerToken}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify(requestBody)

@@ -1,5 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface User {
   id: string;
@@ -8,6 +10,9 @@ interface User {
   trialEndsAt: Date;
   isPaid: boolean;
   whatsappConnected: boolean;
+  instanceId?: string;
+  instanceStatus?: string;
+  billingStatus?: string;
 }
 
 interface AuthContextType {
@@ -34,60 +39,142 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      parsedUser.trialEndsAt = new Date(parsedUser.trialEndsAt);
-      setUser(parsedUser);
-    }
-    setLoading(false);
+    // Get initial session
+    checkSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.id);
+      
+      if (session?.user) {
+        await loadUserProfile(session.user);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  const checkSession = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await loadUserProfile(session.user);
+      }
+    } catch (error) {
+      console.error('Error checking session:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserProfile = async (supabaseUser: SupabaseUser) => {
+    try {
+      // Get or create user profile
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      // Create profile if it doesn't exist
+      if (!profile) {
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: supabaseUser.id,
+            name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0],
+            trial_ends_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+            billing_status: 'trial'
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          throw createError;
+        }
+
+        setUser({
+          id: supabaseUser.id,
+          email: supabaseUser.email!,
+          name: newProfile.name || supabaseUser.email!.split('@')[0],
+          trialEndsAt: new Date(newProfile.trial_ends_at!),
+          isPaid: newProfile.plan === 'paid',
+          whatsappConnected: newProfile.instance_status === 'connected',
+          instanceId: newProfile.instance_id,
+          instanceStatus: newProfile.instance_status,
+          billingStatus: newProfile.billing_status
+        });
+      } else {
+        setUser({
+          id: supabaseUser.id,
+          email: supabaseUser.email!,
+          name: profile.name || supabaseUser.email!.split('@')[0],
+          trialEndsAt: new Date(profile.trial_ends_at!),
+          isPaid: profile.plan === 'paid',
+          whatsappConnected: profile.instance_status === 'connected',
+          instanceId: profile.instance_id,
+          instanceStatus: profile.instance_status,
+          billingStatus: profile.billing_status
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
+
   const login = async (email: string, password: string) => {
-    // Mock login - in real app, this would call your auth service
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
+    const { error } = await supabase.auth.signInWithPassword({
       email,
-      name: email.split('@')[0],
-      trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-      isPaid: false,
-      whatsappConnected: false,
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem('user', JSON.stringify(mockUser));
+      password,
+    });
+
+    if (error) {
+      throw error;
+    }
   };
 
   const signup = async (email: string, password: string, name: string) => {
-    // Mock signup
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const mockUser: User = {
-      id: '1',
+    const { error } = await supabase.auth.signUp({
       email,
-      name,
-      trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-      isPaid: false,
-      whatsappConnected: false,
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem('user', JSON.stringify(mockUser));
+      password,
+      options: {
+        data: {
+          name: name,
+        },
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Error logging out:', error);
+    }
     setUser(null);
-    localStorage.removeItem('user');
   };
 
   const updateUser = (updates: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...updates };
       setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      // If the update is for WhatsApp connection, refresh the profile
+      if ('whatsappConnected' in updates) {
+        setTimeout(() => {
+          checkSession();
+        }, 1000);
+      }
     }
   };
 
