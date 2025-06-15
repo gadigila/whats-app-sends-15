@@ -4,10 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Smartphone, AlertCircle, Loader2, Wifi, WifiOff, Crown } from 'lucide-react';
+import { CheckCircle, Smartphone, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Link } from 'react-router-dom';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
@@ -61,37 +60,21 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // Check if user can connect WhatsApp (paid users only in production)
-  const canConnectWhatsApp = () => {
-    // For testing - allow everyone to connect
-    // In production, this would be: user?.isPaid || user?.billingStatus === 'paid'
-    return true;
-  };
-
   const startConnection = async () => {
     if (!user?.id) return;
-
-    if (!canConnectWhatsApp()) {
-      toast({
-        title: "נדרש שדרוג",
-        description: "כדי להתחבר לוואטסאפ, יש לשדרג לחשבון Premium",
-        variant: "destructive"
-      });
-      return;
-    }
 
     setLoading(true);
     setConnectionStatus('connecting');
     
     try {
-      // First create/setup the WhatsApp instance behind the scenes
+      // Setup instance behind the scenes
       const { data: instanceData, error: instanceError } = await supabase.functions.invoke('instance-manager', {
         body: { userId: user.id }
       });
 
       if (instanceError) throw instanceError;
 
-      // Then get the QR code for connection
+      // Get QR code for connection
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { userId: user.id, action: 'get_qr' }
       });
@@ -270,7 +253,7 @@ const WhatsAppConnect = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">פעילות אחרונה:</span>
-                  <span className="font-medium">לפני דקותיים</span>
+                  <span className="font-medium">זמין</span>
                 </div>
               </div>
             </CardContent>
@@ -292,32 +275,6 @@ const WhatsAppConnect = () => {
             }
           </p>
         </div>
-
-        {/* Payment Required Notice for Production */}
-        {!canConnectWhatsApp() && (
-          <Card className="border-orange-200 bg-orange-50">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-orange-100 rounded-full">
-                  <Crown className="h-6 w-6 text-orange-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg text-orange-900">
-                    נדרש שדרוג לחשבון Premium
-                  </h3>
-                  <p className="text-orange-800 mb-4">
-                    כדי להתחבר לוואטסאפ, יש לשדרג לחשבון Premium.
-                  </p>
-                  <Link to="/billing">
-                    <Button className="bg-orange-600 hover:bg-orange-700">
-                      שדרג עכשיו
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         <Card>
           <CardContent className="p-8">
@@ -382,42 +339,26 @@ const WhatsAppConnect = () => {
                 <Button 
                   onClick={startConnection}
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={loading || !canConnectWhatsApp()}
+                  disabled={loading}
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {canConnectWhatsApp() ? "התחבר עכשיו" : "נדרש שדרוג"}
+                  התחבר עכשיו
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Testing Mode Notice */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-blue-900 mb-2">מצב בדיקות</h3>
-                <p className="text-sm text-blue-800">
-                  כרגע המערכת במצב בדיקות ותוכל להתחבר לוואטסאפ ללא תשלום.
-                  בעתיד יידרש חשבון Premium עבור חיבור וואטסאפ.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardContent className="p-6">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+              <Smartphone className="h-5 w-5 text-green-500 mt-0.5" />
               <div>
                 <h3 className="font-semibold text-gray-900 mb-2">הערות חשובות</h3>
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• השאר את הטלפון שלך מחובר לאינטרנט</li>
-                  <li>• חיבורי וואטסאפ ווב פגים לאחר זמן של חוסר פעילות</li>
-                  <li>• אתה יכול להתנתק בכל עת מהטלפון או מהדשבורד הזה</li>
+                  <li>• החיבור יישאר פעיל כל עוד הטלפון מחובר</li>
+                  <li>• אתה יכול להתנתק בכל עת מהטלפון או מכאן</li>
                 </ul>
               </div>
             </div>

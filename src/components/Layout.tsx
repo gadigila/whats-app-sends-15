@@ -37,7 +37,7 @@ const Layout = ({ children }: LayoutProps) => {
     { name: 'כתיבת הודעה', href: '/compose', icon: MessageSquare },
     { name: 'הודעות מתוזמנות', href: '/scheduled', icon: Calendar },
     { name: 'הודעות שנשלחו', href: '/sent', icon: Send },
-    { name: 'קטגוריות', href: '/segments', icon: Users },
+    { name: 'קבוצות', href: '/segments', icon: Users },
     { name: 'חיבור וואטסאפ', href: '/connect', icon: Smartphone },
     { name: 'מנוי ותשלום', href: '/billing', icon: Crown },
   ];
@@ -66,29 +66,10 @@ const Layout = ({ children }: LayoutProps) => {
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
 
-              {/* Subscription Status - Desktop */}
-              {user && (
-                <div className="hidden md:flex items-center gap-2">
-                  {user.isPaid ? (
-                    <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
-                      <Crown className="h-4 w-4" />
-                      Premium
-                    </span>
-                  ) : (
-                    <Link to="/billing">
-                      <Button size="sm" variant="outline" className="text-orange-600 border-orange-600 hover:bg-orange-50">
-                        <Crown className="h-4 w-4 mr-1" />
-                        שדרג
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              )}
-
-              {/* User Menu - Desktop */}
+              {/* Desktop User Menu */}
               {user && (
                 <div className="hidden md:flex items-center gap-3">
-                  <span className="text-sm text-gray-700">שלום, {user.name}</span>
+                  <span className="text-sm text-gray-700">שלום, {user.email}</span>
                   <Button
                     onClick={handleLogout}
                     variant="ghost"
@@ -130,16 +111,8 @@ const Layout = ({ children }: LayoutProps) => {
               {user && (
                 <div className="pt-3 border-t border-gray-200 mt-3">
                   <div className="px-3 py-2 text-sm text-gray-700">
-                    שלום, {user.name}
+                    שלום, {user.email}
                   </div>
-                  {!user.isPaid && (
-                    <Link to="/billing" onClick={() => setMobileMenuOpen(false)}>
-                      <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-orange-600 hover:bg-orange-50">
-                        <Crown className="h-4 w-4" />
-                        שדרג לPremium
-                      </div>
-                    </Link>
-                  )}
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
