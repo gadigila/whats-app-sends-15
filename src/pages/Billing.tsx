@@ -1,3 +1,4 @@
+
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -88,13 +89,8 @@ const Billing = () => {
 
         {/* Main Pricing Plan */}
         <div className="max-w-md mx-auto">
-          <Card className="relative border-green-200 bg-green-50/50 overflow-hidden">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <span className="bg-green-500 text-white px-6 py-2 rounded-full text-sm font-medium">
-                הכי פופולרי
-              </span>
-            </div>
-            <CardHeader className="text-center pt-8">
+          <Card className="border-green-200 bg-green-50/50">
+            <CardHeader className="text-center">
               <CardTitle className="flex items-center justify-center gap-2 text-2xl">
                 <Crown className="h-6 w-6 text-green-500" />
                 Reecher Premium
