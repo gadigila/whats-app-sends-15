@@ -11,10 +11,12 @@ import {
   Home,
   Smartphone,
   Menu,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
+import { useTrialStatus } from '@/hooks/useTrialStatus';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -25,6 +27,7 @@ const Layout = ({ children }: LayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { trialStatus } = useTrialStatus();
 
   const handleLogout = async () => {
     await logout();
@@ -54,6 +57,35 @@ const Layout = ({ children }: LayoutProps) => {
             </div>
             <h1 className="text-xl font-bold text-gray-900">מתזמן וואטסאפ</h1>
           </div>
+          
+          {/* Trial Status in Sidebar */}
+          {trialStatus && !trialStatus.isPaid && (
+            <div className={`mt-4 p-3 rounded-lg text-sm ${
+              trialStatus.isExpired 
+                ? 'bg-red-50 border border-red-200' 
+                : trialStatus.daysLeft <= 1
+                ? 'bg-orange-50 border border-orange-200'
+                : 'bg-blue-50 border border-blue-200'
+            }`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Clock className={`h-4 w-4 ${
+                  trialStatus.isExpired ? 'text-red-600' : 
+                  trialStatus.daysLeft <= 1 ? 'text-orange-600' : 'text-blue-600'
+                }`} />
+                <span className={`font-medium ${
+                  trialStatus.isExpired ? 'text-red-800' : 
+                  trialStatus.daysLeft <= 1 ? 'text-orange-800' : 'text-blue-800'
+                }`}>
+                  {trialStatus.isExpired ? 'תקופת ניסיון פגה' : 
+                   trialStatus.daysLeft === 0 ? 'תקופת ניסיון מסתיימת היום' :
+                   `${trialStatus.daysLeft} ימים נותרו`}
+                </span>
+              </div>
+              <Button asChild size="sm" className="w-full mt-2 bg-green-500 hover:bg-green-600">
+                <Link to="/billing">שדרג עכשיו</Link>
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Navigation */}
@@ -111,12 +143,25 @@ const Layout = ({ children }: LayoutProps) => {
                 <h1 className="text-xl font-bold text-gray-900">מתזמן וואטסאפ</h1>
               </div>
               
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-              >
-                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Trial indicator for mobile */}
+                {trialStatus && !trialStatus.isPaid && (
+                  <div className={`text-xs px-2 py-1 rounded-full ${
+                    trialStatus.isExpired ? 'bg-red-100 text-red-800' : 
+                    trialStatus.daysLeft <= 1 ? 'bg-orange-100 text-orange-800' : 
+                    'bg-blue-100 text-blue-800'
+                  }`}>
+                    {trialStatus.isExpired ? 'פג תוקף' : `${trialStatus.daysLeft} ימים`}
+                  </div>
+                )}
+                
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+                >
+                  {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -124,6 +169,29 @@ const Layout = ({ children }: LayoutProps) => {
           {mobileMenuOpen && (
             <div className="border-t border-gray-200 bg-white">
               <div className="px-4 py-3 space-y-2">
+                {/* Trial status for mobile menu */}
+                {trialStatus && !trialStatus.isPaid && (
+                  <div className={`p-3 rounded-lg mb-4 ${
+                    trialStatus.isExpired 
+                      ? 'bg-red-50 border border-red-200' 
+                      : trialStatus.daysLeft <= 1
+                      ? 'bg-orange-50 border border-orange-200'
+                      : 'bg-blue-50 border border-blue-200'
+                  }`}>
+                    <div className={`text-sm font-medium mb-2 ${
+                      trialStatus.isExpired ? 'text-red-800' : 
+                      trialStatus.daysLeft <= 1 ? 'text-orange-800' : 'text-blue-800'
+                    }`}>
+                      {trialStatus.isExpired ? 'תקופת ניסיון פגה' : 
+                       trialStatus.daysLeft === 0 ? 'תקופת ניסיון מסתיימת היום' :
+                       `${trialStatus.daysLeft} ימים נותרו`}
+                    </div>
+                    <Button asChild size="sm" className="w-full bg-green-500 hover:bg-green-600">
+                      <Link to="/billing" onClick={() => setMobileMenuOpen(false)}>שדרג עכשיו</Link>
+                    </Button>
+                  </div>
+                )}
+                
                 {navigation.map((item) => {
                   const Icon = item.icon;
                   return (
