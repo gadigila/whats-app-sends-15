@@ -1,8 +1,8 @@
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageSquare, Users, Clock, CheckCircle, Star, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import TestimonialsSection from '@/components/TestimonialsSection';
 
 const Index = () => {
   return (
@@ -132,6 +132,108 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Why Reecher Section */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              למה Reecher?
+            </h2>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
+              הפתרון המתקדם ביותר לשליחת הודעות קבוצתיות בוואטסאפ
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="text-center">
+              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                <Zap className="h-8 w-8 text-green-500" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">מהירות</h3>
+              <p className="text-gray-600 text-sm">
+                שלח לעשרות קבוצות בשניות במקום שעות
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                <Shield className="h-8 w-8 text-green-500" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">אמינות</h3>
+              <p className="text-gray-600 text-sm">
+                חיבור יציב לוואטסאפ ללא הפרעות
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                <TrendingUp className="h-8 w-8 text-green-500" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">יעילות</h3>
+              <p className="text-gray-600 text-sm">
+                חסוך עד 90% מהזמן בשליחת הודעות
+              </p>
+            </div>
+
+            <div className="text-center">
+              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                <Users className="h-8 w-8 text-green-500" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">נוחות</h3>
+              <p className="text-gray-600 text-sm">
+                ממשק פשוט שכל אחד יכול להשתמש בו
+              </p>
+            </div>
+          </div>
+
+          {/* Additional Benefits */}
+          <div className="grid md:grid-cols-2 gap-12 mt-16">
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                🚀 חסוך זמן יקר
+              </h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                  <span className="text-gray-700">שלח לכל הקבוצות בלחיצה אחת</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                  <span className="text-gray-700">תזמן הודעות מראש</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                  <span className="text-gray-700">העלה קבצים ותמונות</span>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                📊 שליטה מלאה
+              </h3>
+              <ul className="space-y-3">
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                  <span className="text-gray-700">עקוב אחר סטטוס השליחה</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                  <span className="text-gray-700">נהל קבוצות בקטגוריות</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
+                  <span className="text-gray-700">היסטוריה מלאה של הודעות</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <TestimonialsSection />
 
       {/* Pricing Preview */}
       <section className="py-16 px-4 bg-white">
