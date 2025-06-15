@@ -3,39 +3,37 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Users, Calendar, CheckCircle, AlertCircle, Crown } from 'lucide-react';
+import { MessageSquare, Users, Calendar, CheckCircle, Crown, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
   const { user } = useAuth();
   
-  const trialDaysLeft = user ? Math.ceil((user.trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
-  
   const stats = [
     {
       title: 'הודעות שנשלחו',
-      value: '127',
+      value: '0',
       icon: MessageSquare,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
       title: 'קבוצות מחוברות',
-      value: user?.whatsappConnected ? '8' : '0',
+      value: '0',
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
       title: 'מתוזמנות',
-      value: '5',
+      value: '0',
       icon: Calendar,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
     },
     {
       title: 'אחוז הצלחה',
-      value: '98%',
+      value: '100%',
       icon: CheckCircle,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-50',
@@ -52,90 +50,43 @@ const Dashboard = () => {
               ברוך השב, {user?.name}!
             </h1>
             <p className="text-gray-600">
-              {user?.isPaid 
-                ? "החשבון שלך פעיל ומוכן לשימוש."
-                : `נותרו לך ${Math.max(0, trialDaysLeft)} ימים בתקופת הניסיון החינמית.`
-              }
+              ברוך הבא למערכת שליחת הודעות WhatsApp
             </p>
           </div>
           
           <div className="flex gap-3">
-            {!user?.isPaid && (
-              <Link to="/billing">
-                <Button className="bg-orange-600 hover:bg-orange-700">
-                  <Crown className="h-4 w-4 mr-2" />
-                  שדרג לPremium
-                </Button>
-              </Link>
-            )}
-            {!user?.whatsappConnected && (
-              <Link to="/connect">
-                <Button className="bg-green-600 hover:bg-green-700">
-                  חבר וואטסאפ
-                </Button>
-              </Link>
-            )}
+            <Link to="/billing">
+              <Button className="bg-orange-600 hover:bg-orange-700">
+                <Crown className="h-4 w-4 mr-2" />
+                שדרג לPremium
+              </Button>
+            </Link>
+            <Link to="/connect">
+              <Button className="bg-green-600 hover:bg-green-700">
+                חבר וואטסאפ
+              </Button>
+            </Link>
           </div>
         </div>
-
-        {/* Subscription Status */}
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-full ${user?.isPaid ? 'bg-green-50' : 'bg-orange-50'}`}>
-                {user?.isPaid ? (
-                  <Crown className="h-6 w-6 text-green-600" />
-                ) : (
-                  <AlertCircle className="h-6 w-6 text-orange-600" />
-                )}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">
-                  סטטוס מנוי: {user?.isPaid ? 'Premium פעיל' : 'ניסיון חינם'}
-                </h3>
-                <p className="text-gray-600">
-                  {user?.isPaid 
-                    ? 'יש לך גישה מלאה לכל התכונות של המערכת.'
-                    : `נותרו לך ${Math.max(0, trialDaysLeft)} ימים בתקופת הניסיון. שדרג כדי להמשיך להשתמש.`
-                  }
-                </p>
-              </div>
-              {!user?.isPaid && (
-                <Link to="/billing">
-                  <Button>שדרג עכשיו</Button>
-                </Link>
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Connection Status */}
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-full ${user?.whatsappConnected ? 'bg-green-50' : 'bg-red-50'}`}>
-                {user?.whatsappConnected ? (
-                  <CheckCircle className="h-6 w-6 text-green-600" />
-                ) : (
-                  <AlertCircle className="h-6 w-6 text-red-600" />
-                )}
+              <div className="p-3 rounded-full bg-red-50">
+                <AlertCircle className="h-6 w-6 text-red-600" />
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-lg">
-                  סטטוס וואטסאפ: {user?.whatsappConnected ? 'מחובר' : 'לא מחובר'}
+                  סטטוס וואטסאפ: לא מחובר
                 </h3>
                 <p className="text-gray-600">
-                  {user?.whatsappConnected 
-                    ? 'הוואטסאפ שלך מחובר ומוכן לשליחת הודעות.'
-                    : 'חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות לקבוצות.'
-                  }
+                  חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות לקבוצות.
                 </p>
               </div>
-              {!user?.whatsappConnected && (
-                <Link to="/connect">
-                  <Button>חבר עכשיו</Button>
-                </Link>
-              )}
+              <Link to="/connect">
+                <Button>חבר עכשיו</Button>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -184,7 +135,7 @@ const Dashboard = () => {
               <Link to="/segments" className="block">
                 <Button variant="outline" className="w-full justify-start">
                   <Users className="h-4 w-4 ml-2" />
-                  נהל קטגוריות
+                  נהל קבוצות
                 </Button>
               </Link>
             </CardContent>
@@ -192,21 +143,26 @@ const Dashboard = () => {
 
           <Card>
             <CardHeader>
-              <CardTitle>פעילות אחרונה</CardTitle>
+              <CardTitle>התחל עכשיו</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>הודעה נשלחה ל"צוות שיווק" - לפני שעתיים</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span>קטגוריה חדשה "לקוחות VIP" נוצרה - לפני יום</span>
-                </div>
-                <div className="flex items-center gap-3 text-sm">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <span>הודעה תוזמנה למחר - לפני יומיים</span>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  כדי להתחיל לשלוח הודעות:
+                </p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-xs">1</div>
+                    <span>חבר את הוואטסאפ שלך</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-xs">2</div>
+                    <span>כתוב הודעה חדשה</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-green-600 text-white rounded-full flex items-center justify-center text-xs">3</div>
+                    <span>בחר קבוצות ושלח</span>
+                  </div>
                 </div>
               </div>
             </CardContent>
