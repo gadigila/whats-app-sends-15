@@ -36,67 +36,73 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-
-    const initializeAuth = async () => {
-      try {
-        console.log('Initializing auth...');
-        
-        // Check initial session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          if (mounted) {
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (mounted) {
-          if (session?.user) {
-            console.log('Found existing session, loading profile...');
-            await loadUserProfile(session.user);
-          } else {
-            console.log('No existing session found');
-            setUser(null);
-          }
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        if (mounted) {
-          setLoading(false);
-        }
-      }
+    // Clear any existing session and redirect to auth page
+    const clearSession = async () => {
+      console.log('Clearing session and logging out...');
+      await supabase.auth.signOut();
+      setUser(null);
+      setLoading(false);
     };
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
-      
-      if (mounted) {
-        if (session?.user && event === 'SIGNED_IN') {
-          console.log('User signed in, loading profile...');
-          await loadUserProfile(session.user);
-        } else if (event === 'SIGNED_OUT') {
-          console.log('User signed out');
-          setUser(null);
-        }
-        setLoading(false);
-      }
-    });
-
-    initializeAuth();
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    clearSession();
   }, []);
+
+  const login = async (email: string, password: string) => {
+    console.log('Attempting login...');
+    setLoading(true);
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error('Login error:', error);
+        throw error;
+      }
+
+      if (data.user) {
+        console.log('Login successful, loading profile...');
+        await loadUserProfile(data.user);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signup = async (email: string, password: string, name: string) => {
+    console.log('Attempting signup...');
+    setLoading(true);
+    
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name,
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (error) {
+        console.error('Signup error:', error);
+        throw error;
+      }
+
+      if (data.user) {
+        console.log('Signup successful, loading profile...');
+        await loadUserProfile(data.user);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
@@ -110,17 +116,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error loading profile:', error);
-        // Set fallback user even on error
-        setUser({
-          id: supabaseUser.id,
-          email: supabaseUser.email!,
-          name: supabaseUser.email!.split('@')[0],
-          trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-          isPaid: false,
-          whatsappConnected: false,
-          billingStatus: 'trial'
-        });
-        return;
       }
 
       if (!profile) {
@@ -139,29 +134,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (createError) {
           console.error('Error creating profile:', createError);
-          // Set fallback user even on error
-          setUser({
-            id: supabaseUser.id,
-            email: supabaseUser.email!,
-            name: supabaseUser.email!.split('@')[0],
-            trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-            isPaid: false,
-            whatsappConnected: false,
-            billingStatus: 'trial'
-          });
-          return;
         }
 
         setUser({
           id: supabaseUser.id,
           email: supabaseUser.email!,
-          name: newProfile.name || supabaseUser.email!.split('@')[0],
-          trialEndsAt: new Date(newProfile.trial_ends_at!),
-          isPaid: newProfile.plan === 'paid',
-          whatsappConnected: newProfile.instance_status === 'connected',
-          instanceId: newProfile.instance_id,
-          instanceStatus: newProfile.instance_status,
-          billingStatus: newProfile.billing_status
+          name: newProfile?.name || supabaseUser.email!.split('@')[0],
+          trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+          isPaid: false,
+          whatsappConnected: false,
+          billingStatus: 'trial'
         });
       } else {
         console.log('Profile loaded successfully');
@@ -179,58 +161,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
-      // Always set a fallback user to prevent loading loop
-      setUser({
-        id: supabaseUser.id,
-        email: supabaseUser.email!,
-        name: supabaseUser.email!.split('@')[0],
-        trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        isPaid: false,
-        whatsappConnected: false,
-        billingStatus: 'trial'
-      });
-    }
-  };
-
-  const login = async (email: string, password: string) => {
-    console.log('Attempting login...');
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error('Login error:', error);
-      throw error;
-    }
-  };
-
-  const signup = async (email: string, password: string, name: string) => {
-    console.log('Attempting signup...');
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name: name,
-        },
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-      },
-    });
-
-    if (error) {
-      console.error('Signup error:', error);
-      throw error;
     }
   };
 
   const logout = async () => {
     console.log('Logging out...');
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Error logging out:', error);
+    setLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error logging out:', error);
+      }
+    } finally {
+      setUser(null);
+      setLoading(false);
     }
-    setUser(null);
   };
 
   const updateUser = (updates: Partial<User>) => {

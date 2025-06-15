@@ -4,17 +4,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MessageSquare, Mail } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import ClearDataButton from '@/components/ClearDataButton';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login, signup, user } = useAuth();
+  const { login, signup, loading, user } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already logged in
@@ -25,7 +25,6 @@ const AuthPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
     try {
       if (isLogin) {
@@ -46,8 +45,6 @@ const AuthPage = () => {
         description: error.message || "משהו השתבש. אנא נסה שוב.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -71,6 +68,11 @@ const AuthPage = () => {
             <p className="text-gray-600 mt-2">
               {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}
             </p>
+          </div>
+
+          {/* Clear Data Button */}
+          <div className="mb-6">
+            <ClearDataButton />
           </div>
 
           {/* Google Sign In */}
