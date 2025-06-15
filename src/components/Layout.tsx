@@ -13,10 +13,10 @@ interface LayoutProps {
 }
 
 const Layout = ({ children }: LayoutProps) => {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile } = useUserProfile();
+  const { data: profile } = useUserProfile();
 
   const navigation = [
     { name: 'לוח בקרה', href: '/dashboard', icon: BarChart3 },
@@ -28,7 +28,7 @@ const Layout = ({ children }: LayoutProps) => {
   ];
 
   const handleSignOut = async () => {
-    await signOut();
+    await logout();
     navigate('/');
   };
 

@@ -14,7 +14,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  signOut: () => Promise<void>;
   loading: boolean;
 }
 
@@ -148,6 +149,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Alias for backward compatibility
+  const signOut = logout;
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -155,6 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signup,
       signInWithGoogle,
       logout,
+      signOut,
       loading,
     }}>
       {children}
