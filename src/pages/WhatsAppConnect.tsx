@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -14,6 +13,7 @@ const WhatsAppConnect = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Check user's current WhatsApp status on load
   useEffect(() => {
@@ -47,6 +47,7 @@ const WhatsAppConnect = () => {
 
       if (error) {
         console.error('Error fetching user profile:', error);
+        setErrorMsg("שגיאה בטעינת פרטי המשתמש. נסה לרענן את הדף.");
         return;
       }
 
@@ -56,13 +57,14 @@ const WhatsAppConnect = () => {
         setConnectionStatus('disconnected');
       }
     } catch (error) {
+      setErrorMsg("שגיאה כללית בבדיקת סטטוס.");
       console.error('Error checking user status:', error);
     }
   };
 
   const startConnection = async () => {
     if (!user?.id) return;
-
+    setErrorMsg(null);
     setLoading(true);
     setConnectionStatus('connecting');
     
@@ -71,15 +73,15 @@ const WhatsAppConnect = () => {
       const { data: instanceData, error: instanceError } = await supabase.functions.invoke('instance-manager', {
         body: { userId: user.id }
       });
-
       if (instanceError) throw instanceError;
+      if (instanceData?.error) throw new Error(instanceData.error);
 
       // Get QR code for connection
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { userId: user.id, action: 'get_qr' }
       });
-
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       if (data?.success && data.qr_code) {
         setQrCode(data.qr_code);
@@ -90,7 +92,8 @@ const WhatsAppConnect = () => {
       } else {
         throw new Error(data?.error || 'Failed to get QR code');
       }
-    } catch (error) {
+    } catch (error: any) {
+      setErrorMsg(error.message || "ארעה שגיאה. נסה שנית.");
       console.error('Connection error:', error);
       toast({
         title: "שגיאה בחיבור",
@@ -105,15 +108,14 @@ const WhatsAppConnect = () => {
 
   const refreshQrCode = async () => {
     if (!user?.id) return;
-
+    setErrorMsg(null);
     setLoading(true);
-    
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { userId: user.id, action: 'get_qr' }
       });
-
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       if (data?.success && data.qr_code) {
         setQrCode(data.qr_code);
@@ -122,7 +124,8 @@ const WhatsAppConnect = () => {
           description: "סרוק את הקוד החדש עם הוואטסאפ שלך.",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      setErrorMsg(error.message || "שגיאה ברענון קוד QR");
       console.error('QR refresh error:', error);
       toast({
         title: "שגיאה ברענון קוד QR",
@@ -136,19 +139,18 @@ const WhatsAppConnect = () => {
 
   const checkConnectionStatus = async () => {
     if (!user?.id || checkingStatus) return;
-
     setCheckingStatus(true);
+    setErrorMsg(null);
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { userId: user.id, action: 'check_status' }
       });
-
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       if (data?.success) {
         const isConnected = data.connected;
         setConnectionStatus(isConnected ? 'connected' : 'connecting');
-        
         if (isConnected) {
           setQrCode(null);
           toast({
@@ -157,7 +159,8 @@ const WhatsAppConnect = () => {
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      setErrorMsg(error.message || "שגיאה בבדיקת סטטוס.");
       console.error('Status check error:', error);
     } finally {
       setCheckingStatus(false);
@@ -166,7 +169,7 @@ const WhatsAppConnect = () => {
 
   const handleDisconnect = async () => {
     if (!user?.id) return;
-
+    setErrorMsg(null);
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
@@ -174,6 +177,7 @@ const WhatsAppConnect = () => {
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       if (data?.success) {
         setConnectionStatus('disconnected');
@@ -183,7 +187,8 @@ const WhatsAppConnect = () => {
           description: "החיבור נותק בהצלחה.",
         });
       }
-    } catch (error) {
+    } catch (error: any) {
+      setErrorMsg(error.message || "שגיאה בניתוק.");
       console.error('Disconnect error:', error);
       toast({
         title: "שגיאה בניתוק",
@@ -194,6 +199,20 @@ const WhatsAppConnect = () => {
       setLoading(false);
     }
   };
+
+  if (errorMsg) {
+    return (
+      <Layout>
+        <div className="max-w-2xl mx-auto flex flex-col items-center min-h-[75vh] justify-center gap-8">
+          <div className="text-center">
+            <h1 className="text-2xl text-red-600 font-bold mb-4">שגיאה</h1>
+            <p className="text-gray-700 mb-6">{errorMsg}</p>
+            <Button onClick={checkUserStatus}>נסה שוב</Button>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
 
   if (connectionStatus === 'connected') {
     return (

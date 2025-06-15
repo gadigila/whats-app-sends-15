@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -76,6 +75,9 @@ Deno.serve(async (req) => {
 
       console.log(`User status: ${profile.billing_status} - creating channel`)
 
+      // Add more logging
+      console.log(`User profile fetched:`, profile);
+
       // Create channel via WHAPI Partner API (corrected URL)
       const createChannelResponse = await fetch('https://partner-api.whapi.cloud/api/v1/channels', {
         method: 'POST',
@@ -93,7 +95,7 @@ Deno.serve(async (req) => {
         const errorText = await createChannelResponse.text()
         console.error('WHAPI channel creation failed:', errorText)
         return new Response(
-          JSON.stringify({ error: 'Failed to create WhatsApp channel' }),
+          JSON.stringify({ error: 'Failed to create WhatsApp channel', details: errorText }),
           { status: 500, headers: corsHeaders }
         )
       }
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
       if (updateError) {
         console.error('Profile update error:', updateError)
         return new Response(
-          JSON.stringify({ error: 'Failed to update user profile' }),
+          JSON.stringify({ error: 'Failed to update user profile', details: updateError }),
           { status: 500, headers: corsHeaders }
         )
       }
@@ -210,7 +212,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Instance Manager Error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: String(error) }),
       { status: 500, headers: corsHeaders }
     )
   }

@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -43,7 +42,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (profileError || !profile.whapi_channel_id) {
-      console.error('Profile or channel not found:', profileError)
+      console.error('Profile or channel not found:', profileError, profile)
       return new Response(
         JSON.stringify({ error: 'WhatsApp channel not found. Please create a channel first.' }),
         { status: 404, headers: corsHeaders }
@@ -54,31 +53,30 @@ Deno.serve(async (req) => {
     const whapiToken = profile.whapi_token
 
     if (action === 'get_qr') {
-      // Get QR code for WhatsApp connection using instance ID (no auth needed)
+      // Logging instanceId
+      console.log('fetching QR code for instance:', instanceId);
       const qrResponse = await fetch(`https://gate.whapi.cloud/instance/qr?id=${instanceId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         }
       })
-
       if (!qrResponse.ok) {
         const errorText = await qrResponse.text()
         console.error('QR fetch failed:', errorText)
         return new Response(
-          JSON.stringify({ error: 'Failed to get QR code' }),
+          JSON.stringify({ error: 'Failed to get QR code', details: errorText }),
           { status: 500, headers: corsHeaders }
         )
       }
-
       const qrData = await qrResponse.json()
-      console.log('QR data received for instance:', instanceId)
-
+      console.log('QR data received for instance:', instanceId, qrData)
       return new Response(
         JSON.stringify({ 
-          success: true, 
+          success: true,
           qr_code: qrData.qr_code || qrData.qr,
-          status: qrData.status 
+          status: qrData.status,
+          details: qrData
         }),
         { status: 200, headers: corsHeaders }
       )
@@ -170,7 +168,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('WhatsApp Connect Error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: String(error) }),
       { status: 500, headers: corsHeaders }
     )
   }
