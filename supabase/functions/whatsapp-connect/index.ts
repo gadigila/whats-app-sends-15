@@ -1,3 +1,4 @@
+
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -52,13 +53,22 @@ Deno.serve(async (req) => {
     const instanceId = profile.whapi_channel_id
     const whapiToken = profile.whapi_token
 
+    if (!whapiToken || !instanceId) {
+      console.error('Missing whapi_token or instance_id for QR/status fetch')
+      return new Response(
+        JSON.stringify({ error: 'Missing WhatsApp token or Instance ID for QR/status fetch' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
     if (action === 'get_qr') {
       // Logging instanceId
       console.log('fetching QR code for instance:', instanceId);
-      const qrResponse = await fetch(`https://gate.whapi.cloud/instance/qr?id=${instanceId}`, {
+      const qrResponse = await fetch(`https://gate.whapi.cloud/instance/qr?instance_id=${instanceId}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${whapiToken}`
         }
       })
       if (!qrResponse.ok) {
@@ -71,10 +81,17 @@ Deno.serve(async (req) => {
       }
       const qrData = await qrResponse.json()
       console.log('QR data received for instance:', instanceId, qrData)
+
+      // QR can be at qrData.qr_code or qrData.qr. Try both.
+      const qrCode = qrData.qr_code || qrData.qr
+      if (!qrCode) {
+        console.error('No QR code found in response:', qrData)
+      }
+
       return new Response(
         JSON.stringify({ 
           success: true,
-          qr_code: qrData.qr_code || qrData.qr,
+          qr_code: qrCode,
           status: qrData.status,
           details: qrData
         }),
@@ -82,11 +99,12 @@ Deno.serve(async (req) => {
       )
 
     } else if (action === 'check_status') {
-      // Check connection status using instance ID (no auth needed)
-      const statusResponse = await fetch(`https://gate.whapi.cloud/instance/status?id=${instanceId}`, {
+      // Check connection status using instance_id with token
+      const statusResponse = await fetch(`https://gate.whapi.cloud/instance/status?instance_id=${instanceId}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${whapiToken}`
         }
       })
 
@@ -94,7 +112,7 @@ Deno.serve(async (req) => {
         const errorText = await statusResponse.text()
         console.error('Status check failed:', errorText)
         return new Response(
-          JSON.stringify({ error: 'Failed to check status' }),
+          JSON.stringify({ error: 'Failed to check status', details: errorText }),
           { status: 500, headers: corsHeaders }
         )
       }
@@ -131,7 +149,7 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          id: instanceId
+          instance_id: instanceId
         })
       })
 
@@ -139,7 +157,7 @@ Deno.serve(async (req) => {
         const errorText = await disconnectResponse.text()
         console.error('Disconnect failed:', errorText)
         return new Response(
-          JSON.stringify({ error: 'Failed to disconnect' }),
+          JSON.stringify({ error: 'Failed to disconnect', details: errorText }),
           { status: 500, headers: corsHeaders }
         )
       }
