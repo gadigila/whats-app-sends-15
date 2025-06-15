@@ -14,8 +14,14 @@ const AuthPage = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, signup } = useAuth();
+  const { login, signup, user } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  if (user) {
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,17 +29,21 @@ const AuthPage = () => {
 
     try {
       if (isLogin) {
+        console.log('Attempting login with:', email);
         await login(email, password);
         toast({ title: "ברוך השב!" });
+        navigate('/dashboard', { replace: true });
       } else {
+        console.log('Attempting signup with:', email, name);
         await signup(email, password, name);
         toast({ title: "החשבון נוצר בהצלחה!" });
+        navigate('/dashboard', { replace: true });
       }
-      navigate('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Auth error:', error);
       toast({
         title: "שגיאה",
-        description: "משהו השתבש. אנא נסה שוב.",
+        description: error.message || "משהו השתבש. אנא נסה שוב.",
         variant: "destructive",
       });
     } finally {
@@ -59,7 +69,7 @@ const AuthPage = () => {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">מתזמן וואטסאפ</h1>
             <p className="text-gray-600 mt-2">
-              {isLogin ? 'ברוך השב!' : 'התחל את הניסיון החינם שלך'}
+              {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}
             </p>
           </div>
 
