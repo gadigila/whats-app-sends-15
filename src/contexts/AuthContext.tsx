@@ -42,7 +42,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('Setting up auth state listener...');
     
-    // Listen for auth changes (important for Google OAuth)
+    // Check for existing session first
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Initial session check:', session?.user?.email || 'no session');
+        
+        if (session?.user) {
+          await loadUserProfile(session.user);
+        }
+      } catch (error) {
+        console.error('Error checking initial session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email || 'no session');
@@ -58,23 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Check for existing session
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('Initial session check:', session?.user?.email || 'no session');
-        
-        if (session?.user) {
-          await loadUserProfile(session.user);
-        }
-      } catch (error) {
-        console.error('Error checking session:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkSession();
+    initializeAuth();
 
     return () => {
       subscription.unsubscribe();
@@ -96,12 +96,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      if (data.user) {
-        console.log('Login successful, loading profile...');
-        await loadUserProfile(data.user);
-      }
-    } finally {
+      console.log('Login successful');
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
   };
 
@@ -126,21 +124,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      if (data.user) {
-        console.log('Signup successful, loading profile...');
-        await loadUserProfile(data.user);
-      }
-    } finally {
+      console.log('Signup successful');
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
   };
 
   const signInWithGoogle = async () => {
     console.log('Attempting Google sign in...');
-    setLoading(true);
     
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/dashboard`
@@ -151,10 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Google sign in error:', error);
         throw error;
       }
-
-      // Note: OAuth will redirect, so no need to handle user data here
     } catch (error) {
-      setLoading(false);
       throw error;
     }
   };
@@ -163,6 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Loading profile for user:', supabaseUser.id);
       
+      // First check if profile exists
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -171,6 +164,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error loading profile:', error);
+        // Still set basic user info even if profile fetch fails
+        setUser({
+          id: supabaseUser.id,
+          email: supabaseUser.email!,
+          name: supabaseUser.user_metadata?.name || supabaseUser.email!.split('@')[0],
+          trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+          isPaid: false,
+          whatsappConnected: false,
+          billingStatus: 'trial'
+        });
+        return;
       }
 
       if (!profile) {
@@ -194,18 +198,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser({
           id: supabaseUser.id,
           email: supabaseUser.email!,
-          name: newProfile?.name || supabaseUser.email!.split('@')[0],
+          name: newProfile?.name || supabaseUser.user_metadata?.name || supabaseUser.email!.split('@')[0],
           trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
           isPaid: false,
           whatsappConnected: false,
           billingStatus: 'trial'
         });
       } else {
-        console.log('Profile loaded successfully');
+        console.log('Profile loaded successfully:', profile);
         setUser({
           id: supabaseUser.id,
           email: supabaseUser.email!,
-          name: profile.name || supabaseUser.email!.split('@')[0],
+          name: profile.name || supabaseUser.user_metadata?.name || supabaseUser.email!.split('@')[0],
           trialEndsAt: new Date(profile.trial_ends_at!),
           isPaid: profile.plan === 'paid',
           whatsappConnected: profile.instance_status === 'connected',
@@ -216,6 +220,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
+      // Set basic user info even if there's an error
+      setUser({
+        id: supabaseUser.id,
+        email: supabaseUser.email!,
+        name: supabaseUser.user_metadata?.name || supabaseUser.email!.split('@')[0],
+        trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        isPaid: false,
+        whatsappConnected: false,
+        billingStatus: 'trial'
+      });
     }
   };
 
