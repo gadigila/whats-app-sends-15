@@ -41,21 +41,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
-    // Check initial session
-    const checkSession = async () => {
+    const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Initializing auth...');
         
+        // Check initial session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          if (mounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
         if (mounted) {
           if (session?.user) {
+            console.log('Found existing session, loading profile...');
             await loadUserProfile(session.user);
           } else {
+            console.log('No existing session found');
             setUser(null);
           }
           setLoading(false);
         }
       } catch (error) {
-        console.error('Error checking session:', error);
+        console.error('Error initializing auth:', error);
         if (mounted) {
           setLoading(false);
         }
@@ -64,21 +76,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
+      console.log('Auth state changed:', event);
       
       if (mounted) {
-        if (session?.user) {
+        if (session?.user && event === 'SIGNED_IN') {
+          console.log('User signed in, loading profile...');
           await loadUserProfile(session.user);
-        } else {
+        } else if (event === 'SIGNED_OUT') {
+          console.log('User signed out');
           setUser(null);
         }
-        if (loading) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     });
 
-    checkSession();
+    initializeAuth();
 
     return () => {
       mounted = false;
@@ -90,21 +102,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Loading profile for user:', supabaseUser.id);
       
-      // Get or create user profile
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', supabaseUser.id)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error loading profile:', error);
-        throw error;
+        // Set fallback user even on error
+        setUser({
+          id: supabaseUser.id,
+          email: supabaseUser.email!,
+          name: supabaseUser.email!.split('@')[0],
+          trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+          isPaid: false,
+          whatsappConnected: false,
+          billingStatus: 'trial'
+        });
+        return;
       }
 
-      // Create profile if it doesn't exist
       if (!profile) {
-        console.log('Creating new profile for user:', supabaseUser.id);
+        console.log('No profile found, creating new profile...');
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert({
@@ -119,7 +139,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (createError) {
           console.error('Error creating profile:', createError);
-          throw createError;
+          // Set fallback user even on error
+          setUser({
+            id: supabaseUser.id,
+            email: supabaseUser.email!,
+            name: supabaseUser.email!.split('@')[0],
+            trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+            isPaid: false,
+            whatsappConnected: false,
+            billingStatus: 'trial'
+          });
+          return;
         }
 
         setUser({
@@ -134,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           billingStatus: newProfile.billing_status
         });
       } else {
-        console.log('Profile loaded:', profile);
+        console.log('Profile loaded successfully');
         setUser({
           id: supabaseUser.id,
           email: supabaseUser.email!,
@@ -149,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error in loadUserProfile:', error);
-      // Set a fallback user to prevent loading loop
+      // Always set a fallback user to prevent loading loop
       setUser({
         id: supabaseUser.id,
         email: supabaseUser.email!,
@@ -163,17 +193,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
+    console.log('Attempting login...');
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      console.error('Login error:', error);
       throw error;
     }
   };
 
   const signup = async (email: string, password: string, name: string) => {
+    console.log('Attempting signup...');
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -186,11 +219,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
+      console.error('Signup error:', error);
       throw error;
     }
   };
 
   const logout = async () => {
+    console.log('Logging out...');
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error('Error logging out:', error);
@@ -204,6 +239,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(updatedUser);
     }
   };
+
+  console.log('Auth state - Loading:', loading, 'User:', user?.email || 'none');
 
   return (
     <AuthContext.Provider value={{
