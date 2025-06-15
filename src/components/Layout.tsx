@@ -7,14 +7,15 @@ import {
   Calendar, 
   Users, 
   Send, 
-  Settings,
   Crown,
   LogOut,
-  BarChart3,
   Home,
-  Smartphone
+  Smartphone,
+  Menu,
+  X
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -24,6 +25,7 @@ const Layout = ({ children }: LayoutProps) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -37,7 +39,6 @@ const Layout = ({ children }: LayoutProps) => {
     { name: 'הודעות שנשלחו', href: '/sent', icon: Send },
     { name: 'קטגוריות', href: '/segments', icon: Users },
     { name: 'חיבור וואטסאפ', href: '/connect', icon: Smartphone },
-    { name: 'סטטיסטיקות', href: '/analytics', icon: BarChart3 },
     { name: 'מנוי ותשלום', href: '/billing', icon: Crown },
   ];
 
@@ -57,9 +58,17 @@ const Layout = ({ children }: LayoutProps) => {
             </div>
             
             <div className="flex items-center gap-4">
-              {/* Subscription Status */}
+              {/* Mobile menu button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              >
+                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+
+              {/* Subscription Status - Desktop */}
               {user && (
-                <div className="flex items-center gap-2">
+                <div className="hidden md:flex items-center gap-2">
                   {user.isPaid ? (
                     <span className="flex items-center gap-1 text-green-600 text-sm font-medium">
                       <Crown className="h-4 w-4" />
@@ -76,9 +85,9 @@ const Layout = ({ children }: LayoutProps) => {
                 </div>
               )}
 
-              {/* User Menu */}
+              {/* User Menu - Desktop */}
               {user && (
-                <div className="flex items-center gap-3">
+                <div className="hidden md:flex items-center gap-3">
                   <span className="text-sm text-gray-700">שלום, {user.name}</span>
                   <Button
                     onClick={handleLogout}
@@ -93,12 +102,65 @@ const Layout = ({ children }: LayoutProps) => {
             </div>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200 bg-white">
+            <div className="px-4 py-3 space-y-2">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive(item.href)
+                        ? 'bg-green-100 text-green-700'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+              
+              {/* Mobile user info */}
+              {user && (
+                <div className="pt-3 border-t border-gray-200 mt-3">
+                  <div className="px-3 py-2 text-sm text-gray-700">
+                    שלום, {user.name}
+                  </div>
+                  {!user.isPaid && (
+                    <Link to="/billing" onClick={() => setMobileMenuOpen(false)}>
+                      <div className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-orange-600 hover:bg-orange-50">
+                        <Crown className="h-4 w-4" />
+                        שדרג לPremium
+                      </div>
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 w-full text-right"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    התנתק
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-8">
-          {/* Sidebar */}
-          <aside className="w-64 flex-shrink-0">
+          {/* Sidebar - Desktop only */}
+          <aside className="hidden md:block w-64 flex-shrink-0">
             <Card>
               <CardContent className="p-4">
                 <nav className="space-y-2">

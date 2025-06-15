@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -13,13 +14,12 @@ const WhatsAppConnect = () => {
   const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
-  const [instanceId, setInstanceId] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
 
-  // Check user's current instance status on load
+  // Check user's current WhatsApp status on load
   useEffect(() => {
     if (user?.id) {
-      checkUserInstance();
+      checkUserStatus();
     }
   }, [user?.id]);
 
@@ -38,7 +38,7 @@ const WhatsAppConnect = () => {
     };
   }, [connectionStatus]);
 
-  const checkUserInstance = async () => {
+  const checkUserStatus = async () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -51,26 +51,27 @@ const WhatsAppConnect = () => {
         return;
       }
 
-      if ((data as any)?.instance_id) {
-        setInstanceId((data as any).instance_id);
-        setConnectionStatus((data as any).instance_status === 'connected' ? 'connected' : 'disconnected');
+      if ((data as any)?.instance_status === 'connected') {
+        setConnectionStatus('connected');
+      } else {
+        setConnectionStatus('disconnected');
       }
     } catch (error) {
-      console.error('Error checking user instance:', error);
+      console.error('Error checking user status:', error);
     }
   };
 
-  // Check if user can create instance (paid or testing mode)
-  const canCreateInstance = () => {
-    // For testing - allow everyone to create instances
-    // In production, this would check: user?.isPaid || user?.billingStatus === 'paid'
+  // Check if user can connect WhatsApp (paid users only in production)
+  const canConnectWhatsApp = () => {
+    // For testing - allow everyone to connect
+    // In production, this would be: user?.isPaid || user?.billingStatus === 'paid'
     return true;
   };
 
-  const createInstance = async () => {
+  const startConnection = async () => {
     if (!user?.id) return;
 
-    if (!canCreateInstance()) {
+    if (!canConnectWhatsApp()) {
       toast({
         title: "נדרש שדרוג",
         description: "כדי להתחבר לוואטסאפ, יש לשדרג לחשבון Premium",
@@ -80,43 +81,17 @@ const WhatsAppConnect = () => {
     }
 
     setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('instance-manager', {
-        body: { userId: user.id }
-      });
-
-      if (error) throw error;
-
-      if (data?.success) {
-        setInstanceId(data.instanceId);
-        toast({
-          title: "אינסטנס נוצר בהצלחה!",
-          description: "עכשיו תוכל להתחבר לוואטסאפ.",
-        });
-        // After creating instance, get QR code
-        await getQrCode();
-      } else {
-        throw new Error(data?.error || 'Failed to create instance');
-      }
-    } catch (error) {
-      console.error('Instance creation error:', error);
-      toast({
-        title: "שגיאה ביצירת אינסטנס",
-        description: error.message || "לא הצלחנו ליצור אינסטנס וואטסאפ. נסה שוב.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getQrCode = async () => {
-    if (!user?.id) return;
-
-    setLoading(true);
     setConnectionStatus('connecting');
     
     try {
+      // First create/setup the WhatsApp instance behind the scenes
+      const { data: instanceData, error: instanceError } = await supabase.functions.invoke('instance-manager', {
+        body: { userId: user.id }
+      });
+
+      if (instanceError) throw instanceError;
+
+      // Then get the QR code for connection
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { userId: user.id, action: 'get_qr' }
       });
@@ -133,13 +108,44 @@ const WhatsAppConnect = () => {
         throw new Error(data?.error || 'Failed to get QR code');
       }
     } catch (error) {
-      console.error('QR code error:', error);
+      console.error('Connection error:', error);
       toast({
-        title: "שגיאה בקבלת קוד QR",
-        description: error.message || "לא הצלחנו לקבל קוד QR. נסה שוב.",
+        title: "שגיאה בחיבור",
+        description: error.message || "לא הצלחנו להתחיל את החיבור. נסה שוב.",
         variant: "destructive"
       });
       setConnectionStatus('disconnected');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshQrCode = async () => {
+    if (!user?.id) return;
+
+    setLoading(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
+        body: { userId: user.id, action: 'get_qr' }
+      });
+
+      if (error) throw error;
+
+      if (data?.success && data.qr_code) {
+        setQrCode(data.qr_code);
+        toast({
+          title: "קוד QR חודש!",
+          description: "סרוק את הקוד החדש עם הוואטסאפ שלך.",
+        });
+      }
+    } catch (error) {
+      console.error('QR refresh error:', error);
+      toast({
+        title: "שגיאה ברענון קוד QR",
+        description: "נסה שוב בעוד כמה רגעים.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -206,38 +212,6 @@ const WhatsAppConnect = () => {
     }
   };
 
-  const deleteInstance = async () => {
-    if (!user?.id || !instanceId) return;
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('instance-manager', {
-        body: { userId: user.id, instanceId }
-      });
-
-      if (error) throw error;
-
-      if (data?.success) {
-        setInstanceId(null);
-        setConnectionStatus('disconnected');
-        setQrCode(null);
-        toast({
-          title: "אינסטנס נמחק",
-          description: "אינסטנס הוואטסאפ נמחק בהצלחה.",
-        });
-      }
-    } catch (error) {
-      console.error('Delete instance error:', error);
-      toast({
-        title: "שגיאה במחיקת אינסטנס",
-        description: "לא הצלחנו למחוק את האינסטנס. נסה שוב.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (connectionStatus === 'connected') {
     return (
       <Layout>
@@ -295,10 +269,6 @@ const WhatsAppConnect = () => {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">אינסטנס ID:</span>
-                  <span className="font-medium font-mono text-xs">{instanceId}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-gray-600">פעילות אחרונה:</span>
                   <span className="font-medium">לפני דקותיים</span>
                 </div>
@@ -316,12 +286,15 @@ const WhatsAppConnect = () => {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">חבר את הוואטסאפ שלך</h1>
           <p className="text-gray-600">
-            {!instanceId ? 'צור אינסטנס חדש והתחבר לוואטסאפ' : 'סרוק את קוד ה-QR עם הוואטסאפ שלך כדי להתחבר'}
+            {connectionStatus === 'connecting' && qrCode ? 
+              'סרוק את קוד ה-QR עם הוואטסאפ שלך כדי להתחבר' :
+              'התחבר לוואטסאפ כדי להתחיל לשלוח הודעות לקבוצות שלך'
+            }
           </p>
         </div>
 
         {/* Payment Required Notice for Production */}
-        {!canCreateInstance() && (
+        {!canConnectWhatsApp() && (
           <Card className="border-orange-200 bg-orange-50">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -333,7 +306,7 @@ const WhatsAppConnect = () => {
                     נדרש שדרוג לחשבון Premium
                   </h3>
                   <p className="text-orange-800 mb-4">
-                    כדי להתחבר לוואטסאפ וליצור אינסטנס, יש לשדרג לחשבון Premium.
+                    כדי להתחבר לוואטסאפ, יש לשדרג לחשבון Premium.
                   </p>
                   <Link to="/billing">
                     <Button className="bg-orange-600 hover:bg-orange-700">
@@ -348,32 +321,8 @@ const WhatsAppConnect = () => {
 
         <Card>
           <CardContent className="p-8">
-            {!instanceId ? (
-              // No instance - show create button
-              <div className="text-center">
-                <div className="p-4 bg-blue-50 rounded-full w-fit mx-auto mb-6">
-                  <Smartphone className="h-12 w-12 text-blue-600" />
-                </div>
-                
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                  צור אינסטנס וואטסאפ
-                </h2>
-                
-                <p className="text-gray-600 mb-6">
-                  כדי להתחיל, אנחנו צריכים ליצור אינסטנס וואטסאפ חדש עבורך. זה יאפשר לך לשלוח הודעות לקבוצות שלך.
-                </p>
-
-                <Button 
-                  onClick={createInstance}
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={loading || !canCreateInstance()}
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {canCreateInstance() ? "צור אינסטנס חדש" : "נדרש שדרוג"}
-                </Button>
-              </div>
-            ) : connectionStatus === 'connecting' && qrCode ? (
-              // Has instance and QR code - show QR
+            {connectionStatus === 'connecting' && qrCode ? (
+              // Show QR code for scanning
               <div className="text-center">
                 <div className="p-4 bg-gray-50 rounded-2xl w-fit mx-auto mb-6">
                   <img 
@@ -408,47 +357,36 @@ const WhatsAppConnect = () => {
                 </div>
 
                 <Button 
-                  onClick={getQrCode}
+                  onClick={refreshQrCode}
                   variant="outline"
                   disabled={loading}
-                  className="mr-2"
                 >
                   רענן קוד QR
                 </Button>
               </div>
             ) : (
-              // Has instance but no QR - show connect button
+              // Show connect button
               <div className="text-center">
-                <div className="p-4 bg-orange-50 rounded-full w-fit mx-auto mb-6">
-                  <WifiOff className="h-12 w-12 text-orange-600" />
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
+                  <Smartphone className="h-12 w-12 text-green-600" />
                 </div>
                 
                 <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                  וואטסאפ לא מחובר
+                  התחבר לוואטסאפ
                 </h2>
                 
                 <p className="text-gray-600 mb-6">
-                  יש לך אינסטנס וואטסאפ, אבל הוא לא מחובר. לחץ על "התחבר" כדי לקבל קוד QR חדש.
+                  חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות אוטומטיות לקבוצות.
                 </p>
 
-                <div className="flex gap-3 justify-center">
-                  <Button 
-                    onClick={getQrCode}
-                    className="bg-green-600 hover:bg-green-700"
-                    disabled={loading}
-                  >
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    התחבר
-                  </Button>
-                  <Button 
-                    onClick={deleteInstance}
-                    variant="outline"
-                    disabled={loading}
-                    className="text-red-600 border-red-600 hover:bg-red-50"
-                  >
-                    מחק אינסטנס
-                  </Button>
-                </div>
+                <Button 
+                  onClick={startConnection}
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={loading || !canConnectWhatsApp()}
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {canConnectWhatsApp() ? "התחבר עכשיו" : "נדרש שדרוג"}
+                </Button>
               </div>
             )}
           </CardContent>
@@ -462,8 +400,8 @@ const WhatsAppConnect = () => {
               <div>
                 <h3 className="font-semibold text-blue-900 mb-2">מצב בדיקות</h3>
                 <p className="text-sm text-blue-800">
-                  כרגע המערכת במצב בדיקות ותוכל ליצור אינסטנס ללא תשלום.
-                  בעתיד יידרש חשבון Premium עבור יצירת אינסטנס וואטסאפ.
+                  כרגע המערכת במצב בדיקות ותוכל להתחבר לוואטסאפ ללא תשלום.
+                  בעתיד יידרש חשבון Premium עבור חיבור וואטסאפ.
                 </p>
               </div>
             </div>
@@ -480,7 +418,6 @@ const WhatsAppConnect = () => {
                   <li>• השאר את הטלפון שלך מחובר לאינטרנט</li>
                   <li>• חיבורי וואטסאפ ווב פגים לאחר זמן של חוסר פעילות</li>
                   <li>• אתה יכול להתנתק בכל עת מהטלפון או מהדשבורד הזה</li>
-                  <li>• כל משתמש דורש אינסטנס וואטסאפ נפרד</li>
                 </ul>
               </div>
             </div>
