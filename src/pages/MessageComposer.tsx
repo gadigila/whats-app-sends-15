@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Clock, Send, Upload, Image, FileText } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useTrialStatus } from '@/hooks/useTrialStatus';
+import LockedFeature from '@/components/LockedFeature';
+import SuccessDialog from '@/components/SuccessDialog';
 
 const MessageComposer = () => {
   const [message, setMessage] = useState('');
@@ -16,6 +18,12 @@ const MessageComposer = () => {
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [successDialog, setSuccessDialog] = useState<{
+    isOpen: boolean;
+    type: 'sent' | 'scheduled';
+  }>({ isOpen: false, type: 'sent' });
+  
+  const { trialStatus, isLoading } = useTrialStatus();
   
   const groups = [
     { id: 'all', name: 'כל הקבוצות (8)' },
@@ -25,7 +33,12 @@ const MessageComposer = () => {
     { id: 'vip', name: 'לקוחות VIP' },
   ];
 
+  // Check if user has access to features
+  const hasAccess = !isLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!hasAccess) return;
+    
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
@@ -45,6 +58,8 @@ const MessageComposer = () => {
   };
 
   const handleSendNow = () => {
+    if (!hasAccess) return;
+    
     if (!message.trim()) {
       toast({
         title: "הודעה נדרשת",
@@ -63,10 +78,8 @@ const MessageComposer = () => {
       return;
     }
 
-    toast({
-      title: "ההודעה נשלחה!",
-      description: `ההודעה שלך נשלחה ל${selectedGroups}.`,
-    });
+    // Show success dialog instead of toast
+    setSuccessDialog({ isOpen: true, type: 'sent' });
     
     // Clear form
     setMessage('');
@@ -75,6 +88,8 @@ const MessageComposer = () => {
   };
 
   const handleSchedule = () => {
+    if (!hasAccess) return;
+    
     if (!message.trim() || !selectedGroups || !scheduleDate || !scheduleTime) {
       toast({
         title: "חסר מידע",
@@ -84,10 +99,8 @@ const MessageComposer = () => {
       return;
     }
 
-    toast({
-      title: "ההודעה תוזמנה!",
-      description: `ההודעה שלך תישלח ב-${scheduleDate} בשעה ${scheduleTime}.`,
-    });
+    // Show success dialog instead of toast
+    setSuccessDialog({ isOpen: true, type: 'scheduled' });
     
     // Clear form
     setMessage('');
@@ -96,6 +109,36 @@ const MessageComposer = () => {
     setScheduleTime('');
     setAttachedFile(null);
   };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-lg">טוען...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // If user doesn't have access, show locked feature
+  if (!hasAccess) {
+    return (
+      <Layout>
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">כתיבת הודעה</h1>
+            <p className="text-gray-600">צור ושלח הודעות לקבוצות הוואטסאפ שלך</p>
+          </div>
+          
+          <LockedFeature
+            title="כתיבת הודעות"
+            description="כדי לכתוב ולשלוח הודעות לקבוצות הוואטסאפ שלך, אנא שדרג את החשבון שלך."
+            className="min-h-96"
+          />
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -294,6 +337,13 @@ const MessageComposer = () => {
             </Card>
           </div>
         </div>
+
+        {/* Success Dialog */}
+        <SuccessDialog
+          isOpen={successDialog.isOpen}
+          onClose={() => setSuccessDialog({ isOpen: false, type: 'sent' })}
+          type={successDialog.type}
+        />
       </div>
     </Layout>
   );
