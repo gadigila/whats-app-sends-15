@@ -115,7 +115,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-full ${user?.whatsappConnected ? 'bg-green-50' : 'bg-red-50'}`}>
                 {user?.whatsappConnected ? (
-                  <CheckCircleClassName="h-6 w-6 text-green-600" />
+                  <CheckCircle className="h-6 w-6 text-green-600" />
                 ) : (
                   <AlertCircle className="h-6 w-6 text-red-600" />
                 )}
