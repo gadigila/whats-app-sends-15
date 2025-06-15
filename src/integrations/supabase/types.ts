@@ -12,9 +12,11 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          billing_status: string | null
           created_at: string
           id: string
           instance_id: string | null
+          instance_status: string | null
           is_active: boolean | null
           is_onboarded: boolean | null
           name: string | null
@@ -26,9 +28,11 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          billing_status?: string | null
           created_at?: string
           id: string
           instance_id?: string | null
+          instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
           name?: string | null
@@ -40,9 +44,11 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          billing_status?: string | null
           created_at?: string
           id?: string
           instance_id?: string | null
+          instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
           name?: string | null

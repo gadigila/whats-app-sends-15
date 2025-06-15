@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MessageSquare, Mail } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
 
@@ -13,39 +13,51 @@ const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { login, signup } = useAuth();
+  const { login, signup, signInWithGoogle, loading, user } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already logged in
+  if (user) {
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
     try {
       if (isLogin) {
+        console.log('Attempting login with:', email);
         await login(email, password);
         toast({ title: "ברוך השב!" });
+        navigate('/dashboard', { replace: true });
       } else {
+        console.log('Attempting signup with:', email, name);
         await signup(email, password, name);
         toast({ title: "החשבון נוצר בהצלחה!" });
+        navigate('/dashboard', { replace: true });
       }
-      navigate('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Auth error:', error);
       toast({
         title: "שגיאה",
-        description: "משהו השתבש. אנא נסה שוב.",
+        description: error.message || "משהו השתבש. אנא נסה שוב.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleGoogleAuth = () => {
-    toast({
-      title: "התחברות עם Google",
-      description: "אימות Google יתבצע כאן.",
-    });
+  const handleGoogleAuth = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      console.error('Google auth error:', error);
+      toast({
+        title: "שגיאה בהתחברות Google",
+        description: error.message || "משהו השתבש בהתחברות עם Google.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -59,7 +71,7 @@ const AuthPage = () => {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">מתזמן וואטסאפ</h1>
             <p className="text-gray-600 mt-2">
-              {isLogin ? 'ברוך השב!' : 'התחל את הניסיון החינם שלך'}
+              {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}
             </p>
           </div>
 
@@ -68,6 +80,7 @@ const AuthPage = () => {
             onClick={handleGoogleAuth}
             variant="outline"
             className="w-full mb-4 h-12 text-gray-700 border-gray-300 hover:bg-gray-50"
+            disabled={loading}
           >
             <svg className="w-5 h-5 ml-3" viewBox="0 0 24 24">
               <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -75,7 +88,7 @@ const AuthPage = () => {
               <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            המשך עם Google
+            {loading ? "מתחבר..." : "המשך עם Google"}
           </Button>
 
           <div className="relative mb-6">
