@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -14,7 +13,7 @@ const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const { login, signup, loading, user } = useAuth();
+  const { login, signup, signInWithGoogle, loading, user } = useAuth();
   const navigate = useNavigate();
 
   // Redirect if already logged in
@@ -48,11 +47,17 @@ const AuthPage = () => {
     }
   };
 
-  const handleGoogleAuth = () => {
-    toast({
-      title: "התחברות עם Google",
-      description: "אימות Google יתבצע כאן.",
-    });
+  const handleGoogleAuth = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      console.error('Google auth error:', error);
+      toast({
+        title: "שגיאה בהתחברות Google",
+        description: error.message || "משהו השתבש בהתחברות עם Google.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -80,6 +85,7 @@ const AuthPage = () => {
             onClick={handleGoogleAuth}
             variant="outline"
             className="w-full mb-4 h-12 text-gray-700 border-gray-300 hover:bg-gray-50"
+            disabled={loading}
           >
             <svg className="w-5 h-5 ml-3" viewBox="0 0 24 24">
               <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -87,7 +93,7 @@ const AuthPage = () => {
               <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            המשך עם Google
+            {loading ? "מתחבר..." : "המשך עם Google"}
           </Button>
 
           <div className="relative mb-6">
