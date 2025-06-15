@@ -76,15 +76,15 @@ Deno.serve(async (req) => {
 
       console.log(`User status: ${profile.billing_status} - creating channel`)
 
-      // Create channel via WHAPI Partner API
-      const createChannelResponse = await fetch('https://gate.whapi.cloud/partner/channels', {
+      // Create channel via WHAPI Partner API (corrected URL)
+      const createChannelResponse = await fetch('https://partner-api.whapi.cloud/api/v1/channels', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${whapiPartnerToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: `user_${userId}_channel`,
+          name: `reecher_user_${userId}`,
           webhook_url: `${supabaseUrl}/functions/v1/whatsapp-webhook`
         })
       })
@@ -106,12 +106,12 @@ Deno.serve(async (req) => {
         ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() // 3 days from now
         : profile.trial_expires_at
 
-      // Update user profile with channel info
+      // Update user profile with channel info - using instance_id from WHAPI response
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
-          whapi_channel_id: channelData.id,
-          whapi_token: channelData.token,
+          whapi_channel_id: channelData.instance_id || channelData.id, // Use instance_id if available
+          whapi_token: channelData.whapi_token || channelData.token,
           instance_status: 'created',
           trial_expires_at: trialExpiresAt,
           updated_at: new Date().toISOString()
@@ -129,8 +129,9 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          channelId: channelData.id,
-          token: channelData.token,
+          channelId: channelData.instance_id || channelData.id,
+          instanceId: channelData.instance_id || channelData.id,
+          token: channelData.whapi_token || channelData.token,
           status: 'created',
           trialExpiresAt: trialExpiresAt
         }),
@@ -157,8 +158,8 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Delete channel via WHAPI Partner API
-      const deleteChannelResponse = await fetch(`https://gate.whapi.cloud/partner/channels/${instanceId}`, {
+      // Delete channel via WHAPI Partner API (corrected URL)
+      const deleteChannelResponse = await fetch(`https://partner-api.whapi.cloud/api/v1/channels/${instanceId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${whapiPartnerToken}`,

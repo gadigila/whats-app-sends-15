@@ -21,7 +21,6 @@ Deno.serve(async (req) => {
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -43,7 +42,7 @@ Deno.serve(async (req) => {
       .eq('id', userId)
       .single()
 
-    if (profileError || !profile.whapi_channel_id || !profile.whapi_token) {
+    if (profileError || !profile.whapi_channel_id) {
       console.error('Profile or channel not found:', profileError)
       return new Response(
         JSON.stringify({ error: 'WhatsApp channel not found. Please create a channel first.' }),
@@ -51,15 +50,14 @@ Deno.serve(async (req) => {
       )
     }
 
-    const channelId = profile.whapi_channel_id
+    const instanceId = profile.whapi_channel_id
     const whapiToken = profile.whapi_token
 
     if (action === 'get_qr') {
-      // Get QR code for WhatsApp connection using the channel's token
-      const qrResponse = await fetch(`https://gate.whapi.cloud/qr`, {
+      // Get QR code for WhatsApp connection using instance ID (no auth needed)
+      const qrResponse = await fetch(`https://gate.whapi.cloud/instance/qr?id=${instanceId}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${whapiToken}`,
           'Content-Type': 'application/json'
         }
       })
@@ -74,7 +72,7 @@ Deno.serve(async (req) => {
       }
 
       const qrData = await qrResponse.json()
-      console.log('QR data received for channel:', channelId)
+      console.log('QR data received for instance:', instanceId)
 
       return new Response(
         JSON.stringify({ 
@@ -86,11 +84,10 @@ Deno.serve(async (req) => {
       )
 
     } else if (action === 'check_status') {
-      // Check connection status using the channel's token
-      const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
+      // Check connection status using instance ID (no auth needed)
+      const statusResponse = await fetch(`https://gate.whapi.cloud/instance/status?id=${instanceId}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${whapiToken}`,
           'Content-Type': 'application/json'
         }
       })
@@ -105,7 +102,7 @@ Deno.serve(async (req) => {
       }
 
       const statusData = await statusResponse.json()
-      console.log('Status data for channel:', channelId, statusData)
+      console.log('Status data for instance:', instanceId, statusData)
 
       // Update instance status in database
       const newStatus = statusData.status === 'authenticated' ? 'connected' : 'disconnected'
@@ -128,13 +125,16 @@ Deno.serve(async (req) => {
       )
 
     } else if (action === 'disconnect') {
-      // Disconnect WhatsApp using the channel's token
-      const disconnectResponse = await fetch(`https://gate.whapi.cloud/logout`, {
+      // Disconnect WhatsApp using the instance's token
+      const disconnectResponse = await fetch(`https://gate.whapi.cloud/instance/logout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${whapiToken}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          id: instanceId
+        })
       })
 
       if (!disconnectResponse.ok) {
