@@ -1,4 +1,3 @@
-
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -53,7 +52,7 @@ const Billing = () => {
     <Layout>
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">בחר את התוכנית שלך</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">הצטרף לתוכנית שלנו</h1>
           <p className="text-gray-600">
             גישה מלאה לכל התכונות של Reecher.app
           </p>
