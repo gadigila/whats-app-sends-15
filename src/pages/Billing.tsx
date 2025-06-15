@@ -11,20 +11,19 @@ const Billing = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
+  // For now, since we simplified the auth, we'll treat all users as free trial
+  const isPaid = false;
+  const trialDaysLeft = 3; // Default trial period
+
   const handleUpgrade = async () => {
     setLoading(true);
     try {
-      // For now, just show a toast - later we'll integrate with Stripe
       toast({
         title: "תשלום יתווסף בקרוב",
         description: "לבדיקות - החשבון שלך שודרג זמנית",
       });
       
-      // For testing - simulate upgrade
-      if (user) {
-        // This would normally be done through Stripe webhook
-        console.log('Simulating upgrade for testing');
-      }
+      console.log('Simulating upgrade for testing');
     } catch (error) {
       toast({
         title: "שגיאה",
@@ -60,8 +59,8 @@ const Billing = () => {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-full ${user.isPaid ? 'bg-green-50' : 'bg-orange-50'}`}>
-                  {user.isPaid ? (
+                <div className={`p-3 rounded-full ${isPaid ? 'bg-green-50' : 'bg-orange-50'}`}>
+                  {isPaid ? (
                     <Crown className="h-6 w-6 text-green-600" />
                   ) : (
                     <Star className="h-6 w-6 text-orange-600" />
@@ -69,12 +68,12 @@ const Billing = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg">
-                    סטטוס נוכחי: {user.isPaid ? 'Premium' : 'ניסיון חינם'}
+                    סטטוס נוכחי: {isPaid ? 'Premium' : 'ניסיון חינם'}
                   </h3>
                   <p className="text-gray-600">
-                    {user.isPaid 
+                    {isPaid 
                       ? 'יש לך גישה מלאה לכל התכונות.'
-                      : `נותרו לך ${Math.max(0, Math.ceil((user.trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))} ימים בתקופת הניסיון.`
+                      : `נותרו לך ${trialDaysLeft} ימים בתקופת הניסיון.`
                     }
                   </p>
                 </div>
@@ -142,32 +141,14 @@ const Billing = () => {
               </ul>
               <Button 
                 onClick={handleUpgrade}
-                disabled={loading || user?.isPaid}
+                disabled={loading || isPaid}
                 className="w-full bg-green-600 hover:bg-green-700"
               >
-                {loading ? "מעבד..." : user?.isPaid ? "התוכנית הנוכחית שלך" : "שדרג עכשיו"}
+                {loading ? "מעבד..." : isPaid ? "התוכנית הנוכחית שלך" : "שדרג עכשיו"}
               </Button>
             </CardContent>
           </Card>
         </div>
-
-        {/* Testing Notice */}
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Star className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-blue-900 mb-2">מצב בדיקות</h3>
-                <p className="text-blue-800 text-sm">
-                  כרגע המערכת במצב בדיקות. תשלומים יתווספו בעתיד הקרוב.
-                  תוכל לגשת לכל התכונות ללא תשלום לצורך בדיקה.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </Layout>
   );
