@@ -160,8 +160,8 @@ const Billing = () => {
                 <p className="text-gray-600">עקוב אחר סטטוס השליחה ונהל את כל ההודעות שלך</p>
               </div>
             </div>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );
