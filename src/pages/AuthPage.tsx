@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
-import ClearDataButton from '@/components/ClearDataButton';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -73,11 +73,6 @@ const AuthPage = () => {
             <p className="text-gray-600 mt-2">
               {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}
             </p>
-          </div>
-
-          {/* Clear Data Button */}
-          <div className="mb-6">
-            <ClearDataButton />
           </div>
 
           {/* Google Sign In */}
