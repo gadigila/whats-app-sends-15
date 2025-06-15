@@ -35,15 +35,15 @@ Deno.serve(async (req) => {
     console.log(`Instance Manager: ${method} request received`)
 
     if (method === 'POST') {
-      // Create new instance
+      // Create new channel using Partner API
       const { userId } = body as CreateInstanceRequest
 
-      console.log(`Creating instance for user: ${userId}`)
+      console.log(`Creating channel for user: ${userId}`)
 
-      // Check user's billing status
+      // Check user's current status
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('billing_status, instance_id, plan')
+        .select('billing_status, whapi_channel_id, trial_expires_at, payment_plan')
         .eq('id', userId)
         .single()
 
@@ -55,62 +55,65 @@ Deno.serve(async (req) => {
         )
       }
 
-      // Check if user already has an instance
-      if (profile.instance_id) {
+      // Check if user already has an active channel
+      if (profile.whapi_channel_id && profile.billing_status !== 'expired') {
         return new Response(
           JSON.stringify({ 
-            error: 'User already has an instance',
-            instanceId: profile.instance_id 
+            error: 'User already has an active channel',
+            channelId: profile.whapi_channel_id 
           }),
           { status: 400, headers: corsHeaders }
         )
       }
 
-      // For testing mode - allow trial users to create instances
-      // In production, uncomment the following lines to require payment:
-      /*
-      if (profile.billing_status !== 'paid' && profile.plan !== 'paid') {
-        console.log(`User billing status: ${profile.billing_status}, plan: ${profile.plan} - access denied`)
+      // Check if trial has expired
+      if (profile.trial_expires_at && new Date() > new Date(profile.trial_expires_at) && profile.billing_status === 'trial') {
         return new Response(
-          JSON.stringify({ error: 'Premium subscription required to create WhatsApp instance' }),
+          JSON.stringify({ error: 'Trial period has expired. Please upgrade to continue.' }),
           { status: 403, headers: corsHeaders }
         )
       }
-      */
 
-      console.log(`User billing status: ${profile.billing_status} - allowing instance creation (testing mode)`)
+      console.log(`User status: ${profile.billing_status} - creating channel`)
 
-      // Create instance via WHAPI Partner API
-      const createInstanceResponse = await fetch('https://gate.whapi.cloud/partner/instances', {
+      // Create channel via WHAPI Partner API
+      const createChannelResponse = await fetch('https://gate.whapi.cloud/partner/channels', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${whapiPartnerToken}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          name: `user_${userId}_instance`,
+          name: `user_${userId}_channel`,
           webhook_url: `${supabaseUrl}/functions/v1/whatsapp-webhook`
         })
       })
 
-      if (!createInstanceResponse.ok) {
-        const errorText = await createInstanceResponse.text()
-        console.error('WHAPI instance creation failed:', errorText)
+      if (!createChannelResponse.ok) {
+        const errorText = await createChannelResponse.text()
+        console.error('WHAPI channel creation failed:', errorText)
         return new Response(
-          JSON.stringify({ error: 'Failed to create WhatsApp instance' }),
+          JSON.stringify({ error: 'Failed to create WhatsApp channel' }),
           { status: 500, headers: corsHeaders }
         )
       }
 
-      const instanceData = await createInstanceResponse.json()
-      console.log('Instance created:', instanceData)
+      const channelData = await createChannelResponse.json()
+      console.log('Channel created:', channelData)
 
-      // Update user profile with instance ID
+      // Calculate trial expiration for new users
+      const trialExpiresAt = profile.billing_status === 'trial' && !profile.trial_expires_at 
+        ? new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() // 3 days from now
+        : profile.trial_expires_at
+
+      // Update user profile with channel info
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
-          instance_id: instanceData.id,
+          whapi_channel_id: channelData.id,
+          whapi_token: channelData.token,
           instance_status: 'created',
+          trial_expires_at: trialExpiresAt,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId)
@@ -126,34 +129,36 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          instanceId: instanceData.id,
-          status: 'created'
+          channelId: channelData.id,
+          token: channelData.token,
+          status: 'created',
+          trialExpiresAt: trialExpiresAt
         }),
         { status: 200, headers: corsHeaders }
       )
 
     } else if (method === 'DELETE') {
-      // Delete instance
+      // Delete channel
       const { userId, instanceId } = body as DeleteInstanceRequest
 
-      console.log(`Deleting instance ${instanceId} for user: ${userId}`)
+      console.log(`Deleting channel ${instanceId} for user: ${userId}`)
 
-      // Verify instance belongs to user
+      // Verify channel belongs to user
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('instance_id')
+        .select('whapi_channel_id')
         .eq('id', userId)
         .single()
 
-      if (profileError || profile.instance_id !== instanceId) {
+      if (profileError || profile.whapi_channel_id !== instanceId) {
         return new Response(
-          JSON.stringify({ error: 'Instance not found or unauthorized' }),
+          JSON.stringify({ error: 'Channel not found or unauthorized' }),
           { status: 404, headers: corsHeaders }
         )
       }
 
-      // Delete instance via WHAPI Partner API
-      const deleteInstanceResponse = await fetch(`https://gate.whapi.cloud/partner/instances/${instanceId}`, {
+      // Delete channel via WHAPI Partner API
+      const deleteChannelResponse = await fetch(`https://gate.whapi.cloud/partner/channels/${instanceId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${whapiPartnerToken}`,
@@ -161,20 +166,21 @@ Deno.serve(async (req) => {
         }
       })
 
-      if (!deleteInstanceResponse.ok) {
-        const errorText = await deleteInstanceResponse.text()
-        console.error('WHAPI instance deletion failed:', errorText)
+      if (!deleteChannelResponse.ok) {
+        const errorText = await deleteChannelResponse.text()
+        console.error('WHAPI channel deletion failed:', errorText)
         return new Response(
-          JSON.stringify({ error: 'Failed to delete WhatsApp instance' }),
+          JSON.stringify({ error: 'Failed to delete WhatsApp channel' }),
           { status: 500, headers: corsHeaders }
         )
       }
 
-      // Update user profile to remove instance
+      // Update user profile to remove channel
       const { error: updateError } = await supabase
         .from('profiles')
         .update({ 
-          instance_id: null,
+          whapi_channel_id: null,
+          whapi_token: null,
           instance_status: 'inactive',
           updated_at: new Date().toISOString()
         })

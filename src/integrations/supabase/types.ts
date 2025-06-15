@@ -20,10 +20,13 @@ export type Database = {
           is_active: boolean | null
           is_onboarded: boolean | null
           name: string | null
+          payment_plan: string | null
           plan: string | null
           role: string | null
           trial_ends_at: string | null
+          trial_expires_at: string | null
           updated_at: string
+          whapi_channel_id: string | null
           whapi_token: string | null
         }
         Insert: {
@@ -36,10 +39,13 @@ export type Database = {
           is_active?: boolean | null
           is_onboarded?: boolean | null
           name?: string | null
+          payment_plan?: string | null
           plan?: string | null
           role?: string | null
           trial_ends_at?: string | null
+          trial_expires_at?: string | null
           updated_at?: string
+          whapi_channel_id?: string | null
           whapi_token?: string | null
         }
         Update: {
@@ -52,10 +58,13 @@ export type Database = {
           is_active?: boolean | null
           is_onboarded?: boolean | null
           name?: string | null
+          payment_plan?: string | null
           plan?: string | null
           role?: string | null
           trial_ends_at?: string | null
+          trial_expires_at?: string | null
           updated_at?: string
+          whapi_channel_id?: string | null
           whapi_token?: string | null
         }
         Relationships: []
