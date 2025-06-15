@@ -39,40 +39,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    checkSession();
+    let mounted = true;
+
+    // Check initial session
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          if (session?.user) {
+            await loadUserProfile(session.user);
+          } else {
+            setUser(null);
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error checking session:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed:', event, session?.user?.id);
       
-      if (session?.user) {
-        await loadUserProfile(session.user);
-      } else {
-        setUser(null);
+      if (mounted) {
+        if (session?.user) {
+          await loadUserProfile(session.user);
+        } else {
+          setUser(null);
+        }
+        if (loading) {
+          setLoading(false);
+        }
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    checkSession();
 
-  const checkSession = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await loadUserProfile(session.user);
-      }
-    } catch (error) {
-      console.error('Error checking session:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const loadUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
-      // Get or create user profile - use raw query to access new columns
+      console.log('Loading profile for user:', supabaseUser.id);
+      
+      // Get or create user profile
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -80,23 +98,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
+        console.error('Error loading profile:', error);
         throw error;
       }
 
       // Create profile if it doesn't exist
       if (!profile) {
+        console.log('Creating new profile for user:', supabaseUser.id);
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert({
             id: supabaseUser.id,
-            name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0],
+            name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'משתמש חדש',
             trial_ends_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-            billing_status: 'trial'
+            billing_status: 'trial',
+            instance_status: 'disconnected'
           })
           .select()
           .single();
 
         if (createError) {
+          console.error('Error creating profile:', createError);
           throw createError;
         }
 
@@ -106,26 +128,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           name: newProfile.name || supabaseUser.email!.split('@')[0],
           trialEndsAt: new Date(newProfile.trial_ends_at!),
           isPaid: newProfile.plan === 'paid',
-          whatsappConnected: (newProfile as any).instance_status === 'connected',
-          instanceId: (newProfile as any).instance_id,
-          instanceStatus: (newProfile as any).instance_status,
-          billingStatus: (newProfile as any).billing_status
+          whatsappConnected: newProfile.instance_status === 'connected',
+          instanceId: newProfile.instance_id,
+          instanceStatus: newProfile.instance_status,
+          billingStatus: newProfile.billing_status
         });
       } else {
+        console.log('Profile loaded:', profile);
         setUser({
           id: supabaseUser.id,
           email: supabaseUser.email!,
           name: profile.name || supabaseUser.email!.split('@')[0],
           trialEndsAt: new Date(profile.trial_ends_at!),
           isPaid: profile.plan === 'paid',
-          whatsappConnected: (profile as any).instance_status === 'connected',
-          instanceId: (profile as any).instance_id,
-          instanceStatus: (profile as any).instance_status,
-          billingStatus: (profile as any).billing_status
+          whatsappConnected: profile.instance_status === 'connected',
+          instanceId: profile.instance_id,
+          instanceStatus: profile.instance_status,
+          billingStatus: profile.billing_status
         });
       }
     } catch (error) {
-      console.error('Error loading user profile:', error);
+      console.error('Error in loadUserProfile:', error);
+      // Set a fallback user to prevent loading loop
+      setUser({
+        id: supabaseUser.id,
+        email: supabaseUser.email!,
+        name: supabaseUser.email!.split('@')[0],
+        trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        isPaid: false,
+        whatsappConnected: false,
+        billingStatus: 'trial'
+      });
     }
   };
 
@@ -148,6 +181,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         data: {
           name: name,
         },
+        emailRedirectTo: `${window.location.origin}/dashboard`,
       },
     });
 
@@ -168,13 +202,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user) {
       const updatedUser = { ...user, ...updates };
       setUser(updatedUser);
-      
-      // If the update is for WhatsApp connection, refresh the profile
-      if ('whatsappConnected' in updates) {
-        setTimeout(() => {
-          checkSession();
-        }, 1000);
-      }
     }
   };
 
