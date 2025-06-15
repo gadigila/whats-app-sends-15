@@ -9,3 +9,6 @@ verify_jwt = false
 
 [functions.whatsapp-connect]
 verify_jwt = false
+
+[functions.cleanup-expired-trials]
+verify_jwt = false
