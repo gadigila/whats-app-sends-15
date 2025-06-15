@@ -3,9 +3,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Smartphone, AlertCircle, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle, Smartphone, AlertCircle, Loader2, Wifi, WifiOff, Crown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Link } from 'react-router-dom';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
@@ -59,8 +60,24 @@ const WhatsAppConnect = () => {
     }
   };
 
+  // Check if user can create instance (paid or testing mode)
+  const canCreateInstance = () => {
+    // For testing - allow everyone to create instances
+    // In production, this would check: user?.isPaid || user?.billingStatus === 'paid'
+    return true;
+  };
+
   const createInstance = async () => {
     if (!user?.id) return;
+
+    if (!canCreateInstance()) {
+      toast({
+        title: "נדרש שדרוג",
+        description: "כדי להתחבר לוואטסאפ, יש לשדרג לחשבון Premium",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -303,6 +320,32 @@ const WhatsAppConnect = () => {
           </p>
         </div>
 
+        {/* Payment Required Notice for Production */}
+        {!canCreateInstance() && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-orange-100 rounded-full">
+                  <Crown className="h-6 w-6 text-orange-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg text-orange-900">
+                    נדרש שדרוג לחשבון Premium
+                  </h3>
+                  <p className="text-orange-800 mb-4">
+                    כדי להתחבר לוואטסאפ וליצור אינסטנס, יש לשדרג לחשבון Premium.
+                  </p>
+                  <Link to="/billing">
+                    <Button className="bg-orange-600 hover:bg-orange-700">
+                      שדרג עכשיו
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardContent className="p-8">
             {!instanceId ? (
@@ -323,10 +366,10 @@ const WhatsAppConnect = () => {
                 <Button 
                   onClick={createInstance}
                   className="bg-blue-600 hover:bg-blue-700"
-                  disabled={loading}
+                  disabled={loading || !canCreateInstance()}
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  צור אינסטנס חדש
+                  {canCreateInstance() ? "צור אינסטנס חדש" : "נדרש שדרוג"}
                 </Button>
               </div>
             ) : connectionStatus === 'connecting' && qrCode ? (
@@ -408,6 +451,22 @@ const WhatsAppConnect = () => {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Testing Mode Notice */}
+        <Card className="bg-blue-50 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-blue-900 mb-2">מצב בדיקות</h3>
+                <p className="text-sm text-blue-800">
+                  כרגע המערכת במצב בדיקות ותוכל ליצור אינסטנס ללא תשלום.
+                  בעתיד יידרש חשבון Premium עבור יצירת אינסטנס וואטסאפ.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

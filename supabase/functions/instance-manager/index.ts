@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
       // Check user's billing status
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('billing_status, instance_id')
+        .select('billing_status, instance_id, plan')
         .eq('id', userId)
         .single()
 
@@ -66,8 +66,19 @@ Deno.serve(async (req) => {
         )
       }
 
-      // For now, allow trial users to create instances (can be restricted later)
-      console.log(`User billing status: ${profile.billing_status}`)
+      // For testing mode - allow trial users to create instances
+      // In production, uncomment the following lines to require payment:
+      /*
+      if (profile.billing_status !== 'paid' && profile.plan !== 'paid') {
+        console.log(`User billing status: ${profile.billing_status}, plan: ${profile.plan} - access denied`)
+        return new Response(
+          JSON.stringify({ error: 'Premium subscription required to create WhatsApp instance' }),
+          { status: 403, headers: corsHeaders }
+        )
+      }
+      */
+
+      console.log(`User billing status: ${profile.billing_status} - allowing instance creation (testing mode)`)
 
       // Create instance via WHAPI Partner API
       const createInstanceResponse = await fetch('https://gate.whapi.cloud/partner/instances', {

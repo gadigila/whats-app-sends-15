@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Users, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
+import { MessageSquare, Users, Calendar, CheckCircle, AlertCircle, Crown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -59,14 +59,55 @@ const Dashboard = () => {
             </p>
           </div>
           
-          {!user?.whatsappConnected && (
-            <Link to="/connect">
-              <Button className="bg-green-600 hover:bg-green-700">
-                חבר וואטסאפ
-              </Button>
-            </Link>
-          )}
+          <div className="flex gap-3">
+            {!user?.isPaid && (
+              <Link to="/billing">
+                <Button className="bg-orange-600 hover:bg-orange-700">
+                  <Crown className="h-4 w-4 mr-2" />
+                  שדרג לPremium
+                </Button>
+              </Link>
+            )}
+            {!user?.whatsappConnected && (
+              <Link to="/connect">
+                <Button className="bg-green-600 hover:bg-green-700">
+                  חבר וואטסאפ
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
+
+        {/* Subscription Status */}
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-full ${user?.isPaid ? 'bg-green-50' : 'bg-orange-50'}`}>
+                {user?.isPaid ? (
+                  <Crown className="h-6 w-6 text-green-600" />
+                ) : (
+                  <AlertCircle className="h-6 w-6 text-orange-600" />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg">
+                  סטטוס מנוי: {user?.isPaid ? 'Premium פעיל' : 'ניסיון חינם'}
+                </h3>
+                <p className="text-gray-600">
+                  {user?.isPaid 
+                    ? 'יש לך גישה מלאה לכל התכונות של המערכת.'
+                    : `נותרו לך ${Math.max(0, trialDaysLeft)} ימים בתקופת הניסיון. שדרג כדי להמשיך להשתמש.`
+                  }
+                </p>
+              </div>
+              {!user?.isPaid && (
+                <Link to="/billing">
+                  <Button>שדרג עכשיו</Button>
+                </Link>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Connection Status */}
         <Card>
@@ -74,7 +115,7 @@ const Dashboard = () => {
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-full ${user?.whatsappConnected ? 'bg-green-50' : 'bg-red-50'}`}>
                 {user?.whatsappConnected ? (
-                  <CheckCircle className="h-6 w-6 text-green-600" />
+                  <CheckCircleClassName="h-6 w-6 text-green-600" />
                 ) : (
                   <AlertCircle className="h-6 w-6 text-red-600" />
                 )}
