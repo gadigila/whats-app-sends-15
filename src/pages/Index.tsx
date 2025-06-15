@@ -1,32 +1,199 @@
 
-import { useAuth } from '@/contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
-import LandingPage from './LandingPage';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { MessageSquare, Users, Clock, CheckCircle, Star, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Index = () => {
-  const { user, loading } = useAuth();
-
-  console.log('Index page - Loading:', loading, 'User:', user?.email || 'none');
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-green-500 mx-auto mb-4" />
-          <p className="text-gray-600">טוען...</p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-white" dir="rtl">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-green-100 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-500 rounded-xl">
+              <MessageSquare className="h-6 w-6 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Reecher.app</h1>
+          </div>
+          <Link to="/auth">
+            <Button variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
+              התחבר
+            </Button>
+          </Link>
         </div>
-      </div>
-    );
-  }
+      </header>
 
-  if (user) {
-    console.log('User is authenticated, redirecting to dashboard');
-    return <Navigate to="/dashboard" replace />;
-  }
+      {/* Hero Section */}
+      <section className="pt-20 pb-16 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+            שלח הודעה לכל
+            <br />
+            <span className="text-green-500">קבוצות הוואטסאפ שלך</span>
+            <br />
+            בלחיצה אחת
+          </h1>
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            חסוך שעות, הפץ תוכן לכולם, בבת אחת. 
+            מערכת חכמה לשליחת הודעות מתוזמנות לכל הקבוצות שלך ב-WhatsApp.
+          </p>
+          <Link to="/auth">
+            <Button className="bg-green-500 hover:bg-green-600 text-white px-8 py-4 text-lg rounded-full shadow-lg hover:shadow-xl transition-all">
+              התחל עכשיו בחינם
+              <ArrowLeft className="mr-2 h-5 w-5" />
+            </Button>
+          </Link>
+        </div>
+      </section>
 
-  console.log('No user, showing landing page');
-  return <LandingPage />;
+      {/* Features */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
+            למה Reecher?
+          </h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <Users className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">כל הקבוצות בבת אחת</h3>
+                <p className="text-gray-600">
+                  שלח הודעה לכל קבוצות הוואטסאפ שלך במקום לשלוח אחת אחת
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <Clock className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">תזמון מתקדם</h3>
+                <p className="text-gray-600">
+                  תזמן הודעות מראש ותן למערכת לשלוח בזמן המתאים
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">פשוט וקל</h3>
+                <p className="text-gray-600">
+                  ממשק פשוט וידידותי שכל אחד יכול להשתמש בו
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="py-16 px-4 bg-gray-50">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
+            איך זה עובד?
+          </h2>
+          <div className="space-y-8">
+            <div className="flex items-center gap-6">
+              <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
+                1
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">התחבר לוואטסאפ</h3>
+                <p className="text-gray-600">סרוק QR קוד פשוט כדי לחבר את הוואטסאפ שלך</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
+                2
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">כתוב הודעה</h3>
+                <p className="text-gray-600">כתוב הודעה, צרף קבצים ובחר לאילו קבוצות לשלוח</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
+                3
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-2">שלח או תזמן</h3>
+                <p className="text-gray-600">שלח מיד או תזמן לזמן מתאים - זה הכל!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Preview */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-6 text-gray-900">
+            מחיר פשוט ושקוף
+          </h2>
+          <Card className="border-green-200 bg-green-50/50">
+            <CardContent className="p-8">
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <Star className="h-6 w-6 text-green-500" />
+                <span className="text-lg font-semibold text-green-600">פופולרי</span>
+              </div>
+              <div className="text-4xl font-bold text-gray-900 mb-2">₪99</div>
+              <p className="text-gray-600 mb-6">לחודש - ללא הגבלה</p>
+              <ul className="space-y-3 text-right mb-8">
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>הודעות ללא הגבלה</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>תזמון מתקדם</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>קבוצות ללא הגבלה</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span>תמיכה מלאה</span>
+                </li>
+              </ul>
+              <Link to="/auth">
+                <Button className="w-full bg-green-500 hover:bg-green-600 text-white py-3 text-lg rounded-full">
+                  התחל עכשיו
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12 px-4">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <div className="p-2 bg-green-500 rounded-xl">
+              <MessageSquare className="h-6 w-6 text-white" />
+            </div>
+            <h3 className="text-2xl font-bold">Reecher.app</h3>
+          </div>
+          <p className="text-gray-400 mb-8">
+            הפתרון החכם לשליחת הודעות מתוזמנות בוואטסאפ
+          </p>
+          <div className="text-sm text-gray-500">
+            © 2024 Reecher.app - כל הזכויות שמורות
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
 };
 
 export default Index;
