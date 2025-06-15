@@ -6,7 +6,7 @@ import {
   MessageSquare, 
   Calendar, 
   Users, 
-  Send, 
+  Send,
   Crown,
   LogOut,
   Home,
@@ -33,13 +33,12 @@ const Layout = ({ children }: LayoutProps) => {
   };
 
   const navigation = [
-    { name: 'דשבורד', href: '/dashboard', icon: Home },
-    { name: 'כתיבת הודעה', href: '/compose', icon: MessageSquare },
+    { name: 'דשבורד', href: '/dashboard', icon: MessageSquare },
+    { name: 'כתיבת הודעה', href: '/compose', icon: Send },
     { name: 'הודעות מתוזמנות', href: '/scheduled', icon: Calendar },
     { name: 'הודעות שנשלחו', href: '/sent', icon: Send },
-    { name: 'קבוצות', href: '/segments', icon: Users },
-    { name: 'חיבור וואטסאפ', href: '/connect', icon: Smartphone },
-    { name: 'מנוי ותשלום', href: '/billing', icon: Crown },
+    { name: 'קטגוריות', href: '/segments', icon: Users },
+    { name: 'חיוב', href: '/billing', icon: Crown },
   ];
 
   const isActive = (href: string) => location.pathname === href;
@@ -95,14 +94,14 @@ const Layout = ({ children }: LayoutProps) => {
                     key={item.name}
                     to={item.href}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                       isActive(item.href)
-                        ? 'bg-green-100 text-green-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        ? 'bg-green-50 text-green-700 border-r-4 border-green-600'
+                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
-                    {item.name}
+                    <Icon className="h-5 w-5" />
+                    <span>{item.name}</span>
                   </Link>
                 );
               })}
@@ -134,23 +133,23 @@ const Layout = ({ children }: LayoutProps) => {
         <div className="flex gap-8">
           {/* Sidebar - Desktop only */}
           <aside className="hidden md:block w-64 flex-shrink-0">
-            <Card>
-              <CardContent className="p-4">
-                <nav className="space-y-2">
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <nav className="space-y-1">
                   {navigation.map((item) => {
                     const Icon = item.icon;
                     return (
                       <Link
                         key={item.name}
                         to={item.href}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors border-r-4 ${
                           isActive(item.href)
-                            ? 'bg-green-100 text-green-700'
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                            ? 'bg-green-50 text-green-700 border-green-600'
+                            : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50 border-transparent'
                         }`}
                       >
-                        <Icon className="h-4 w-4" />
-                        {item.name}
+                        <Icon className="h-5 w-5" />
+                        <span>{item.name}</span>
                       </Link>
                     );
                   })}
