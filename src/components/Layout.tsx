@@ -1,241 +1,124 @@
 
+import { ReactNode } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { 
-  MessageSquare, 
-  Calendar, 
-  Users, 
-  Send,
-  Crown,
-  LogOut,
-  Home,
-  Smartphone,
-  Menu,
-  X,
-  Clock
-} from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
-import { useTrialStatus } from '@/hooks/useTrialStatus';
+import { MessageSquare, Calendar, Send, Users, BarChart3, CreditCard, LogOut, Settings, User } from 'lucide-react';
+import TrialStatusBanner from '@/components/TrialStatusBanner';
+import { useUserProfile } from '@/hooks/useUserProfile';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 interface LayoutProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 const Layout = ({ children }: LayoutProps) => {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { trialStatus } = useTrialStatus();
+  const { profile } = useUserProfile();
 
-  const handleLogout = async () => {
-    await logout();
+  const navigation = [
+    { name: 'לוח בקרה', href: '/dashboard', icon: BarChart3 },
+    { name: 'כתיבת הודעה', href: '/compose', icon: MessageSquare },
+    { name: 'הודעות מתוזמנות', href: '/scheduled', icon: Calendar },
+    { name: 'הודעות שנשלחו', href: '/sent', icon: Send },
+    { name: 'קבוצות', href: '/segments', icon: Users },
+    { name: 'חיבור WhatsApp', href: '/whatsapp-connect', icon: MessageSquare },
+  ];
+
+  const handleSignOut = async () => {
+    await signOut();
     navigate('/');
   };
 
-  const navigation = [
-    { name: 'דשבורד', href: '/dashboard', icon: MessageSquare },
-    { name: 'כתיבת הודעה', href: '/compose', icon: Send },
-    { name: 'הודעות מתוזמנות', href: '/scheduled', icon: Calendar },
-    { name: 'הודעות שנשלחו', href: '/sent', icon: Send },
-    { name: 'קטגוריות', href: '/segments', icon: Users },
-    { name: 'חיוב', href: '/billing', icon: Crown },
-  ];
-
-  const isActive = (href: string) => location.pathname === href;
+  const getUserInitials = () => {
+    if (profile?.name) {
+      return profile.name.split(' ').map(n => n[0]).join('').toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex" dir="rtl">
-      {/* Sidebar - Desktop only */}
-      <aside className="hidden md:flex w-64 bg-white shadow-sm border-l flex-col">
-        {/* Sidebar Header */}
-        <div className="p-6 border-b">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <MessageSquare className="h-6 w-6 text-green-600" />
-            </div>
-            <h1 className="text-xl font-bold text-gray-900">מתזמן וואטסאפ</h1>
+      {/* Fixed Sidebar */}
+      <div className="fixed inset-y-0 right-0 z-50 w-64 bg-white shadow-lg">
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200">
+            <Link to="/dashboard" className="flex items-center gap-2">
+              <MessageSquare className="h-8 w-8 text-green-600" />
+              <span className="text-xl font-bold text-gray-900">WhatsApp Manager</span>
+            </Link>
           </div>
-          
-          {/* Trial Status in Sidebar */}
-          {trialStatus && !trialStatus.isPaid && (
-            <div className={`mt-4 p-3 rounded-lg text-sm ${
-              trialStatus.isExpired 
-                ? 'bg-red-50 border border-red-200' 
-                : trialStatus.daysLeft <= 1
-                ? 'bg-orange-50 border border-orange-200'
-                : 'bg-blue-50 border border-blue-200'
-            }`}>
-              <div className="flex items-center gap-2 mb-1">
-                <Clock className={`h-4 w-4 ${
-                  trialStatus.isExpired ? 'text-red-600' : 
-                  trialStatus.daysLeft <= 1 ? 'text-orange-600' : 'text-blue-600'
-                }`} />
-                <span className={`font-medium ${
-                  trialStatus.isExpired ? 'text-red-800' : 
-                  trialStatus.daysLeft <= 1 ? 'text-orange-800' : 'text-blue-800'
-                }`}>
-                  {trialStatus.isExpired ? 'תקופת ניסיון פגה' : 
-                   trialStatus.daysLeft === 0 ? 'תקופת ניסיון מסתיימת היום' :
-                   `${trialStatus.daysLeft} ימים נותרו`}
-                </span>
-              </div>
-              <Button asChild size="sm" className="w-full mt-2 bg-green-500 hover:bg-green-600">
-                <Link to="/billing">שדרג עכשיו</Link>
-              </Button>
-            </div>
-          )}
-        </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <div className="space-y-1">
+          {/* Navigation */}
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {navigation.map((item) => {
-              const Icon = item.icon;
+              const isActive = location.pathname === item.href;
               return (
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors rounded-lg border-r-4 ${
-                    isActive(item.href)
-                      ? 'bg-green-50 text-green-700 border-green-600'
-                      : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50 border-transparent'
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-green-100 text-green-700'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
-                  <span>{item.name}</span>
+                  <item.icon className="h-5 w-5" />
+                  {item.name}
                 </Link>
               );
             })}
-          </div>
-        </nav>
+          </nav>
 
-        {/* User Section */}
-        {user && (
-          <div className="p-4 border-t">
+          {/* User section - Fixed at bottom */}
+          <div className="border-t border-gray-200 p-4">
             <div className="flex items-center gap-3 mb-3">
-              <span className="text-sm text-gray-700">שלום, {user.email}</span>
-            </div>
-            <Button
-              onClick={handleLogout}
-              variant="ghost"
-              size="sm"
-              className="text-gray-600 hover:text-gray-900 w-full justify-start"
-            >
-              <LogOut className="h-4 w-4 ml-2" />
-              התנתק
-            </Button>
-          </div>
-        )}
-      </aside>
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header for Mobile */}
-        <header className="md:hidden bg-white shadow-sm border-b">
-          <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <MessageSquare className="h-6 w-6 text-green-600" />
-                </div>
-                <h1 className="text-xl font-bold text-gray-900">מתזמן וואטסאפ</h1>
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-green-100 text-green-700 text-sm">
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {profile?.name || user?.email || 'משתמש'}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.email}
+                </p>
               </div>
+            </div>
+            
+            <div className="space-y-1">
+              <Link
+                to="/billing"
+                className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                <CreditCard className="h-4 w-4" />
+                תשלום
+              </Link>
               
-              <div className="flex items-center gap-3">
-                {/* Trial indicator for mobile */}
-                {trialStatus && !trialStatus.isPaid && (
-                  <div className={`text-xs px-2 py-1 rounded-full ${
-                    trialStatus.isExpired ? 'bg-red-100 text-red-800' : 
-                    trialStatus.daysLeft <= 1 ? 'bg-orange-100 text-orange-800' : 
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {trialStatus.isExpired ? 'פג תוקף' : `${trialStatus.daysLeft} ימים`}
-                  </div>
-                )}
-                
-                <button
-                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                  className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
-                >
-                  {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                </button>
-              </div>
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors w-full text-right"
+              >
+                <LogOut className="h-4 w-4" />
+                התנתק
+              </button>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Mobile Menu */}
-          {mobileMenuOpen && (
-            <div className="border-t border-gray-200 bg-white">
-              <div className="px-4 py-3 space-y-2">
-                {/* Trial status for mobile menu */}
-                {trialStatus && !trialStatus.isPaid && (
-                  <div className={`p-3 rounded-lg mb-4 ${
-                    trialStatus.isExpired 
-                      ? 'bg-red-50 border border-red-200' 
-                      : trialStatus.daysLeft <= 1
-                      ? 'bg-orange-50 border border-orange-200'
-                      : 'bg-blue-50 border border-blue-200'
-                  }`}>
-                    <div className={`text-sm font-medium mb-2 ${
-                      trialStatus.isExpired ? 'text-red-800' : 
-                      trialStatus.daysLeft <= 1 ? 'text-orange-800' : 'text-blue-800'
-                    }`}>
-                      {trialStatus.isExpired ? 'תקופת ניסיון פגה' : 
-                       trialStatus.daysLeft === 0 ? 'תקופת ניסיון מסתיימת היום' :
-                       `${trialStatus.daysLeft} ימים נותרו`}
-                    </div>
-                    <Button asChild size="sm" className="w-full bg-green-500 hover:bg-green-600">
-                      <Link to="/billing" onClick={() => setMobileMenuOpen(false)}>שדרג עכשיו</Link>
-                    </Button>
-                  </div>
-                )}
-                
-                {navigation.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                        isActive(item.href)
-                          ? 'bg-green-50 text-green-700 border-r-4 border-green-600'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Icon className="h-5 w-5" />
-                      <span>{item.name}</span>
-                    </Link>
-                  );
-                })}
-                
-                {/* Mobile user info */}
-                {user && (
-                  <div className="pt-3 border-t border-gray-200 mt-3">
-                    <div className="px-3 py-2 text-sm text-gray-700">
-                      שלום, {user.email}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        handleLogout();
-                      }}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 w-full text-right"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      התנתק
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </header>
-
-        {/* Main Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+      {/* Main content area with proper margin */}
+      <div className="flex-1 mr-64">
+        <TrialStatusBanner />
+        <main className="p-6">
           {children}
         </main>
       </div>
