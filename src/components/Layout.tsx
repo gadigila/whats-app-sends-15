@@ -24,7 +24,8 @@ const Layout = ({ children }: LayoutProps) => {
     { name: 'הודעות מתוזמנות', href: '/scheduled', icon: Calendar },
     { name: 'הודעות שנשלחו', href: '/sent', icon: Send },
     { name: 'קבוצות', href: '/segments', icon: Users },
-    { name: 'חיבור WhatsApp', href: '/whatsapp-connect', icon: MessageSquare },
+    // FIX: Make sure this matches the real route
+    { name: 'חיבור WhatsApp', href: '/connect', icon: MessageSquare },
   ];
 
   const handleSignOut = async () => {
@@ -125,5 +126,4 @@ const Layout = ({ children }: LayoutProps) => {
     </div>
   );
 };
-
 export default Layout;
