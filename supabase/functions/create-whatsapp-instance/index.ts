@@ -21,11 +21,21 @@ Deno.serve(async (req) => {
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
+    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')
+    
+    console.log('Create WhatsApp Instance: Starting...')
+    console.log('Environment check - WHAPI_PARTNER_TOKEN exists:', !!whapiPartnerToken)
+    console.log('Environment check - WHAPI_PARTNER_TOKEN length:', whapiPartnerToken?.length || 0)
+    
+    if (!whapiPartnerToken) {
+      console.error('WHAPI_PARTNER_TOKEN is missing from environment variables')
+      return new Response(
+        JSON.stringify({ error: 'WHAPI Partner token not configured' }),
+        { status: 500, headers: corsHeaders }
+      )
+    }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    console.log('Create WhatsApp Instance: Starting...')
 
     const { userId, webhookUrl }: CreateInstanceRequest = await req.json()
 
@@ -37,12 +47,16 @@ Deno.serve(async (req) => {
     }
 
     console.log('Creating WHAPI channel for user:', userId)
+    console.log('Using webhook URL:', webhookUrl || `${supabaseUrl}/functions/v1/whatsapp-webhook`)
 
     // Create new channel via WHAPI Partner API
     const channelData = {
       name: `reecher_user_${userId}`,
       webhook_url: webhookUrl || `${supabaseUrl}/functions/v1/whatsapp-webhook`
     }
+
+    console.log('Sending request to WHAPI Partner API...')
+    console.log('Request payload:', JSON.stringify(channelData, null, 2))
 
     const whapiResponse = await fetch('https://partner-api.whapi.cloud/api/v1/channels', {
       method: 'POST',
@@ -53,17 +67,25 @@ Deno.serve(async (req) => {
       body: JSON.stringify(channelData)
     })
 
+    console.log('WHAPI Response status:', whapiResponse.status)
+    console.log('WHAPI Response headers:', JSON.stringify(Object.fromEntries(whapiResponse.headers.entries())))
+
     if (!whapiResponse.ok) {
       const errorText = await whapiResponse.text()
       console.error('WHAPI channel creation failed:', errorText)
+      console.error('Response status:', whapiResponse.status)
+      console.error('Response statusText:', whapiResponse.statusText)
       return new Response(
-        JSON.stringify({ error: 'Failed to create WhatsApp instance', details: errorText }),
+        JSON.stringify({ error: 'Failed to create WhatsApp instance', details: errorText, status: whapiResponse.status }),
         { status: 400, headers: corsHeaders }
       )
     }
 
     const whapiData = await whapiResponse.json()
-    console.log('WHAPI channel created:', { instance_id: whapiData.instance_id })
+    console.log('WHAPI channel created successfully:', { 
+      instance_id: whapiData.instance_id,
+      hasToken: !!whapiData.token 
+    })
 
     // Calculate trial expiration (3 days from now)
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
@@ -84,7 +106,7 @@ Deno.serve(async (req) => {
     if (updateError) {
       console.error('Failed to update user profile:', updateError)
       return new Response(
-        JSON.stringify({ error: 'Failed to save instance data' }),
+        JSON.stringify({ error: 'Failed to save instance data', details: updateError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
@@ -103,6 +125,9 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('Create WhatsApp Instance Error:', error)
+    console.error('Error stack:', error.stack)
+    console.error('Error name:', error.name)
+    console.error('Error message:', error.message)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
