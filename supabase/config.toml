@@ -7,13 +7,16 @@ verify_jwt = false
 [functions.instance-manager]
 verify_jwt = false
 
-[functions.whatsapp-connect]
-verify_jwt = false
-
 [functions.cleanup-expired-trials]
 verify_jwt = false
 
 [functions.create-whatsapp-instance]
+verify_jwt = false
+
+[functions.get-whatsapp-qr]
+verify_jwt = false
+
+[functions.check-whatsapp-status]
 verify_jwt = false
 
 [functions.sync-whatsapp-groups]

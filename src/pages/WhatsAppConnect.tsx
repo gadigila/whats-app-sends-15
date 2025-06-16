@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -13,9 +14,9 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 const WhatsAppConnect = () => {
   const { user } = useAuth();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
-  const { createInstance, deleteInstance, checkInstanceStatus } = useWhatsAppInstance();
+  const { createInstance, deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'created' | 'connected'>('disconnected');
 
   // Check user's WhatsApp status on load
   useEffect(() => {
@@ -23,6 +24,8 @@ const WhatsAppConnect = () => {
       console.log('Profile loaded:', profile);
       if (profile.instance_status === 'connected') {
         setConnectionStatus('connected');
+      } else if (profile.instance_status === 'created' && profile.instance_id) {
+        setConnectionStatus('created');
       } else {
         setConnectionStatus('disconnected');
       }
@@ -48,7 +51,7 @@ const WhatsAppConnect = () => {
     
     try {
       await createInstance.mutateAsync();
-      setConnectionStatus('connecting');
+      setConnectionStatus('created');
     } catch (error) {
       console.error('Failed to create instance:', error);
     }
@@ -172,14 +175,14 @@ const WhatsAppConnect = () => {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">חבר את הוואטסאפ שלך</h1>
           <p className="text-gray-600">
-            {connectionStatus === 'connecting'
+            {connectionStatus === 'created'
               ? 'סרוק את קוד ה-QR עם הוואטסאפ שלך כדי להתחבר'
               : 'התחבר לוואטסאפ כדי להתחיל לשלוח הודעות לקבוצות שלך'}
           </p>
         </div>
         <Card>
           <CardContent className="p-8">
-            {connectionStatus === 'connecting' && user?.id ? (
+            {connectionStatus === 'created' && user?.id ? (
               <WhatsAppQrSection userId={user.id} onConnected={handleQrConnected} />
             ) : (
               <div className="text-center">

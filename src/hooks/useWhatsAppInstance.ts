@@ -42,13 +42,39 @@ export const useWhatsAppInstance = () => {
     }
   });
 
+  // Get QR code
+  const getQrCode = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      console.log('Getting QR code for user:', user.id);
+      
+      const { data, error } = await supabase.functions.invoke('get-whatsapp-qr', {
+        body: { userId: user.id }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onError: (error: any) => {
+      console.error('Failed to get QR code:', error);
+      toast({
+        title: "שגיאה בקבלת קוד QR",
+        description: error.message || "נסה שוב מאוחר יותר",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Check instance status
   const checkInstanceStatus = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      const { data, error } = await supabase.functions.invoke('manage-instance-lifecycle', {
-        body: { userId: user.id, action: 'check_status' }
+      const { data, error } = await supabase.functions.invoke('check-whatsapp-status', {
+        body: { userId: user.id }
       });
       
       if (error) throw error;
@@ -89,6 +115,7 @@ export const useWhatsAppInstance = () => {
 
   return {
     createInstance,
+    getQrCode,
     checkInstanceStatus,
     deleteInstance
   };

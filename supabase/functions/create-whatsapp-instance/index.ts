@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
     // Create new channel via WHAPI Partner API
     const channelData = {
-      name: `user-${userId}`,
+      name: `reecher_user_${userId}`,
       webhook_url: webhookUrl || `${supabaseUrl}/functions/v1/whatsapp-webhook`
     }
 
@@ -73,8 +73,8 @@ Deno.serve(async (req) => {
       .from('profiles')
       .update({
         instance_id: whapiData.instance_id,
-        whapi_token: whapiData.whapi_token,
-        instance_status: 'connected',
+        whapi_token: whapiData.token,
+        instance_status: 'created',
         payment_plan: 'trial',
         trial_expires_at: trialExpiresAt,
         updated_at: new Date().toISOString()
