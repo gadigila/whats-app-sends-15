@@ -64,8 +64,8 @@ Deno.serve(async (req) => {
     console.log('🔧 Creating WHAPI channel for user:', userId)
     console.log('🔗 Using webhook URL:', webhookUrl || 'No webhook URL provided')
 
-    // Step 1: Get projects to find the main projectId
-    console.log('📡 Step 1: Getting projects from WHAPI...')
+    // Step 1: Get projects to find the main projectId using Partner API
+    console.log('📡 Step 1: Getting projects from WHAPI Partner API...')
     console.log('🔑 Using WHAPI Partner Token (first 10 chars):', whapiPartnerToken.substring(0, 10) + '...')
     
     const projectsResponse = await fetch('https://manager.whapi.cloud/projects', {
@@ -78,11 +78,10 @@ Deno.serve(async (req) => {
     })
 
     console.log('📡 Projects response status:', projectsResponse.status)
-    console.log('📡 Projects response headers:', Object.fromEntries(projectsResponse.headers.entries()))
 
     if (!projectsResponse.ok) {
       const errorText = await projectsResponse.text()
-      console.error('❌ Failed to get projects from WHAPI:', {
+      console.error('❌ Failed to get projects from WHAPI Partner API:', {
         status: projectsResponse.status,
         statusText: projectsResponse.statusText,
         error: errorText
@@ -100,26 +99,16 @@ Deno.serve(async (req) => {
     const projectsData = await projectsResponse.json()
     console.log('📥 Projects response data:', JSON.stringify(projectsData, null, 2))
     
-    // Handle the correct response structure from WHAPI
+    // Extract projectId from response
     let projectId = null
-    if (projectsData.projects && Array.isArray(projectsData.projects) && projectsData.projects.length > 0) {
-      projectId = projectsData.projects[0].id
-      console.log('✅ Found project ID in projects array:', projectId)
+    if (Array.isArray(projectsData) && projectsData.length > 0) {
+      projectId = projectsData[0].id
+      console.log('✅ Found project ID in array:', projectId)
     } else if (projectsData.id) {
       projectId = projectsData.id
       console.log('✅ Found project ID directly:', projectId)
     } else {
-      console.error('❌ No project ID found in response structure:', {
-        hasProjects: !!projectsData.projects,
-        isProjectsArray: Array.isArray(projectsData.projects),
-        projectsLength: projectsData.projects?.length,
-        hasDirectId: !!projectsData.id,
-        allKeys: Object.keys(projectsData)
-      })
-    }
-    
-    if (!projectId) {
-      console.error('❌ No project ID available:', projectsData)
+      console.error('❌ No project ID found in response:', projectsData)
       return new Response(
         JSON.stringify({ error: 'No project ID available in WHAPI response' }),
         { status: 400, headers: corsHeaders }
@@ -128,8 +117,8 @@ Deno.serve(async (req) => {
 
     console.log('🎯 Using project ID:', projectId)
 
-    // Step 2: Create new channel using correct WHAPI API
-    console.log('🚀 Step 2: Creating channel...')
+    // Step 2: Create new channel using Partner API
+    console.log('🚀 Step 2: Creating channel using Partner API...')
     const channelData = {
       name: `reecher_user_${userId}`,
       projectId: projectId
@@ -148,11 +137,10 @@ Deno.serve(async (req) => {
     })
 
     console.log('📡 Channel creation response status:', channelResponse.status)
-    console.log('📡 Channel creation response headers:', Object.fromEntries(channelResponse.headers.entries()))
 
     if (!channelResponse.ok) {
       const errorText = await channelResponse.text()
-      console.error('❌ WHAPI channel creation failed:', {
+      console.error('❌ WHAPI Partner channel creation failed:', {
         status: channelResponse.status,
         statusText: channelResponse.statusText,
         error: errorText
@@ -168,23 +156,24 @@ Deno.serve(async (req) => {
     }
 
     const channelResponseData = await channelResponse.json()
-    console.log('✅ WHAPI channel created successfully:', JSON.stringify(channelResponseData, null, 2))
+    console.log('✅ WHAPI Partner channel created successfully:', JSON.stringify(channelResponseData, null, 2))
 
+    // Partner API returns: id, token (not instance_id, whapi_token)
     const { id: instanceId, token: whapiToken } = channelResponseData
 
     if (!instanceId || !whapiToken) {
-      console.error('❌ Missing instanceId or whapiToken in response:', {
+      console.error('❌ Missing instanceId or whapiToken in Partner API response:', {
         hasInstanceId: !!instanceId,
         hasWhapiToken: !!whapiToken,
         responseKeys: Object.keys(channelResponseData)
       })
       return new Response(
-        JSON.stringify({ error: 'Invalid response from WHAPI channel creation' }),
+        JSON.stringify({ error: 'Invalid response from WHAPI Partner channel creation' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    // Step 3: Configure webhook if provided
+    // Step 3: Configure webhook if provided - use the channel token
     if (webhookUrl) {
       console.log('🔗 Step 3: Configuring webhook for URL:', webhookUrl)
       const webhookConfig = {
