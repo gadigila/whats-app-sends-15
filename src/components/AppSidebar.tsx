@@ -49,7 +49,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
+    <Sidebar side="right">
       <SidebarHeader className="p-4">
         <Link to="/dashboard" className="flex items-center gap-2">
           <MessageSquare className="h-8 w-8 text-green-600" />
