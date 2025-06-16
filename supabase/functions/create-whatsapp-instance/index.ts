@@ -73,12 +73,20 @@ Deno.serve(async (req) => {
     const projectsData = await projectsResponse.json()
     console.log('Projects response:', projectsData)
     
-    // Get the first project ID (or main project)
-    const projectId = projectsData[0]?.id || projectsData.id
+    // Fix: Handle the correct response structure from WHAPI
+    let projectId = null
+    if (projectsData.projects && Array.isArray(projectsData.projects) && projectsData.projects.length > 0) {
+      projectId = projectsData.projects[0].id
+    } else if (projectsData.id) {
+      projectId = projectsData.id
+    }
+    
+    console.log('Extracted project ID:', projectId)
+    
     if (!projectId) {
       console.error('No project ID found in response:', projectsData)
       return new Response(
-        JSON.stringify({ error: 'No project ID available' }),
+        JSON.stringify({ error: 'No project ID available in WHAPI response' }),
         { status: 400, headers: corsHeaders }
       )
     }
