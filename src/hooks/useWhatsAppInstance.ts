@@ -1,0 +1,95 @@
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from '@/hooks/use-toast';
+
+export const useWhatsAppInstance = () => {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Create WhatsApp instance
+  const createInstance = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      console.log('Creating WhatsApp instance for user:', user.id);
+      
+      const { data, error } = await supabase.functions.invoke('create-whatsapp-instance', {
+        body: { userId: user.id }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('WhatsApp instance created successfully:', data);
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      toast({
+        title: "אינסטנס נוצר בהצלחה",
+        description: "כעת תוכל להתחבר לוואטסאפ",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Failed to create WhatsApp instance:', error);
+      toast({
+        title: "שגיאה ביצירת אינסטנס",
+        description: error.message || "נסה שוב מאוחר יותר",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Check instance status
+  const checkInstanceStatus = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      const { data, error } = await supabase.functions.invoke('manage-instance-lifecycle', {
+        body: { userId: user.id, action: 'check_status' }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('Instance status:', data);
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+    }
+  });
+
+  // Delete instance
+  const deleteInstance = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      const { data, error } = await supabase.functions.invoke('manage-instance-lifecycle', {
+        body: { userId: user.id, action: 'delete' }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onSuccess: () => {
+      console.log('Instance deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
+      toast({
+        title: "אינסטנס נמחק",
+        description: "החיבור לוואטסאפ נותק",
+      });
+    }
+  });
+
+  return {
+    createInstance,
+    checkInstanceStatus,
+    deleteInstance
+  };
+};

@@ -19,12 +19,10 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
   // Get QR code on mount
   useEffect(() => {
     getQrCode();
-    // eslint-disable-next-line
   }, []);
 
   const getQrCode = async () => {
     console.log('🔄 Starting QR code request for user:', userId);
-    console.log('📋 Current Supabase URL:', 'https://ifxvwettmgixfbivlzzl.supabase.co');
     
     setLoading(true);
     setErrorMsg(null);
@@ -32,7 +30,6 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
     
     try {
       console.log('📡 Calling whatsapp-connect function with action: get_qr');
-      console.log('📡 Function URL should be:', 'https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/whatsapp-connect');
       
       const requestBody = { userId, action: 'get_qr' };
       console.log('📤 Request body:', requestBody);
@@ -42,26 +39,21 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
       });
       
       console.log('📥 Raw response received:', { data, error });
-      console.log('📥 Response data type:', typeof data);
-      console.log('📥 Response error type:', typeof error);
       
       if (error) {
         console.error('❌ Supabase function invoke error:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
         throw error;
       }
       
       if (data?.error) {
         console.error('❌ Function returned error:', data.error);
-        console.error('❌ Full error response:', JSON.stringify(data, null, 2));
         throw new Error(data.error);
       }
 
       console.log('✅ Function success response:', JSON.stringify(data, null, 2));
 
       if (data?.success && data.qr_code) {
-        console.log('🎯 QR code received successfully, length:', data.qr_code.length);
-        console.log('🎯 QR code starts with:', data.qr_code.substring(0, 50));
+        console.log('🎯 QR code received successfully');
         setQrCode(data.qr_code);
         setPolling(true);
         toast({
@@ -70,19 +62,10 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
         });
       } else {
         console.error('❌ No QR code in response or success=false');
-        console.error('❌ Response structure:', {
-          hasSuccess: 'success' in data,
-          successValue: data?.success,
-          hasQrCode: 'qr_code' in data,
-          qrCodeValue: data?.qr_code ? 'EXISTS' : 'MISSING'
-        });
         throw new Error(data?.error || 'QR לא התקבל מהשרת');
       }
     } catch (err: any) {
       console.error('💥 QR code request failed completely:', err);
-      console.error('💥 Error name:', err.name);
-      console.error('💥 Error message:', err.message);
-      console.error('💥 Error stack:', err.stack);
       
       let errorMessage = 'שגיאה בקבלת קוד QR: ';
       if (err.message) {

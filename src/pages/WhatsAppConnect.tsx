@@ -1,107 +1,85 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import WhatsAppQrSection from '@/components/WhatsAppQrSection';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Smartphone, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle, Smartphone, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
+import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const { createInstance, deleteInstance, checkInstanceStatus } = useWhatsAppInstance();
+  const { syncGroups } = useWhatsAppGroups();
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
   // Check user's WhatsApp status on load
   useEffect(() => {
-    if (user?.id) {
-      console.log('🔍 Checking user WhatsApp status for:', user.id);
-      checkUserStatus();
-    }
-  }, [user?.id]);
-
-  const checkUserStatus = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      console.log('📡 Fetching user profile for status check');
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('instance_status')
-        .eq('id', user?.id)
-        .maybeSingle();
-        
-      console.log('📥 Profile data:', { data, error });
-      
-      if (error) throw error;
-      if (data?.instance_status === 'connected') {
-        console.log('✅ User already connected');
+    if (profile) {
+      console.log('Profile loaded:', profile);
+      if (profile.instance_status === 'connected') {
         setConnectionStatus('connected');
       } else {
-        console.log('❌ User not connected, status:', data?.instance_status);
         setConnectionStatus('disconnected');
       }
-    } catch (e: any) {
-      console.error('💥 Status check failed:', e);
-      setErrorMsg(e.message || 'שגיאה בטעינת סטטוס החיבור');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [profile]);
 
   // Called when QR component reports success
-  const handleQrConnected = () => {
-    console.log('🎉 QR connection successful');
+  const handleQrConnected = async () => {
+    console.log('QR connection successful');
     setConnectionStatus('connected');
+    
+    // Sync groups after successful connection
+    try {
+      await syncGroups.mutateAsync();
+    } catch (error) {
+      console.error('Failed to sync groups after connection:', error);
+    }
   };
 
   const handleStart = async () => {
     if (!user?.id) return;
-    console.log('🚀 Starting WhatsApp connection for user:', user.id);
-    setConnectionStatus('connecting');
+    console.log('Starting WhatsApp connection for user:', user.id);
+    
+    try {
+      await createInstance.mutateAsync();
+      setConnectionStatus('connecting');
+    } catch (error) {
+      console.error('Failed to create instance:', error);
+    }
   };
 
   const handleDisconnect = async () => {
     if (!user?.id) return;
-    console.log('🔌 Disconnecting WhatsApp for user:', user.id);
-    setLoading(true);
-    setErrorMsg(null);
+    console.log('Disconnecting WhatsApp for user:', user.id);
 
     try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
-        body: { userId: user.id, action: 'disconnect' }
-      });
-      
-      console.log('📥 Disconnect response:', { data, error });
-      
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
+      await deleteInstance.mutateAsync();
       setConnectionStatus('disconnected');
-      toast({
-        title: "נותק בהצלחה",
-        description: "החשבון נותק מהשירות.",
-      });
-    } catch (error: any) {
-      console.error('💥 Disconnect failed:', error);
-      setErrorMsg(error.message || "שגיאה בניתוק");
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Disconnect failed:', error);
     }
   };
 
-  if (errorMsg) {
+  const handleSyncGroups = async () => {
+    try {
+      await syncGroups.mutateAsync();
+    } catch (error) {
+      console.error('Failed to sync groups:', error);
+    }
+  };
+
+  if (profileLoading) {
     return (
       <Layout>
         <div className="max-w-2xl mx-auto flex flex-col items-center min-h-[75vh] justify-center gap-8">
-          <div className="text-center">
-            <h1 className="text-2xl text-red-600 font-bold mb-4">שגיאה</h1>
-            <p className="text-gray-700 mb-6">{errorMsg}</p>
-            <Button onClick={checkUserStatus}>נסה שוב</Button>
-          </div>
+          <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+          <span className="text-gray-700">טוען...</span>
         </div>
       </Layout>
     );
@@ -134,12 +112,21 @@ const WhatsAppConnect = () => {
                   התחל לשלוח הודעות
                 </Button>
                 <Button
+                  onClick={handleSyncGroups}
+                  variant="outline"
+                  disabled={syncGroups.isPending}
+                  className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                >
+                  {syncGroups.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  סנכרן קבוצות
+                </Button>
+                <Button
                   onClick={handleDisconnect}
                   variant="outline"
-                  disabled={loading}
+                  disabled={deleteInstance.isPending}
                   className="text-orange-600 border-orange-600 hover:bg-orange-50"
                 >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <WifiOff className="h-4 w-4 mr-2" />}
+                  {deleteInstance.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <WifiOff className="h-4 w-4 mr-2" />}
                   נתק
                 </Button>
               </div>
@@ -159,9 +146,17 @@ const WhatsAppConnect = () => {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">פעילות אחרונה:</span>
-                  <span className="font-medium">זמין</span>
+                  <span className="text-gray-600">תוכנית:</span>
+                  <span className="font-medium">{profile?.payment_plan || 'trial'}</span>
                 </div>
+                {profile?.trial_expires_at && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">תוקף טריאל:</span>
+                    <span className="font-medium">
+                      {new Date(profile.trial_expires_at).toLocaleDateString('he-IL')}
+                    </span>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -200,9 +195,9 @@ const WhatsAppConnect = () => {
                 <Button
                   onClick={handleStart}
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={loading}
+                  disabled={createInstance.isPending}
                 >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {createInstance.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   התחבר עכשיו
                 </Button>
               </div>
