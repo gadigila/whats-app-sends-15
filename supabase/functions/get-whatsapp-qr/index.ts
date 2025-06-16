@@ -92,23 +92,53 @@ Deno.serve(async (req) => {
       tokenLength: profile.whapi_token.length
     })
 
-    // Get QR code using the channel token with multiple URL attempts
-    const qrUrls = [
-      `https://gate.whapi.cloud/instance/qr?id=${profile.instance_id}`,
-      `https://gate.whapi.cloud/instance/qr`,
-      `https://gate.whapi.cloud/qr?instance_id=${profile.instance_id}`,
-      `https://gate.whapi.cloud/qr`
+    // First, let's check the instance status to see if it's ready for QR
+    console.log('🔄 Checking instance status first...')
+    try {
+      const statusResponse = await fetch('https://gate.whapi.cloud/status', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${profile.whapi_token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('📡 Status response:', statusResponse.status)
+      
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json()
+        console.log('📊 Instance status:', statusData)
+      }
+    } catch (statusError) {
+      console.warn('⚠️ Could not check status:', statusError)
+    }
+
+    // Try different QR endpoints
+    const qrEndpoints = [
+      {
+        url: 'https://gate.whapi.cloud/screen',
+        method: 'GET'
+      },
+      {
+        url: 'https://gate.whapi.cloud/instance/qr',
+        method: 'GET'
+      },
+      {
+        url: 'https://gate.whapi.cloud/qr',
+        method: 'GET'
+      }
     ]
 
     let qrData = null
     let lastError = null
 
-    for (const url of qrUrls) {
-      console.log(`🔄 Trying QR URL: ${url}`)
+    for (const endpoint of qrEndpoints) {
+      console.log(`🔄 Trying QR endpoint: ${endpoint.method} ${endpoint.url}`)
       
       try {
-        const qrResponse = await fetch(url, {
-          method: 'GET',
+        const qrResponse = await fetch(endpoint.url, {
+          method: endpoint.method,
           headers: {
             'Authorization': `Bearer ${profile.whapi_token}`,
             'Accept': 'application/json',
@@ -116,21 +146,35 @@ Deno.serve(async (req) => {
           }
         })
 
-        console.log(`📡 QR Response status for ${url}:`, qrResponse.status)
+        console.log(`📡 QR Response status for ${endpoint.url}:`, qrResponse.status)
         console.log(`📡 QR Response headers:`, Object.fromEntries(qrResponse.headers.entries()))
 
         if (qrResponse.ok) {
-          qrData = await qrResponse.json()
-          console.log('✅ QR data received successfully:', { 
-            hasImage: !!qrData.image, 
-            hasQr: !!qrData.qr,
-            hasData: !!qrData.data,
-            keys: Object.keys(qrData)
-          })
-          break
+          const responseText = await qrResponse.text()
+          console.log(`📥 Raw response from ${endpoint.url}:`, responseText.substring(0, 200) + '...')
+          
+          try {
+            qrData = JSON.parse(responseText)
+            console.log('✅ QR data received successfully:', { 
+              hasImage: !!qrData.image, 
+              hasQr: !!qrData.qr,
+              hasData: !!qrData.data,
+              hasQrCode: !!qrData.qr_code,
+              hasScreen: !!qrData.screen,
+              keys: Object.keys(qrData)
+            })
+            break
+          } catch (parseError) {
+            // Maybe it's already an image/base64
+            if (responseText.startsWith('data:image') || responseText.startsWith('iVBOR')) {
+              qrData = { qr_code: responseText }
+              console.log('✅ Received direct image data')
+              break
+            }
+          }
         } else {
           const errorText = await qrResponse.text()
-          console.warn(`⚠️ QR request failed for ${url}:`, {
+          console.warn(`⚠️ QR request failed for ${endpoint.url}:`, {
             status: qrResponse.status,
             statusText: qrResponse.statusText,
             error: errorText
@@ -138,32 +182,54 @@ Deno.serve(async (req) => {
           lastError = `${qrResponse.status}: ${errorText}`
         }
       } catch (fetchError) {
-        console.error(`💥 Fetch error for ${url}:`, fetchError)
+        console.error(`💥 Fetch error for ${endpoint.url}:`, fetchError)
         lastError = fetchError.message
       }
     }
 
     if (!qrData) {
-      console.error('❌ All QR URL attempts failed. Last error:', lastError)
+      console.error('❌ All QR endpoint attempts failed. Last error:', lastError)
+      
+      // Let's try to get more info about the instance
+      try {
+        console.log('🔍 Getting instance info for debugging...')
+        const infoResponse = await fetch('https://gate.whapi.cloud/instance', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Accept': 'application/json'
+          }
+        })
+        
+        if (infoResponse.ok) {
+          const infoData = await infoResponse.json()
+          console.log('📊 Instance info:', infoData)
+        }
+      } catch (infoError) {
+        console.warn('⚠️ Could not get instance info:', infoError)
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Failed to get QR code from all endpoints', 
           details: lastError,
-          instanceId: profile.instance_id
+          instanceId: profile.instance_id,
+          suggestion: 'Instance might not be in the correct state for QR generation'
         }),
         { status: 400, headers: corsHeaders }
       )
     }
 
     // Extract QR code from response
-    const qrCode = qrData.image || qrData.qr || qrData.data || qrData.qr_code
+    const qrCode = qrData.image || qrData.qr || qrData.data || qrData.qr_code || qrData.screen
     
     if (!qrCode) {
       console.error('❌ No QR code found in response:', qrData)
       return new Response(
         JSON.stringify({ 
           error: 'QR code not found in response', 
-          responseKeys: Object.keys(qrData)
+          responseKeys: Object.keys(qrData),
+          responseData: qrData
         }),
         { status: 400, headers: corsHeaders }
       )
