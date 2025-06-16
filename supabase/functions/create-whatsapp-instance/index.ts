@@ -47,45 +47,111 @@ Deno.serve(async (req) => {
     }
 
     console.log('Creating WHAPI channel for user:', userId)
-    console.log('Using webhook URL:', webhookUrl || `${supabaseUrl}/functions/v1/whatsapp-webhook`)
 
-    // Create new channel via WHAPI Partner API
-    const channelData = {
-      name: `reecher_user_${userId}`,
-      webhook_url: webhookUrl || `${supabaseUrl}/functions/v1/whatsapp-webhook`
-    }
-
-    console.log('Sending request to WHAPI Partner API...')
-    console.log('Request payload:', JSON.stringify(channelData, null, 2))
-
-    const whapiResponse = await fetch('https://partner-api.whapi.cloud/api/v1/channels', {
-      method: 'POST',
+    // Step 1: Get projects to find the main projectId
+    console.log('Step 1: Getting projects from WHAPI...')
+    const projectsResponse = await fetch('https://manager.whapi.cloud/projects', {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${whapiPartnerToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(channelData)
+        'Accept': 'application/json'
+      }
     })
 
-    console.log('WHAPI Response status:', whapiResponse.status)
-    console.log('WHAPI Response headers:', JSON.stringify(Object.fromEntries(whapiResponse.headers.entries())))
-
-    if (!whapiResponse.ok) {
-      const errorText = await whapiResponse.text()
-      console.error('WHAPI channel creation failed:', errorText)
-      console.error('Response status:', whapiResponse.status)
-      console.error('Response statusText:', whapiResponse.statusText)
+    if (!projectsResponse.ok) {
+      const errorText = await projectsResponse.text()
+      console.error('Failed to get projects:', errorText)
       return new Response(
-        JSON.stringify({ error: 'Failed to create WhatsApp instance', details: errorText, status: whapiResponse.status }),
+        JSON.stringify({ error: 'Failed to get WHAPI projects', details: errorText }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    const whapiData = await whapiResponse.json()
-    console.log('WHAPI channel created successfully:', { 
-      instance_id: whapiData.instance_id,
-      hasToken: !!whapiData.token 
+    const projectsData = await projectsResponse.json()
+    console.log('Projects response:', projectsData)
+    
+    // Get the first project ID (or main project)
+    const projectId = projectsData[0]?.id || projectsData.id
+    if (!projectId) {
+      console.error('No project ID found in response:', projectsData)
+      return new Response(
+        JSON.stringify({ error: 'No project ID available' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    console.log('Using project ID:', projectId)
+
+    // Step 2: Create new channel using correct WHAPI API
+    console.log('Step 2: Creating channel...')
+    const channelData = {
+      name: `reecher_user_${userId}`,
+      projectId: projectId
+    }
+
+    console.log('Channel creation payload:', JSON.stringify(channelData, null, 2))
+
+    const channelResponse = await fetch('https://manager.whapi.cloud/channels', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${whapiPartnerToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(channelData)
     })
+
+    console.log('Channel creation response status:', channelResponse.status)
+
+    if (!channelResponse.ok) {
+      const errorText = await channelResponse.text()
+      console.error('WHAPI channel creation failed:', errorText)
+      return new Response(
+        JSON.stringify({ error: 'Failed to create WHAPI channel', details: errorText }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    const channelResponseData = await channelResponse.json()
+    console.log('WHAPI channel created successfully:', channelResponseData)
+
+    const { id: instanceId, token: whapiToken } = channelResponseData
+
+    // Step 3: Configure webhook if provided
+    if (webhookUrl) {
+      console.log('Step 3: Configuring webhook...')
+      const webhookConfig = {
+        webhooks: [
+          {
+            events: [
+              { type: "users", method: "post" },
+              { type: "channel", method: "post" }
+            ],
+            mode: "body",
+            url: webhookUrl
+          }
+        ],
+        callback_persist: true
+      }
+
+      const webhookResponse = await fetch('https://gate.whapi.cloud/settings', {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${whapiToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(webhookConfig)
+      })
+
+      if (!webhookResponse.ok) {
+        const webhookError = await webhookResponse.text()
+        console.warn('Failed to configure webhook:', webhookError)
+        // Don't fail the whole process if webhook config fails
+      } else {
+        console.log('Webhook configured successfully')
+      }
+    }
 
     // Calculate trial expiration (3 days from now)
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
@@ -94,8 +160,8 @@ Deno.serve(async (req) => {
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        instance_id: whapiData.instance_id,
-        whapi_token: whapiData.token,
+        instance_id: instanceId,
+        whapi_token: whapiToken,
         instance_status: 'created',
         payment_plan: 'trial',
         trial_expires_at: trialExpiresAt,
@@ -116,7 +182,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        instance_id: whapiData.instance_id,
+        instance_id: instanceId,
         trial_expires_at: trialExpiresAt,
         message: 'WhatsApp instance created successfully'
       }),

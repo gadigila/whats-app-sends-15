@@ -51,9 +51,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('Getting QR from WHAPI with user token...')
+    console.log('Getting QR from WHAPI using channel token...')
+    console.log('Instance ID:', profile.instance_id)
 
-    // Get QR code using the user token (NOT partner token!)
+    // Get QR code using the channel token (NOT partner token!)
     const qrResponse = await fetch(`https://gate.whapi.cloud/instance/qr?id=${profile.instance_id}`, {
       method: 'GET',
       headers: {
@@ -61,6 +62,8 @@ Deno.serve(async (req) => {
         'Accept': 'application/json'
       }
     })
+
+    console.log('QR Response status:', qrResponse.status)
 
     if (!qrResponse.ok) {
       const errorText = await qrResponse.text()
@@ -72,12 +75,16 @@ Deno.serve(async (req) => {
     }
 
     const qrData = await qrResponse.json()
-    console.log('QR data received:', { hasImage: !!qrData.image, hasQr: !!qrData.qr })
+    console.log('QR data received:', { 
+      hasImage: !!qrData.image, 
+      hasQr: !!qrData.qr,
+      keys: Object.keys(qrData)
+    })
 
     return new Response(
       JSON.stringify({
         success: true,
-        qr_code: qrData.image || qrData.qr,
+        qr_code: qrData.image || qrData.qr || qrData.data,
         instance_id: profile.instance_id
       }),
       { status: 200, headers: corsHeaders }
