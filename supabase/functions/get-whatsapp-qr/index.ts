@@ -92,41 +92,37 @@ Deno.serve(async (req) => {
       tokenLength: profile.whapi_token.length
     })
 
-    // First, let's check the instance status to see if it's ready for QR
-    console.log('🔄 Checking instance status first...')
-    try {
-      const statusResponse = await fetch('https://gate.whapi.cloud/status', {
+    // Try different QR endpoints with the correct WHAPI URLs
+    const qrEndpoints = [
+      {
+        url: 'https://gate.whapi.cloud/users/login',
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${profile.whapi_token}`,
           'Accept': 'application/json',
           'Content-Type': 'application/json'
-        }
-      })
-
-      console.log('📡 Status response:', statusResponse.status)
-      
-      if (statusResponse.ok) {
-        const statusData = await statusResponse.json()
-        console.log('📊 Instance status:', statusData)
-      }
-    } catch (statusError) {
-      console.warn('⚠️ Could not check status:', statusError)
-    }
-
-    // Try different QR endpoints
-    const qrEndpoints = [
-      {
-        url: 'https://gate.whapi.cloud/screen',
-        method: 'GET'
+        },
+        params: 'wakeup=true'
       },
       {
-        url: 'https://gate.whapi.cloud/instance/qr',
-        method: 'GET'
+        url: 'https://gate.whapi.cloud/users/login/image',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${profile.whapi_token}`,
+          'Accept': 'image/png',
+          'Content-Type': 'application/json'
+        },
+        params: 'wakeup=true'
       },
       {
-        url: 'https://gate.whapi.cloud/qr',
-        method: 'GET'
+        url: 'https://gate.whapi.cloud/users/login/rowdata',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${profile.whapi_token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        params: 'wakeup=true'
       }
     ]
 
@@ -134,42 +130,55 @@ Deno.serve(async (req) => {
     let lastError = null
 
     for (const endpoint of qrEndpoints) {
-      console.log(`🔄 Trying QR endpoint: ${endpoint.method} ${endpoint.url}`)
+      const urlWithParams = `${endpoint.url}?${endpoint.params}`
+      console.log(`🔄 Trying QR endpoint: ${endpoint.method} ${urlWithParams}`)
       
       try {
-        const qrResponse = await fetch(endpoint.url, {
+        const qrResponse = await fetch(urlWithParams, {
           method: endpoint.method,
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
+          headers: endpoint.headers
         })
 
         console.log(`📡 QR Response status for ${endpoint.url}:`, qrResponse.status)
         console.log(`📡 QR Response headers:`, Object.fromEntries(qrResponse.headers.entries()))
 
         if (qrResponse.ok) {
-          const responseText = await qrResponse.text()
-          console.log(`📥 Raw response from ${endpoint.url}:`, responseText.substring(0, 200) + '...')
+          const contentType = qrResponse.headers.get('content-type') || ''
+          console.log(`📋 Content-Type: ${contentType}`)
           
-          try {
-            qrData = JSON.parse(responseText)
-            console.log('✅ QR data received successfully:', { 
-              hasImage: !!qrData.image, 
-              hasQr: !!qrData.qr,
-              hasData: !!qrData.data,
-              hasQrCode: !!qrData.qr_code,
-              hasScreen: !!qrData.screen,
-              keys: Object.keys(qrData)
-            })
+          if (contentType.includes('image/')) {
+            // Handle image response - convert to base64
+            const arrayBuffer = await qrResponse.arrayBuffer()
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+            qrData = { qr_code: `data:${contentType};base64,${base64}` }
+            console.log('✅ QR image received and converted to base64')
             break
-          } catch (parseError) {
-            // Maybe it's already an image/base64
-            if (responseText.startsWith('data:image') || responseText.startsWith('iVBOR')) {
-              qrData = { qr_code: responseText }
-              console.log('✅ Received direct image data')
+          } else {
+            // Handle JSON or text response
+            const responseText = await qrResponse.text()
+            console.log(`📥 Raw response from ${endpoint.url}:`, responseText.substring(0, 500) + '...')
+            
+            try {
+              const jsonData = JSON.parse(responseText)
+              console.log('✅ QR JSON data received:', { 
+                hasImage: !!jsonData.image, 
+                hasQr: !!jsonData.qr,
+                hasData: !!jsonData.data,
+                hasQrCode: !!jsonData.qr_code,
+                hasBase64: !!jsonData.base64,
+                keys: Object.keys(jsonData)
+              })
+              qrData = jsonData
               break
+            } catch (parseError) {
+              // Maybe it's direct base64 or image data
+              if (responseText.startsWith('data:image') || responseText.startsWith('iVBOR') || responseText.includes('base64')) {
+                qrData = { qr_code: responseText.startsWith('data:') ? responseText : `data:image/png;base64,${responseText}` }
+                console.log('✅ Received direct image/base64 data')
+                break
+              } else {
+                console.warn(`⚠️ Could not parse response as JSON from ${endpoint.url}:`, parseError)
+              }
             }
           }
         } else {
@@ -190,38 +199,19 @@ Deno.serve(async (req) => {
     if (!qrData) {
       console.error('❌ All QR endpoint attempts failed. Last error:', lastError)
       
-      // Let's try to get more info about the instance
-      try {
-        console.log('🔍 Getting instance info for debugging...')
-        const infoResponse = await fetch('https://gate.whapi.cloud/instance', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Accept': 'application/json'
-          }
-        })
-        
-        if (infoResponse.ok) {
-          const infoData = await infoResponse.json()
-          console.log('📊 Instance info:', infoData)
-        }
-      } catch (infoError) {
-        console.warn('⚠️ Could not get instance info:', infoError)
-      }
-      
       return new Response(
         JSON.stringify({ 
           error: 'Failed to get QR code from all endpoints', 
           details: lastError,
           instanceId: profile.instance_id,
-          suggestion: 'Instance might not be in the correct state for QR generation'
+          suggestion: 'Make sure the instance is in the correct state and try again'
         }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    // Extract QR code from response
-    const qrCode = qrData.image || qrData.qr || qrData.data || qrData.qr_code || qrData.screen
+    // Extract QR code from response - check all possible fields
+    const qrCode = qrData.qr_code || qrData.image || qrData.qr || qrData.data || qrData.base64 || qrData
     
     if (!qrCode) {
       console.error('❌ No QR code found in response:', qrData)
@@ -235,12 +225,18 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('🎯 QR code extracted successfully, length:', qrCode.length)
+    console.log('🎯 QR code extracted successfully, type:', typeof qrCode, 'length:', qrCode.length)
+
+    // Make sure we have a proper data URL for images
+    let finalQrCode = qrCode
+    if (typeof qrCode === 'string' && !qrCode.startsWith('data:')) {
+      finalQrCode = `data:image/png;base64,${qrCode}`
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        qr_code: qrCode,
+        qr_code: finalQrCode,
         instance_id: profile.instance_id
       }),
       { status: 200, headers: corsHeaders }
