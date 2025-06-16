@@ -77,8 +77,16 @@ Deno.serve(async (req) => {
         hasToken: !!profile.whapi_token
       })
       return new Response(
-        JSON.stringify({ error: 'No WhatsApp instance found for user' }),
-        { status: 404, headers: corsHeaders }
+        JSON.stringify({ 
+          error: 'No WhatsApp instance found for user. Please create an instance first.',
+          code: 'MISSING_INSTANCE',
+          details: {
+            hasInstanceId: !!profile.instance_id,
+            hasToken: !!profile.whapi_token,
+            status: profile.instance_status
+          }
+        }),
+        { status: 400, headers: corsHeaders }
       )
     }
 
@@ -102,9 +110,10 @@ Deno.serve(async (req) => {
       })
       return new Response(
         JSON.stringify({ 
-          error: 'Instance not accessible', 
+          error: 'WhatsApp instance not accessible', 
           details: `Health check failed: ${healthError}`,
-          status: healthResponse.status 
+          status: healthResponse.status,
+          code: 'INSTANCE_NOT_ACCESSIBLE'
         }),
         { status: 400, headers: corsHeaders }
       )
@@ -118,8 +127,8 @@ Deno.serve(async (req) => {
     
     const qrParams = new URLSearchParams({
       wakeup: 'true',
-      width: '400',
-      height: '400',
+      width: '400',  // Fixed: removed 'px'
+      height: '400', // Fixed: removed 'px'
       color_light: 'ffffff',
       color_dark: '000000'
     })
@@ -152,8 +161,22 @@ Deno.serve(async (req) => {
           hasQrCode: 'qr_code' in responseData,
           hasBase64: 'base64' in responseData,
           hasImage: 'image' in responseData,
-          hasData: 'data' in responseData
+          hasData: 'data' in responseData,
+          status: responseData.status
         })
+        
+        // Check if status indicates no QR available
+        if (responseData.status === 'TIMEOUT' || responseData.status === 'CONNECTED') {
+          console.log('⚠️ QR not available, status:', responseData.status)
+          return new Response(
+            JSON.stringify({ 
+              error: `QR code not available. Instance status: ${responseData.status}`,
+              code: 'QR_NOT_AVAILABLE',
+              instanceStatus: responseData.status
+            }),
+            { status: 400, headers: corsHeaders }
+          )
+        }
         
         // Look for base64 data in various possible fields
         const possibleFields = ['qr_code', 'base64', 'image', 'data', 'qr']
@@ -227,10 +250,11 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Failed to get QR code from WHAPI endpoints',
+          code: 'QR_ENDPOINTS_FAILED',
           details: {
             healthCheck: healthData,
             endpoint1Status: qrResponse1.status,
-            endpoint2Status: qrResponse1.status === 200 ? 'Tried image endpoint' : 'Skipped image endpoint',
+            endpoint2Status: 'Image endpoint also tried',
             instanceId: profile.instance_id,
             tokenLength: profile.whapi_token?.length
           }
@@ -261,7 +285,8 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        errorType: error.name
+        errorType: error.name,
+        code: 'INTERNAL_ERROR'
       }),
       { status: 500, headers: corsHeaders }
     )

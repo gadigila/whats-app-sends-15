@@ -1,18 +1,21 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface WhatsAppQrSectionProps {
   userId: string;
   onConnected: () => void;
+  onMissingInstance: () => void;
 }
 
-const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
+const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQrSectionProps) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [hasInstance, setHasInstance] = useState(true);
   const { getQrCode, checkInstanceStatus } = useWhatsAppInstance();
 
   // Get QR code on mount
@@ -24,6 +27,7 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
     console.log('🔄 Starting QR code request for user:', userId);
     
     setQrCode(null);
+    setHasInstance(true);
     
     try {
       const result = await getQrCode.mutateAsync();
@@ -41,6 +45,15 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
       }
     } catch (err: any) {
       console.error('💥 QR code request failed:', err);
+      
+      // Check if error is related to missing instance
+      if (err.message?.includes('instance') || err.message?.includes('not found')) {
+        console.log('🚨 Missing instance detected, redirecting to create flow');
+        setHasInstance(false);
+        onMissingInstance();
+        return;
+      }
+      
       toast({
         title: "שגיאה בקבלת QR",
         description: err.message || 'שגיאה לא ידועה',
@@ -86,10 +99,26 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
     };
   }, [polling, userId, onConnected]);
 
+  if (!hasInstance) {
+    return (
+      <Alert variant="destructive" className="mb-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          לא נמצא instance עבור המשתמש. יש ליצור instance חדש תחילה.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (getQrCode.isError) {
     return (
       <div className="text-center space-y-4">
-        <div className="text-red-600 font-bold mb-4">שגיאה: {getQrCode.error?.message}</div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            שגיאה: {getQrCode.error?.message}
+          </AlertDescription>
+        </Alert>
         <div className="text-sm text-gray-600 bg-red-50 p-4 rounded-lg border border-red-200">
           <strong>פרטי שגיאה לבדיקה:</strong><br />
           <div className="mt-2 space-y-1 text-xs font-mono">

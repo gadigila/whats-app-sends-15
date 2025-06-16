@@ -5,15 +5,16 @@ import Layout from '@/components/Layout';
 import WhatsAppQrSection from '@/components/WhatsAppQrSection';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Smartphone, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { CheckCircle, Smartphone, Loader2, Wifi, WifiOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
-  const { data: profile, isLoading: profileLoading } = useUserProfile();
+  const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
   const { createInstance, deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'created' | 'connected'>('disconnected');
@@ -22,9 +23,13 @@ const WhatsAppConnect = () => {
   useEffect(() => {
     if (profile) {
       console.log('Profile loaded:', profile);
+      console.log('Instance ID:', profile.instance_id);
+      console.log('Instance Status:', profile.instance_status);
+      console.log('Has Token:', !!profile.whapi_token);
+      
       if (profile.instance_status === 'connected') {
         setConnectionStatus('connected');
-      } else if (profile.instance_status === 'created' && profile.instance_id) {
+      } else if (profile.instance_status === 'created' && profile.instance_id && profile.whapi_token) {
         setConnectionStatus('created');
       } else {
         setConnectionStatus('disconnected');
@@ -37,6 +42,9 @@ const WhatsAppConnect = () => {
     console.log('QR connection successful');
     setConnectionStatus('connected');
     
+    // Refresh profile to get updated status
+    await refetchProfile();
+    
     // Sync groups after successful connection
     try {
       await syncGroups.mutateAsync();
@@ -47,25 +55,33 @@ const WhatsAppConnect = () => {
 
   const handleStart = async () => {
     if (!user?.id) return;
-    console.log('Starting WhatsApp connection for user:', user.id);
+    console.log('🚀 Starting WhatsApp connection for user:', user.id);
     
     try {
       await createInstance.mutateAsync();
+      console.log('✅ Instance created, refreshing profile...');
+      await refetchProfile();
       setConnectionStatus('created');
     } catch (error) {
-      console.error('Failed to create instance:', error);
+      console.error('❌ Failed to create instance:', error);
+      toast({
+        title: "שגיאה ביצירת instance",
+        description: "נסה שוב מאוחר יותר",
+        variant: "destructive",
+      });
     }
   };
 
   const handleDisconnect = async () => {
     if (!user?.id) return;
-    console.log('Disconnecting WhatsApp for user:', user.id);
+    console.log('🔌 Disconnecting WhatsApp for user:', user.id);
 
     try {
       await deleteInstance.mutateAsync();
+      await refetchProfile();
       setConnectionStatus('disconnected');
     } catch (error) {
-      console.error('Disconnect failed:', error);
+      console.error('❌ Disconnect failed:', error);
     }
   };
 
@@ -77,12 +93,22 @@ const WhatsAppConnect = () => {
     }
   };
 
+  const handleMissingInstance = () => {
+    console.log('🚨 Missing instance detected, switching to disconnected state');
+    setConnectionStatus('disconnected');
+    toast({
+      title: "דרוש instance חדש",
+      description: "אנא צור instance חדש כדי להמשיך",
+      variant: "destructive",
+    });
+  };
+
   if (profileLoading) {
     return (
       <Layout>
         <div className="max-w-2xl mx-auto flex flex-col items-center min-h-[75vh] justify-center gap-8">
           <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-          <span className="text-gray-700">טוען...</span>
+          <span className="text-gray-700">טוען פרופיל משתמש...</span>
         </div>
       </Layout>
     );
@@ -180,10 +206,32 @@ const WhatsAppConnect = () => {
               : 'התחבר לוואטסאפ כדי להתחיל לשלוח הודעות לקבוצות שלך'}
           </p>
         </div>
+        
+        {/* Debug info for current user */}
+        {profile && (
+          <Alert className="bg-blue-50 border-blue-200">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>פרטי משתמש נוכחי:</strong><br />
+              <div className="mt-1 text-sm font-mono">
+                <div>User ID: {user?.id}</div>
+                <div>Email: {user?.email}</div>
+                <div>Instance ID: {profile.instance_id || 'לא קיים'}</div>
+                <div>Instance Status: {profile.instance_status || 'לא קיים'}</div>
+                <div>Has Token: {profile.whapi_token ? 'כן' : 'לא'}</div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <Card>
           <CardContent className="p-8">
             {connectionStatus === 'created' && user?.id ? (
-              <WhatsAppQrSection userId={user.id} onConnected={handleQrConnected} />
+              <WhatsAppQrSection 
+                userId={user.id} 
+                onConnected={handleQrConnected}
+                onMissingInstance={handleMissingInstance}
+              />
             ) : (
               <div className="text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
