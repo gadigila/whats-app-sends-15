@@ -4,33 +4,39 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/s
 import { AppSidebar } from '@/components/AppSidebar';
 import TrialStatusBanner from '@/components/TrialStatusBanner';
 import { Menu } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 const Layout = ({ children }: LayoutProps) => {
+  const { user } = useAuth();
+  const { data: profile } = useUserProfile();
+
+  const getUserName = () => {
+    if (profile?.name) return profile.name;
+    if (user?.email) return user.email.split('@')[0];
+    return 'משתמש';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 w-full" dir="rtl">
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white px-4">
-            {/* Mobile hamburger menu */}
-            <SidebarTrigger className="md:hidden">
+          {/* Mobile header */}
+          <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white px-4 md:hidden">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">{getUserName()}</span>
+            </div>
+            <SidebarTrigger>
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
-            
-            {/* Desktop sidebar trigger - always visible */}
-            <SidebarTrigger className="hidden md:block" />
-            
-            <div className="flex-1" />
           </header>
-          {/* Remove top margin from TrialStatusBanner */}
-          <div className="bg-white">
-            <TrialStatusBanner />
-          </div>
+          
+          <TrialStatusBanner />
           <main className="p-6">
             {children}
           </main>

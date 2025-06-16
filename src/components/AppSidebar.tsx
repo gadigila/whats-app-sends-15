@@ -34,7 +34,7 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { data: profile } = useUserProfile();
-  const { state } = useSidebar();
+  const { state, isMobile, setOpen } = useSidebar();
 
   const handleSignOut = async () => {
     await logout();
@@ -53,6 +53,12 @@ export function AppSidebar() {
 
   const isCollapsed = state === 'collapsed';
 
+  const handleSidebarClick = () => {
+    if (isMobile) {
+      setOpen(false);
+    }
+  };
+
   return (
     <Sidebar 
       side="right" 
@@ -61,7 +67,7 @@ export function AppSidebar() {
     >
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2">
+          <Link to="/dashboard" className="flex items-center gap-2" onClick={handleSidebarClick}>
             <MessageSquare className="h-8 w-8 text-green-600 flex-shrink-0" />
             {!isCollapsed && (
               <span className="text-xl font-bold text-gray-900">WhatsApp Manager</span>
@@ -84,7 +90,7 @@ export function AppSidebar() {
                       isActive={isActive}
                       tooltip={isCollapsed ? item.name : undefined}
                     >
-                      <Link to={item.href} className="flex items-center gap-3">
+                      <Link to={item.href} className="flex items-center gap-3" onClick={handleSidebarClick}>
                         <item.icon className="h-5 w-5 flex-shrink-0" />
                         {!isCollapsed && <span>{item.name}</span>}
                       </Link>
@@ -135,7 +141,7 @@ export function AppSidebar() {
                 asChild
                 tooltip={isCollapsed ? "תשלום" : undefined}
               >
-                <Link to="/billing" className="flex items-center gap-2">
+                <Link to="/billing" className="flex items-center gap-2" onClick={handleSidebarClick}>
                   <CreditCard className="h-4 w-4 flex-shrink-0" />
                   {!isCollapsed && "תשלום"}
                 </Link>

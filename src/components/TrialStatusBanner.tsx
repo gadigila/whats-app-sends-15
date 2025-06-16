@@ -20,7 +20,7 @@ const TrialStatusBanner = () => {
   // אם תקופת הניסיון פגה
   if (trialStatus.isExpired) {
     return (
-      <Alert className="border-red-200 bg-red-50 rounded-none border-x-0 border-t-0">
+      <Alert className="border-red-200 bg-red-50 rounded-none border-x-0 border-t-0 border-b">
         <AlertTriangle className="h-4 w-4 text-red-600" />
         <AlertDescription className="flex items-center justify-between">
           <span className="text-red-800">
@@ -36,7 +36,7 @@ const TrialStatusBanner = () => {
 
   // אם תקופת הניסיון עדיין פעילה
   return (
-    <Alert className={`border-orange-200 rounded-none border-x-0 border-t-0 ${
+    <Alert className={`border-orange-200 rounded-none border-x-0 border-t-0 border-b ${
       trialStatus.daysLeft <= 1 ? 'bg-red-50' : 'bg-orange-50'
     }`}>
       <Clock className={`h-4 w-4 ${
