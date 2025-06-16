@@ -27,12 +27,9 @@ const Layout = ({ children }: LayoutProps) => {
         <AppSidebar />
         <SidebarInset>
           {/* Mobile header */}
-          <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white px-4 md:hidden">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">{getUserName()}</span>
-            </div>
+          <header className="flex h-16 shrink-0 items-center justify-center border-b bg-white px-4 md:hidden">
             <SidebarTrigger>
-              <Menu className="h-5 w-5" />
+              <Menu className="h-6 w-6" />
             </SidebarTrigger>
           </header>
           
