@@ -2,7 +2,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Calendar, Send, Users, BarChart3, CreditCard, LogOut } from 'lucide-react';
+import { MessageSquare, Calendar, Send, Users, BarChart3, CreditCard, LogOut, Menu } from 'lucide-react';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -16,6 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 
 const navigation = [
@@ -51,10 +52,13 @@ export function AppSidebar() {
   return (
     <Sidebar side="right">
       <SidebarHeader className="p-4">
-        <Link to="/dashboard" className="flex items-center gap-2">
-          <MessageSquare className="h-8 w-8 text-green-600" />
-          <span className="text-xl font-bold text-gray-900">WhatsApp Manager</span>
-        </Link>
+        <div className="flex items-center justify-between">
+          <Link to="/dashboard" className="flex items-center gap-2">
+            <MessageSquare className="h-8 w-8 text-green-600" />
+            <span className="text-xl font-bold text-gray-900">WhatsApp Manager</span>
+          </Link>
+          <SidebarTrigger className="h-7 w-7" />
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

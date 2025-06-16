@@ -1,6 +1,6 @@
 
 import { ReactNode } from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TrialStatusBanner from '@/components/TrialStatusBanner';
 
@@ -15,7 +15,6 @@ const Layout = ({ children }: LayoutProps) => {
         <AppSidebar />
         <SidebarInset>
           <header className="flex h-16 shrink-0 items-center gap-2 border-b bg-white px-4">
-            <SidebarTrigger className="-ml-1" />
             <div className="flex-1" />
           </header>
           <TrialStatusBanner />
