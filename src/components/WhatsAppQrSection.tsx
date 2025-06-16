@@ -24,8 +24,7 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
 
   const getQrCode = async () => {
     console.log('🔄 Starting QR code request for user:', userId);
-    console.log('📋 Current Supabase URL:', supabase.supabaseUrl);
-    console.log('📋 Current Supabase Key:', supabase.supabaseKey ? 'EXISTS' : 'MISSING');
+    console.log('📋 Current Supabase URL:', 'https://ifxvwettmgixfbivlzzl.supabase.co');
     
     setLoading(true);
     setErrorMsg(null);
@@ -33,7 +32,7 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
     
     try {
       console.log('📡 Calling whatsapp-connect function with action: get_qr');
-      console.log('📡 Function URL should be:', `${supabase.supabaseUrl}/functions/v1/whatsapp-connect`);
+      console.log('📡 Function URL should be:', 'https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/whatsapp-connect');
       
       const requestBody = { userId, action: 'get_qr' };
       console.log('📤 Request body:', requestBody);
@@ -159,7 +158,7 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
           <div className="mt-2 space-y-1 text-xs font-mono">
             <div>משתמש: {userId}</div>
             <div>זמן: {new Date().toLocaleString('he-IL')}</div>
-            <div>URL: {supabase.supabaseUrl}/functions/v1/whatsapp-connect</div>
+            <div>URL: https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/whatsapp-connect</div>
           </div>
         </div>
         <Button onClick={getQrCode} disabled={loading} variant="outline">

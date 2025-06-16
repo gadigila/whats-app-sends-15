@@ -1,1 +1,14 @@
+
 project_id = "ifxvwettmgixfbivlzzl"
+
+[functions.whatsapp-scheduler]
+verify_jwt = false
+
+[functions.instance-manager]
+verify_jwt = false
+
+[functions.whatsapp-connect]
+verify_jwt = false
+
+[functions.cleanup-expired-trials]
+verify_jwt = false
