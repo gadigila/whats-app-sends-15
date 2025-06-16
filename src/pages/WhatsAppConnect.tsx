@@ -5,12 +5,11 @@ import Layout from '@/components/Layout';
 import WhatsAppQrSection from '@/components/WhatsAppQrSection';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Smartphone, Loader2, Wifi, WifiOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { CheckCircle, Smartphone, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
@@ -206,23 +205,6 @@ const WhatsAppConnect = () => {
               : 'התחבר לוואטסאפ כדי להתחיל לשלוח הודעות לקבוצות שלך'}
           </p>
         </div>
-        
-        {/* Debug info for current user */}
-        {profile && (
-          <Alert className="bg-blue-50 border-blue-200">
-            <AlertCircle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <strong>פרטי משתמש נוכחי:</strong><br />
-              <div className="mt-1 text-sm font-mono">
-                <div>User ID: {user?.id}</div>
-                <div>Email: {user?.email}</div>
-                <div>Instance ID: {profile.instance_id || 'לא קיים'}</div>
-                <div>Instance Status: {profile.instance_status || 'לא קיים'}</div>
-                <div>Has Token: {profile.whapi_token ? 'כן' : 'לא'}</div>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
         
         <Card>
           <CardContent className="p-8">
