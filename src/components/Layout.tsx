@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/AppSidebar';
 import TrialStatusBanner from '@/components/TrialStatusBanner';
-import { Menu } from 'lucide-react';
+import { AlignJustify } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
@@ -28,12 +28,12 @@ const Layout = ({ children }: LayoutProps) => {
         <SidebarInset>
           {/* Mobile header */}
           <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white px-4 md:hidden">
+            <SidebarTrigger>
+              <AlignJustify className="h-6 w-6" />
+            </SidebarTrigger>
             <div className="flex items-center">
               <span className="text-sm font-medium text-gray-700">{getUserName()}</span>
             </div>
-            <SidebarTrigger>
-              <Menu className="h-6 w-6" />
-            </SidebarTrigger>
           </header>
           
           <TrialStatusBanner />
