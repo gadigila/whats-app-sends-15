@@ -68,13 +68,11 @@ export type Database = {
           created_at: string
           error_message: string | null
           group_ids: string[]
-          group_names: string[] | null
           id: string
           media_url: string | null
           message: string
           send_at: string
           status: string
-          total_groups: number | null
           updated_at: string
           user_id: string
         }
@@ -82,13 +80,11 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           group_ids: string[]
-          group_names?: string[] | null
           id?: string
           media_url?: string | null
           message: string
           send_at: string
           status?: string
-          total_groups?: number | null
           updated_at?: string
           user_id: string
         }
@@ -96,55 +92,11 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           group_ids?: string[]
-          group_names?: string[] | null
           id?: string
           media_url?: string | null
           message?: string
           send_at?: string
           status?: string
-          total_groups?: number | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      whatsapp_groups: {
-        Row: {
-          avatar_url: string | null
-          created_at: string
-          description: string | null
-          group_id: string
-          id: string
-          is_admin: boolean | null
-          last_synced_at: string | null
-          name: string
-          participants_count: number | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string
-          description?: string | null
-          group_id: string
-          id?: string
-          is_admin?: boolean | null
-          last_synced_at?: string | null
-          name: string
-          participants_count?: number | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string
-          description?: string | null
-          group_id?: string
-          id?: string
-          is_admin?: boolean | null
-          last_synced_at?: string | null
-          name?: string
-          participants_count?: number | null
           updated_at?: string
           user_id?: string
         }

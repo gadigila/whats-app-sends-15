@@ -1,23 +1,20 @@
-
 import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Clock, Send, Upload, Image, FileText } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
-import { useScheduledMessages } from '@/hooks/useScheduledMessages';
 import LockedFeature from '@/components/LockedFeature';
 import SuccessDialog from '@/components/SuccessDialog';
-import WhatsAppGroupsList from '@/components/WhatsAppGroupsList';
 
 const MessageComposer = () => {
   const [message, setMessage] = useState('');
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
-  const [selectedGroupNames, setSelectedGroupNames] = useState<string[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState('');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -27,8 +24,15 @@ const MessageComposer = () => {
   }>({ isOpen: false, type: 'sent' });
   
   const { trialStatus, isLoading } = useTrialStatus();
-  const { sendNow, createMessage, isSending, isCreating } = useScheduledMessages();
   
+  const groups = [
+    { id: 'all', name: 'כל הקבוצות (8)' },
+    { id: 'marketing', name: 'צוות שיווק' },
+    { id: 'sales', name: 'צוות מכירות' },
+    { id: 'support', name: 'שירות לקוחות' },
+    { id: 'vip', name: 'לקוחות VIP' },
+  ];
+
   // Check if user has access to features
   const hasAccess = !isLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
 
@@ -53,11 +57,6 @@ const MessageComposer = () => {
     }
   };
 
-  const handleGroupSelection = (groupIds: string[], groupNames: string[]) => {
-    setSelectedGroupIds(groupIds);
-    setSelectedGroupNames(groupNames);
-  };
-
   const handleSendNow = () => {
     if (!hasAccess) return;
     
@@ -70,7 +69,7 @@ const MessageComposer = () => {
       return;
     }
     
-    if (selectedGroupIds.length === 0) {
+    if (!selectedGroups) {
       toast({
         title: "בחר קבוצות",
         description: "אנא בחר קבוצות לשליחת ההודעה.",
@@ -79,23 +78,19 @@ const MessageComposer = () => {
       return;
     }
 
-    // Send message now
-    sendNow({
-      message,
-      group_ids: selectedGroupIds,
-      group_names: selectedGroupNames,
-      media_url: attachedFile ? URL.createObjectURL(attachedFile) : undefined
-    });
-
-    // Show success dialog and clear form
+    // Show success dialog instead of toast
     setSuccessDialog({ isOpen: true, type: 'sent' });
-    clearForm();
+    
+    // Clear form
+    setMessage('');
+    setSelectedGroups('');
+    setAttachedFile(null);
   };
 
   const handleSchedule = () => {
     if (!hasAccess) return;
     
-    if (!message.trim() || selectedGroupIds.length === 0 || !scheduleDate || !scheduleTime) {
+    if (!message.trim() || !selectedGroups || !scheduleDate || !scheduleTime) {
       toast({
         title: "חסר מידע",
         description: "אנא מלא את כל השדות כדי לתזמן הודעה.",
@@ -104,27 +99,12 @@ const MessageComposer = () => {
       return;
     }
 
-    // Combine date and time
-    const sendAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-
-    // Create scheduled message
-    createMessage({
-      message,
-      group_ids: selectedGroupIds,
-      group_names: selectedGroupNames,
-      send_at: sendAt,
-      media_url: attachedFile ? URL.createObjectURL(attachedFile) : undefined
-    });
-
-    // Show success dialog and clear form
+    // Show success dialog instead of toast
     setSuccessDialog({ isOpen: true, type: 'scheduled' });
-    clearForm();
-  };
-
-  const clearForm = () => {
+    
+    // Clear form
     setMessage('');
-    setSelectedGroupIds([]);
-    setSelectedGroupNames([]);
+    setSelectedGroups('');
     setScheduleDate('');
     setScheduleTime('');
     setAttachedFile(null);
@@ -162,15 +142,14 @@ const MessageComposer = () => {
 
   return (
     <Layout>
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">כתיבת הודעה</h1>
           <p className="text-gray-600">צור ושלח הודעות לקבוצות הוואטסאפ שלך</p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Left Column - Message Content and Schedule */}
-          <div className="space-y-6">
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
             {/* Message Content */}
             <Card>
               <CardHeader>
@@ -229,6 +208,30 @@ const MessageComposer = () => {
               </CardContent>
             </Card>
 
+            {/* Recipients */}
+            <Card>
+              <CardHeader>
+                <CardTitle>נמענים</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div>
+                  <Label htmlFor="groups">בחר קבוצות</Label>
+                  <Select value={selectedGroups} onValueChange={setSelectedGroups}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="בחר קבוצות לשליחה..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groups.map((group) => (
+                        <SelectItem key={group.id} value={group.name}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Schedule */}
             <Card>
               <CardHeader>
@@ -263,8 +266,10 @@ const MessageComposer = () => {
                 </div>
               </CardContent>
             </Card>
+          </div>
 
-            {/* Preview & Actions */}
+          {/* Preview & Actions */}
+          <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>תצוגה מקדימה</CardTitle>
@@ -287,31 +292,21 @@ const MessageComposer = () => {
                     )}
                   </div>
                 </div>
-                
-                {selectedGroupNames.length > 0 && (
-                  <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm font-medium text-blue-900 mb-1">
-                      יישלח אל {selectedGroupNames.length} קבוצות:
-                    </p>
-                    <p className="text-xs text-blue-700">
-                      {selectedGroupNames.join(', ')}
-                    </p>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
-            {/* Action Buttons */}
             <Card>
-              <CardContent className="p-4 space-y-3">
+              <CardHeader>
+                <CardTitle>פעולות</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
                 <Button
                   onClick={handleSendNow}
                   className="w-full bg-green-600 hover:bg-green-700"
                   size="lg"
-                  disabled={!message.trim() || selectedGroupIds.length === 0 || isSending}
                 >
                   <Send className="h-4 w-4 ml-2" />
-                  {isSending ? 'שולח...' : 'שלח עכשיו'}
+                  שלח עכשיו
                 </Button>
                 
                 <Button
@@ -319,27 +314,25 @@ const MessageComposer = () => {
                   variant="outline"
                   className="w-full"
                   size="lg"
-                  disabled={!scheduleDate || !scheduleTime || !message.trim() || selectedGroupIds.length === 0 || isCreating}
+                  disabled={!scheduleDate || !scheduleTime}
                 >
                   <Clock className="h-4 w-4 ml-2" />
-                  {isCreating ? 'מתזמן...' : 'תזמן הודעה'}
+                  תזמן הודעה
                 </Button>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Right Column - Groups Selection */}
-          <div>
-            <Card className="h-fit">
-              <CardHeader>
-                <CardTitle>בחר קבוצות</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <WhatsAppGroupsList
-                  onGroupSelect={handleGroupSelection}
-                  selectedGroups={selectedGroupIds}
-                  selectionMode={true}
-                />
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-gray-600 space-y-2">
+                  <p className="font-medium">טיפים:</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• שמור על הודעות קצרות ומעניינות</li>
+                    <li>• תמונות מקבלות יותר מעורבות מטקסט בלבד</li>
+                    <li>• זמנים טובים: 10-11 בבוקר, 7-9 בערב</li>
+                    <li>• נסה קודם עם קבוצה אחת</li>
+                  </ul>
+                </div>
               </CardContent>
             </Card>
           </div>
