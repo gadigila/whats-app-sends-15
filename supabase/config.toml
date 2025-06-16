@@ -12,3 +12,15 @@ verify_jwt = false
 
 [functions.cleanup-expired-trials]
 verify_jwt = false
+
+[functions.create-whatsapp-instance]
+verify_jwt = false
+
+[functions.sync-whatsapp-groups]
+verify_jwt = false
+
+[functions.send-immediate-message]
+verify_jwt = false
+
+[functions.manage-instance-lifecycle]
+verify_jwt = false

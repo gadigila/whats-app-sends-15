@@ -18,7 +18,10 @@ interface ScheduledMessage {
 
 interface UserProfile {
   instance_id: string
+  whapi_token: string
   instance_status: string
+  payment_plan: string
+  trial_expires_at: string | null
 }
 
 Deno.serve(async (req) => {
@@ -31,7 +34,6 @@ Deno.serve(async (req) => {
     // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
@@ -66,22 +68,22 @@ Deno.serve(async (req) => {
       try {
         console.log(`Processing message ${message.id}`)
 
-        // Get user's instance ID and status
+        // Get user's instance ID, token and status
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('instance_id, instance_status')
+          .select('instance_id, whapi_token, instance_status, payment_plan, trial_expires_at')
           .eq('id', message.user_id)
           .single()
 
-        if (profileError || !profile?.instance_id) {
-          console.error(`No instance found for user ${message.user_id}`)
+        if (profileError || !profile?.whapi_token) {
+          console.error(`No WHAPI token found for user ${message.user_id}`)
           
           // Update message status to failed
           await supabase
             .from('scheduled_messages')
             .update({ 
               status: 'failed',
-              error_message: 'No WhatsApp instance configured',
+              error_message: 'No WhatsApp instance configured or user not found',
               updated_at: new Date().toISOString()
             })
             .eq('id', message.id)
@@ -90,6 +92,27 @@ Deno.serve(async (req) => {
         }
 
         const userProfile = profile as UserProfile
+
+        // Check if user's trial has expired
+        const now = new Date()
+        const trialExpired = userProfile.trial_expires_at && 
+                           new Date(userProfile.trial_expires_at) < now &&
+                           userProfile.payment_plan === 'trial'
+
+        if (trialExpired) {
+          console.error(`User ${message.user_id} trial has expired`)
+          
+          await supabase
+            .from('scheduled_messages')
+            .update({ 
+              status: 'failed',
+              error_message: 'Trial period has expired',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', message.id)
+          
+          continue
+        }
 
         // Check if instance is connected
         if (userProfile.instance_status !== 'connected') {
@@ -109,8 +132,9 @@ Deno.serve(async (req) => {
 
         let allMessagesSent = true
         let errorMessage = ''
+        let successCount = 0
 
-        // Send message to each group using the instance
+        // Send message to each group using the user's WHAPI token
         for (const groupId of message.group_ids) {
           try {
             console.log(`Sending message to group ${groupId} via instance ${userProfile.instance_id}`)
@@ -128,11 +152,11 @@ Deno.serve(async (req) => {
               }
             }
 
-            // Send message via WHAPI using instance
-            const whapiResponse = await fetch(`https://gate.whapi.cloud/instances/${userProfile.instance_id}/messages/text`, {
+            // Send message via WHAPI using user's token (not partner token)
+            const whapiResponse = await fetch(`https://gate.whapi.cloud/messages/text`, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${whapiPartnerToken}`,
+                'Authorization': `Bearer ${userProfile.whapi_token}`,
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify(requestBody)
@@ -145,6 +169,7 @@ Deno.serve(async (req) => {
               errorMessage += `Failed to send to ${groupId}: ${errorText}. `
             } else {
               console.log(`Successfully sent message to group ${groupId}`)
+              successCount++
             }
 
           } catch (error) {
@@ -155,7 +180,7 @@ Deno.serve(async (req) => {
         }
 
         // Update message status
-        const newStatus = allMessagesSent ? 'sent' : 'failed'
+        const newStatus = allMessagesSent ? 'sent' : (successCount > 0 ? 'partially_sent' : 'failed')
         
         await supabase
           .from('scheduled_messages')
@@ -166,7 +191,7 @@ Deno.serve(async (req) => {
           })
           .eq('id', message.id)
 
-        console.log(`Updated message ${message.id} status to ${newStatus}`)
+        console.log(`Updated message ${message.id} status to ${newStatus} (${successCount}/${message.group_ids.length} groups)`)
 
       } catch (error) {
         console.error(`Error processing message ${message.id}:`, error)
