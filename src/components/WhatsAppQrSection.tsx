@@ -23,17 +23,34 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
   }, []);
 
   const getQrCode = async () => {
+    console.log('🔄 Starting QR code request for user:', userId);
     setLoading(true);
     setErrorMsg(null);
     setQrCode(null);
+    
     try {
+      console.log('📡 Calling whatsapp-connect function with action: get_qr');
+      
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { userId, action: 'get_qr' }
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      
+      console.log('📥 Response received:', { data, error });
+      
+      if (error) {
+        console.error('❌ Supabase function error:', error);
+        throw error;
+      }
+      
+      if (data?.error) {
+        console.error('❌ Function returned error:', data.error);
+        throw new Error(data.error);
+      }
+
+      console.log('✅ Function success:', data);
 
       if (data?.success && data.qr_code) {
+        console.log('🎯 QR code received, starting polling');
         setQrCode(data.qr_code);
         setPolling(true);
         toast({
@@ -41,11 +58,19 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
           description: "סרוק את הקוד עם הוואטסאפ שלך.",
         });
       } else {
+        console.error('❌ No QR code in response:', data);
         throw new Error(data?.error || 'QR לא התקבל');
       }
     } catch (err: any) {
-      setErrorMsg('שגיאה בקבלת קוד QR: ' + (err.message || ''));
+      console.error('💥 QR code request failed:', err);
+      const errorMessage = 'שגיאה בקבלת קוד QR: ' + (err.message || err.toString());
+      setErrorMsg(errorMessage);
       setQrCode(null);
+      toast({
+        title: "שגיאה בקבלת QR",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -55,13 +80,23 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (polling) {
+      console.log('🔄 Starting connection polling');
       interval = setInterval(async () => {
         try {
+          console.log('📡 Checking connection status');
           const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
             body: { userId, action: 'check_status' }
           });
-          if (error) return;
+          
+          console.log('📥 Status check response:', { data, error });
+          
+          if (error) {
+            console.error('❌ Status check error:', error);
+            return;
+          }
+          
           if (data?.connected) {
+            console.log('🎉 WhatsApp connected successfully!');
             setPolling(false);
             setQrCode(null);
             onConnected();
@@ -70,13 +105,16 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
               description: "החיבור בוצע בהצלחה.",
             });
           }
-        } catch {
-          // silently fail
+        } catch (err) {
+          console.error('💥 Status check failed:', err);
         }
       }, 3000);
     }
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        console.log('🛑 Stopping connection polling');
+        clearInterval(interval);
+      }
     };
   }, [polling, userId, onConnected]);
 
@@ -84,7 +122,13 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
     return (
       <div className="text-center space-y-4">
         <div className="text-red-600 font-bold">שגיאה: {errorMsg}</div>
+        <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+          <strong>פרטי שגיאה לבדיקה:</strong><br />
+          משתמש: {userId}<br />
+          זמן: {new Date().toLocaleString('he-IL')}
+        </div>
         <Button onClick={getQrCode} disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           נסה שוב
         </Button>
       </div>
@@ -96,6 +140,9 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
       <div className="flex flex-col items-center">
         <Loader2 className="h-6 w-6 animate-spin text-gray-500 mb-2" />
         <span className="text-gray-700 text-sm">טוען קוד...</span>
+        <div className="text-xs text-gray-500 mt-2">
+          משתמש: {userId}
+        </div>
       </div>
     );
   }
@@ -110,6 +157,9 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
         />
       </div>
       <h2 className="text-xl font-semibold text-gray-900 mb-4">סרוק קוד QR</h2>
+      <div className="text-xs text-gray-500 mb-4">
+        הקוד מתחדש אוטומטית כל כמה דקות
+      </div>
       <Button onClick={getQrCode} variant="outline" disabled={loading}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
         רענן קוד QR
@@ -117,4 +167,5 @@ const WhatsAppQrSection = ({ userId, onConnected }: WhatsAppQrSectionProps) => {
     </div>
   );
 };
+
 export default WhatsAppQrSection;

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -17,6 +18,7 @@ const WhatsAppConnect = () => {
   // Check user's WhatsApp status on load
   useEffect(() => {
     if (user?.id) {
+      console.log('🔍 Checking user WhatsApp status for:', user.id);
       checkUserStatus();
     }
   }, [user?.id]);
@@ -25,18 +27,25 @@ const WhatsAppConnect = () => {
     setLoading(true);
     setErrorMsg(null);
     try {
+      console.log('📡 Fetching user profile for status check');
       const { data, error } = await supabase
         .from('profiles')
         .select('instance_status')
         .eq('id', user?.id)
         .maybeSingle();
+        
+      console.log('📥 Profile data:', { data, error });
+      
       if (error) throw error;
       if (data?.instance_status === 'connected') {
+        console.log('✅ User already connected');
         setConnectionStatus('connected');
       } else {
+        console.log('❌ User not connected, status:', data?.instance_status);
         setConnectionStatus('disconnected');
       }
     } catch (e: any) {
+      console.error('💥 Status check failed:', e);
       setErrorMsg(e.message || 'שגיאה בטעינת סטטוס החיבור');
     } finally {
       setLoading(false);
@@ -45,17 +54,19 @@ const WhatsAppConnect = () => {
 
   // Called when QR component reports success
   const handleQrConnected = () => {
+    console.log('🎉 QR connection successful');
     setConnectionStatus('connected');
   };
 
   const handleStart = async () => {
-    // Simply move to connecting state - channel will be created automatically when getting QR
     if (!user?.id) return;
+    console.log('🚀 Starting WhatsApp connection for user:', user.id);
     setConnectionStatus('connecting');
   };
 
   const handleDisconnect = async () => {
     if (!user?.id) return;
+    console.log('🔌 Disconnecting WhatsApp for user:', user.id);
     setLoading(true);
     setErrorMsg(null);
 
@@ -63,6 +74,9 @@ const WhatsAppConnect = () => {
       const { data, error } = await supabase.functions.invoke('whatsapp-connect', {
         body: { userId: user.id, action: 'disconnect' }
       });
+      
+      console.log('📥 Disconnect response:', { data, error });
+      
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
@@ -72,6 +86,7 @@ const WhatsAppConnect = () => {
         description: "החשבון נותק מהשירות.",
       });
     } catch (error: any) {
+      console.error('💥 Disconnect failed:', error);
       setErrorMsg(error.message || "שגיאה בניתוק");
     } finally {
       setLoading(false);
@@ -170,7 +185,6 @@ const WhatsAppConnect = () => {
         <Card>
           <CardContent className="p-8">
             {connectionStatus === 'connecting' && user?.id ? (
-              // QR logic in separated component
               <WhatsAppQrSection userId={user.id} onConnected={handleQrConnected} />
             ) : (
               <div className="text-center">
