@@ -4,59 +4,20 @@ import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Edit, Trash2, Users } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-
-interface ScheduledMessage {
-  id: string;
-  message: string;
-  groups: string[];
-  scheduledFor: Date;
-  status: 'pending' | 'sent' | 'failed';
-  hasAttachment: boolean;
-}
+import { Calendar, Clock, Edit, Trash2, Users, RefreshCw } from 'lucide-react';
+import { useScheduledMessages } from '@/hooks/useScheduledMessages';
+import { useTrialStatus } from '@/hooks/useTrialStatus';
+import LockedFeature from '@/components/LockedFeature';
 
 const ScheduledMessages = () => {
-  const [messages, setMessages] = useState<ScheduledMessage[]>([
-    {
-      id: '1',
-      message: 'אל תשכחו מהמבצע המיוחד שלנו שמסתיים מחר! קבלו 50% הנחה על כל התכונות הפרימיום.',
-      groups: ['צוות שיווק', 'לקוחות VIP'],
-      scheduledFor: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      status: 'pending',
-      hasAttachment: true,
-    },
-    {
-      id: '2',
-      message: 'עדכון שבועי לצוות: אנא הגישו את הדוחות שלכם עד יום שישי.',
-      groups: ['צוות מכירות'],
-      scheduledFor: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      status: 'pending',
-      hasAttachment: false,
-    },
-    {
-      id: '3',
-      message: 'ברכות חג מהצוות שלנו לצוות שלכם!',
-      groups: ['כל הקבוצות'],
-      scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      status: 'pending',
-      hasAttachment: true,
-    },
-  ]);
-
-  const handleEdit = (id: string) => {
-    toast({
-      title: "ערוך הודעה",
-      description: "תכונת העריכה תפתח את הודעת הכתיבה עם ההודעה הזו.",
-    });
-  };
+  const { messages, isLoading, deleteMessage, isDeleting, refetch } = useScheduledMessages();
+  const { trialStatus, isLoading: trialLoading } = useTrialStatus();
+  
+  // Check if user has access to features
+  const hasAccess = !trialLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
 
   const handleDelete = (id: string) => {
-    setMessages(messages.filter(msg => msg.id !== id));
-    toast({
-      title: "הודעה נמחקה",
-      description: "ההודעה המתוזמנת נמחקה.",
-    });
+    deleteMessage(id);
   };
 
   const getStatusBadge = (status: string) => {
@@ -72,7 +33,8 @@ const ScheduledMessages = () => {
     }
   };
 
-  const formatDateTime = (date: Date) => {
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
     return date.toLocaleDateString('he-IL', {
       weekday: 'short',
       month: 'short',
@@ -82,6 +44,43 @@ const ScheduledMessages = () => {
     });
   };
 
+  if (trialLoading || isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-lg">טוען...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // If user doesn't have access, show locked feature
+  if (!hasAccess) {
+    return (
+      <Layout>
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">הודעות מתוזמנות</h1>
+            <p className="text-gray-600">נהל את משלוחי ההודעות העתידיים שלך</p>
+          </div>
+          
+          <LockedFeature
+            title="הודעות מתוזמנות"
+            description="כדי לנהל הודעות מתוזמנות, אנא שדרג את החשבון שלך."
+            className="min-h-96"
+          />
+        </div>
+      </Layout>
+    );
+  }
+
+  const pendingMessages = messages.filter(msg => msg.status === 'pending');
+  const todayMessages = messages.filter(msg => {
+    const sendDate = new Date(msg.send_at);
+    const today = new Date();
+    return sendDate.toDateString() === today.toDateString();
+  });
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -90,12 +89,22 @@ const ScheduledMessages = () => {
             <h1 className="text-3xl font-bold text-gray-900">הודעות מתוזמנות</h1>
             <p className="text-gray-600">נהל את משלוחי ההודעות העתידיים שלך</p>
           </div>
-          <Button 
-            onClick={() => window.location.href = '/compose'}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            תזמן הודעה חדשה
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => refetch()}
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className="h-4 w-4 ml-2" />
+              רענן
+            </Button>
+            <Button 
+              onClick={() => window.location.href = '/compose'}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              תזמן הודעה חדשה
+            </Button>
+          </div>
         </div>
 
         {/* Summary Stats */}
@@ -117,14 +126,12 @@ const ScheduledMessages = () => {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <Clock className="h-5 w-5 text-green-600" />
+                <div className="p-2 bg-orange-50 rounded-lg">
+                  <Clock className="h-5 w-5 text-orange-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">ב-24 השעות הבאות</p>
-                  <p className="text-2xl font-bold">
-                    {messages.filter(msg => msg.scheduledFor.getTime() - Date.now() < 24 * 60 * 60 * 1000).length}
-                  </p>
+                  <p className="text-sm text-gray-600">ממתינות לשליחה</p>
+                  <p className="text-2xl font-bold">{pendingMessages.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -133,12 +140,12 @@ const ScheduledMessages = () => {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 rounded-lg">
-                  <Users className="h-5 w-5 text-purple-600" />
+                <div className="p-2 bg-green-50 rounded-lg">
+                  <Users className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">קבוצות ממוקדות</p>
-                  <p className="text-2xl font-bold">8</p>
+                  <p className="text-sm text-gray-600">היום</p>
+                  <p className="text-2xl font-bold">{todayMessages.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -177,32 +184,38 @@ const ScheduledMessages = () => {
                       <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          <span>{formatDateTime(message.scheduledFor)}</span>
+                          <span>{formatDateTime(message.send_at)}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Users className="h-4 w-4" />
-                          <span>{message.groups.join(', ')}</span>
+                          <span>{message.total_groups || message.group_ids.length} קבוצות</span>
                         </div>
-                        {message.hasAttachment && (
+                        {message.group_names && message.group_names.length > 0 && (
+                          <div className="text-xs text-blue-600">
+                            {message.group_names.slice(0, 2).join(', ')}
+                            {message.group_names.length > 2 && ` +${message.group_names.length - 2}`}
+                          </div>
+                        )}
+                        {message.media_url && (
                           <Badge variant="secondary" className="text-xs">
                             יש קובץ מצורף
                           </Badge>
                         )}
                       </div>
+                      
+                      {message.error_message && (
+                        <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                          שגיאה: {message.error_message}
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleEdit(message.id)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
                         onClick={() => handleDelete(message.id)}
+                        disabled={isDeleting}
                         className="text-red-600 border-red-600 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Clock, Send, Upload, Image, FileText } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
+import { useScheduledMessages } from '@/hooks/useScheduledMessages';
 import LockedFeature from '@/components/LockedFeature';
 import SuccessDialog from '@/components/SuccessDialog';
 import WhatsAppGroupsList from '@/components/WhatsAppGroupsList';
@@ -26,6 +27,7 @@ const MessageComposer = () => {
   }>({ isOpen: false, type: 'sent' });
   
   const { trialStatus, isLoading } = useTrialStatus();
+  const { sendNow, createMessage, isSending, isCreating } = useScheduledMessages();
   
   // Check if user has access to features
   const hasAccess = !isLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
@@ -77,14 +79,17 @@ const MessageComposer = () => {
       return;
     }
 
-    // Show success dialog instead of toast
+    // Send message now
+    sendNow({
+      message,
+      group_ids: selectedGroupIds,
+      group_names: selectedGroupNames,
+      media_url: attachedFile ? URL.createObjectURL(attachedFile) : undefined
+    });
+
+    // Show success dialog and clear form
     setSuccessDialog({ isOpen: true, type: 'sent' });
-    
-    // Clear form
-    setMessage('');
-    setSelectedGroupIds([]);
-    setSelectedGroupNames([]);
-    setAttachedFile(null);
+    clearForm();
   };
 
   const handleSchedule = () => {
@@ -99,10 +104,24 @@ const MessageComposer = () => {
       return;
     }
 
-    // Show success dialog instead of toast
+    // Combine date and time
+    const sendAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+
+    // Create scheduled message
+    createMessage({
+      message,
+      group_ids: selectedGroupIds,
+      group_names: selectedGroupNames,
+      send_at: sendAt,
+      media_url: attachedFile ? URL.createObjectURL(attachedFile) : undefined
+    });
+
+    // Show success dialog and clear form
     setSuccessDialog({ isOpen: true, type: 'scheduled' });
-    
-    // Clear form
+    clearForm();
+  };
+
+  const clearForm = () => {
     setMessage('');
     setSelectedGroupIds([]);
     setSelectedGroupNames([]);
@@ -289,10 +308,10 @@ const MessageComposer = () => {
                   onClick={handleSendNow}
                   className="w-full bg-green-600 hover:bg-green-700"
                   size="lg"
-                  disabled={!message.trim() || selectedGroupIds.length === 0}
+                  disabled={!message.trim() || selectedGroupIds.length === 0 || isSending}
                 >
                   <Send className="h-4 w-4 ml-2" />
-                  שלח עכשיו
+                  {isSending ? 'שולח...' : 'שלח עכשיו'}
                 </Button>
                 
                 <Button
@@ -300,10 +319,10 @@ const MessageComposer = () => {
                   variant="outline"
                   className="w-full"
                   size="lg"
-                  disabled={!scheduleDate || !scheduleTime || !message.trim() || selectedGroupIds.length === 0}
+                  disabled={!scheduleDate || !scheduleTime || !message.trim() || selectedGroupIds.length === 0 || isCreating}
                 >
                   <Clock className="h-4 w-4 ml-2" />
-                  תזמן הודעה
+                  {isCreating ? 'מתזמן...' : 'תזמן הודעה'}
                 </Button>
               </CardContent>
             </Card>
