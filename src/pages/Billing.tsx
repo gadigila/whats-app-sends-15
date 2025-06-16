@@ -1,4 +1,3 @@
-
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,6 @@ import { toast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { usePaymentPlans } from '@/hooks/usePaymentPlans';
-import TrialStatusBanner from '@/components/TrialStatusBanner';
 
 const Billing = () => {
   const { user } = useAuth();
@@ -55,9 +53,6 @@ const Billing = () => {
   return (
     <Layout>
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Trial Status Banner */}
-        <TrialStatusBanner />
-
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">הצטרף לתוכנית שלנו</h1>
           <p className="text-gray-600">

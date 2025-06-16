@@ -3,20 +3,24 @@ import { AlertTriangle, Crown, Clock } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const TrialStatusBanner = () => {
   const { trialStatus, isLoading } = useTrialStatus();
+  const location = useLocation();
 
   if (isLoading || !trialStatus) return null;
 
   // אם המשתמש שילם - לא צריך להציג באנר
   if (trialStatus.isPaid) return null;
 
+  // אל תציג את הבאנר בעמוד התשלום
+  if (location.pathname === '/billing') return null;
+
   // אם תקופת הניסיון פגה
   if (trialStatus.isExpired) {
     return (
-      <Alert className="border-red-200 bg-red-50 mb-6">
+      <Alert className="border-red-200 bg-red-50 rounded-none border-x-0 border-t-0">
         <AlertTriangle className="h-4 w-4 text-red-600" />
         <AlertDescription className="flex items-center justify-between">
           <span className="text-red-800">
@@ -32,7 +36,7 @@ const TrialStatusBanner = () => {
 
   // אם תקופת הניסיון עדיין פעילה
   return (
-    <Alert className={`border-orange-200 mb-6 ${
+    <Alert className={`border-orange-200 rounded-none border-x-0 border-t-0 ${
       trialStatus.daysLeft <= 1 ? 'bg-red-50' : 'bg-orange-50'
     }`}>
       <Clock className={`h-4 w-4 ${
