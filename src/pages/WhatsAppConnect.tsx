@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -20,7 +19,6 @@ const WhatsAppConnect = () => {
     if (user?.id) {
       checkUserStatus();
     }
-    // eslint-disable-next-line
   }, [user?.id]);
 
   const checkUserStatus = async () => {
@@ -51,24 +49,9 @@ const WhatsAppConnect = () => {
   };
 
   const handleStart = async () => {
-    // Start WhatsApp instance/channel
+    // Simply move to connecting state - channel will be created automatically when getting QR
     if (!user?.id) return;
-    setLoading(true);
-    setErrorMsg(null);
-
-    try {
-      const { data, error } = await supabase.functions.invoke('instance-manager', {
-        body: { userId: user.id }
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      setConnectionStatus('connecting');
-    } catch (err: any) {
-      setErrorMsg(err.message || 'שגיאה בהתחלה');
-    } finally {
-      setLoading(false);
-    }
+    setConnectionStatus('connecting');
   };
 
   const handleDisconnect = async () => {
@@ -231,4 +214,5 @@ const WhatsAppConnect = () => {
     </Layout>
   );
 };
+
 export default WhatsAppConnect;
