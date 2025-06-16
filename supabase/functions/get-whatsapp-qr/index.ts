@@ -82,16 +82,54 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Try first endpoint: /users/login (returns JSON with base64)
-    console.log('🔄 Trying QR endpoint 1: /users/login for base64...')
+    // First check instance health to see if it's accessible
+    console.log('🔄 Checking instance health first...')
+    const healthResponse = await fetch('https://gate.whapi.cloud/health', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${profile.whapi_token}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    console.log('📡 Health check status:', healthResponse.status)
+    
+    if (!healthResponse.ok) {
+      const healthError = await healthResponse.text()
+      console.error('❌ Health check failed:', {
+        status: healthResponse.status,
+        error: healthError
+      })
+      return new Response(
+        JSON.stringify({ 
+          error: 'Instance not accessible', 
+          details: `Health check failed: ${healthError}`,
+          status: healthResponse.status 
+        }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    const healthData = await healthResponse.json()
+    console.log('✅ Health check result:', healthData)
+
+    // Now try to get QR code - Method 1: JSON response with base64
+    console.log('🔄 Trying QR endpoint 1: /users/login for JSON base64...')
+    
     const qrParams = new URLSearchParams({
       wakeup: 'true',
-      width: '400px',
-      height: '400px',
-      color_light: 'white',
-      color_dark: 'black'
+      width: '400',
+      height: '400',
+      color_light: 'ffffff',
+      color_dark: '000000'
     })
     
+    console.log('📤 QR request URL:', `https://gate.whapi.cloud/users/login?${qrParams.toString()}`)
+    console.log('📤 QR request headers:', {
+      'Authorization': `Bearer ${profile.whapi_token.substring(0, 10)}...`,
+      'Accept': 'application/json'
+    })
+
     const qrResponse1 = await fetch(`https://gate.whapi.cloud/users/login?${qrParams.toString()}`, {
       method: 'GET',
       headers: {
@@ -102,20 +140,27 @@ Deno.serve(async (req) => {
     })
 
     console.log('📡 QR Response 1 status:', qrResponse1.status)
+    console.log('📡 QR Response 1 headers:', Object.fromEntries(qrResponse1.headers.entries()))
 
     let finalQrCode = null
 
     if (qrResponse1.ok) {
       try {
         const responseData = await qrResponse1.json()
-        console.log('📥 JSON response keys:', Object.keys(responseData))
+        console.log('📥 JSON response received:', {
+          keys: Object.keys(responseData),
+          hasQrCode: 'qr_code' in responseData,
+          hasBase64: 'base64' in responseData,
+          hasImage: 'image' in responseData,
+          hasData: 'data' in responseData
+        })
         
         // Look for base64 data in various possible fields
         const possibleFields = ['qr_code', 'base64', 'image', 'data', 'qr']
         for (const field of possibleFields) {
           if (responseData[field]) {
             finalQrCode = responseData[field]
-            console.log(`🎯 Found QR base64 in field '${field}'`)
+            console.log(`🎯 Found QR base64 in field '${field}', length: ${finalQrCode.length}`)
             
             // Ensure proper data URL format
             if (!finalQrCode.startsWith('data:')) {
@@ -125,12 +170,23 @@ Deno.serve(async (req) => {
             break
           }
         }
+
+        if (!finalQrCode) {
+          console.log('📝 Full response data:', JSON.stringify(responseData, null, 2))
+        }
       } catch (parseError) {
         console.warn('⚠️ Failed to parse JSON from endpoint 1:', parseError)
       }
+    } else {
+      const errorText = await qrResponse1.text()
+      console.error('❌ QR endpoint 1 failed:', {
+        status: qrResponse1.status,
+        statusText: qrResponse1.statusText,
+        error: errorText
+      })
     }
 
-    // If first endpoint failed, try second endpoint: /users/login/image (returns direct image)
+    // If first endpoint failed, try second endpoint: direct image
     if (!finalQrCode) {
       console.log('🔄 Trying QR endpoint 2: /users/login/image for direct image...')
       
@@ -143,6 +199,7 @@ Deno.serve(async (req) => {
       })
 
       console.log('📡 QR Response 2 status:', qrResponse2.status)
+      console.log('📡 QR Response 2 headers:', Object.fromEntries(qrResponse2.headers.entries()))
 
       if (qrResponse2.ok) {
         try {
@@ -153,23 +210,29 @@ Deno.serve(async (req) => {
         } catch (imageError) {
           console.error('❌ Failed to process image from endpoint 2:', imageError)
         }
+      } else {
+        const errorText2 = await qrResponse2.text()
+        console.error('❌ QR endpoint 2 failed:', {
+          status: qrResponse2.status,
+          statusText: qrResponse2.statusText,
+          error: errorText2
+        })
       }
     }
 
     // If both endpoints failed
     if (!finalQrCode) {
       console.error('❌ Both QR endpoints failed or returned no QR code')
-      const errorText1 = qrResponse1.ok ? 'No QR in JSON' : await qrResponse1.text()
       
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to get QR code from both WHAPI endpoints',
+          error: 'Failed to get QR code from WHAPI endpoints',
           details: {
-            endpoint1: {
-              status: qrResponse1.status,
-              error: errorText1
-            },
-            endpoint2: qrResponse1.status === 200 ? 'Tried image endpoint' : 'Skipped image endpoint'
+            healthCheck: healthData,
+            endpoint1Status: qrResponse1.status,
+            endpoint2Status: qrResponse1.status === 200 ? 'Tried image endpoint' : 'Skipped image endpoint',
+            instanceId: profile.instance_id,
+            tokenLength: profile.whapi_token?.length
           }
         }),
         { status: 400, headers: corsHeaders }
