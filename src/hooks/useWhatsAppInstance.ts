@@ -15,8 +15,14 @@ export const useWhatsAppInstance = () => {
       
       console.log('Creating WhatsApp instance for user:', user.id);
       
+      // Build webhook URL for this Supabase project
+      const webhookUrl = 'https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/whatsapp-webhook';
+      
       const { data, error } = await supabase.functions.invoke('create-whatsapp-instance', {
-        body: { userId: user.id }
+        body: { 
+          userId: user.id,
+          webhookUrl: webhookUrl
+        }
       });
       
       if (error) throw error;

@@ -47,6 +47,7 @@ Deno.serve(async (req) => {
     }
 
     console.log('Creating WHAPI channel for user:', userId)
+    console.log('Using webhook URL:', webhookUrl || 'No webhook URL provided')
 
     // Step 1: Get projects to find the main projectId
     console.log('Step 1: Getting projects from WHAPI...')
@@ -57,6 +58,8 @@ Deno.serve(async (req) => {
         'Accept': 'application/json'
       }
     })
+
+    console.log('Projects response status:', projectsResponse.status)
 
     if (!projectsResponse.ok) {
       const errorText = await projectsResponse.text()
@@ -119,7 +122,7 @@ Deno.serve(async (req) => {
 
     // Step 3: Configure webhook if provided
     if (webhookUrl) {
-      console.log('Step 3: Configuring webhook...')
+      console.log('Step 3: Configuring webhook for URL:', webhookUrl)
       const webhookConfig = {
         webhooks: [
           {
@@ -134,6 +137,8 @@ Deno.serve(async (req) => {
         callback_persist: true
       }
 
+      console.log('Webhook config:', JSON.stringify(webhookConfig, null, 2))
+
       const webhookResponse = await fetch('https://gate.whapi.cloud/settings', {
         method: 'PATCH',
         headers: {
@@ -144,6 +149,8 @@ Deno.serve(async (req) => {
         body: JSON.stringify(webhookConfig)
       })
 
+      console.log('Webhook response status:', webhookResponse.status)
+
       if (!webhookResponse.ok) {
         const webhookError = await webhookResponse.text()
         console.warn('Failed to configure webhook:', webhookError)
@@ -151,12 +158,15 @@ Deno.serve(async (req) => {
       } else {
         console.log('Webhook configured successfully')
       }
+    } else {
+      console.log('Step 3: Skipping webhook configuration - no URL provided')
     }
 
     // Calculate trial expiration (3 days from now)
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 
     // Update user profile with instance details
+    console.log('Step 4: Updating user profile with instance details...')
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
@@ -178,6 +188,7 @@ Deno.serve(async (req) => {
     }
 
     console.log('User profile updated successfully')
+    console.log('Instance creation completed successfully for user:', userId)
 
     return new Response(
       JSON.stringify({
