@@ -12,7 +12,6 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
-          billing_status: string | null
           created_at: string
           id: string
           instance_id: string | null
@@ -23,7 +22,6 @@ export type Database = {
           payment_plan: string | null
           plan: string | null
           role: string | null
-          trial_ends_at: string | null
           trial_expires_at: string | null
           updated_at: string
           whapi_channel_id: string | null
@@ -31,7 +29,6 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
-          billing_status?: string | null
           created_at?: string
           id: string
           instance_id?: string | null
@@ -42,7 +39,6 @@ export type Database = {
           payment_plan?: string | null
           plan?: string | null
           role?: string | null
-          trial_ends_at?: string | null
           trial_expires_at?: string | null
           updated_at?: string
           whapi_channel_id?: string | null
@@ -50,7 +46,6 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
-          billing_status?: string | null
           created_at?: string
           id?: string
           instance_id?: string | null
@@ -61,7 +56,6 @@ export type Database = {
           payment_plan?: string | null
           plan?: string | null
           role?: string | null
-          trial_ends_at?: string | null
           trial_expires_at?: string | null
           updated_at?: string
           whapi_channel_id?: string | null

@@ -10,16 +10,16 @@ export const useTrialStatus = () => {
 
     const now = new Date();
     const trialEndsAt = profile.trial_expires_at ? new Date(profile.trial_expires_at) : null;
-    const billingStatus = profile.billing_status;
+    const paymentPlan = profile.payment_plan;
 
     // אם אין תאריך פגיעה או שהסטטוס לא trial
-    if (!trialEndsAt || billingStatus !== 'trial') {
+    if (!trialEndsAt || paymentPlan !== 'trial') {
       return {
-        isExpired: billingStatus === 'expired',
-        isPaid: billingStatus === 'active',
-        isTrial: billingStatus === 'trial',
+        isExpired: paymentPlan === 'expired',
+        isPaid: ['monthly', 'yearly'].includes(paymentPlan || ''),
+        isTrial: paymentPlan === 'trial',
         daysLeft: 0,
-        status: billingStatus,
+        status: paymentPlan,
       };
     }
 

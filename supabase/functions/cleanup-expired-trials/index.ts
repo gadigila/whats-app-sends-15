@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     const { data: expiredUsers, error: fetchError } = await supabase
       .from('profiles')
       .select('id, whapi_channel_id, trial_expires_at')
-      .eq('billing_status', 'trial')
+      .eq('payment_plan', 'trial')
       .not('whapi_channel_id', 'is', null)
       .lt('trial_expires_at', new Date().toISOString())
 
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
         const { error: updateError } = await supabase
           .from('profiles')
           .update({
-            billing_status: 'expired',
+            payment_plan: 'expired',
             whapi_channel_id: null,
             whapi_token: null,
             instance_status: 'inactive',
