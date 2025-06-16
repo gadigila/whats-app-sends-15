@@ -82,145 +82,148 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Try to get QR code using the login endpoint
-    const qrUrl = 'https://gate.whapi.cloud/users/login'
-    
-    console.log('🔄 Requesting QR from WHAPI...')
-    console.log('📡 URL:', qrUrl)
-    console.log('🔑 Token (first 8 chars):', profile.whapi_token.substring(0, 8) + '...')
-    
-    const qrResponse = await fetch(qrUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${profile.whapi_token}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+    // Try multiple endpoints to get QR code
+    const endpoints = [
+      {
+        name: 'login-image',
+        url: `https://gate.whapi.cloud/users/login/image?wakeup=true`,
+        headers: {
+          'Authorization': `Bearer ${profile.whapi_token}`,
+          'Accept': 'image/png',
+        },
+        method: 'GET'
+      },
+      {
+        name: 'login-json',
+        url: `https://gate.whapi.cloud/users/login?wakeup=true`,
+        headers: {
+          'Authorization': `Bearer ${profile.whapi_token}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: 'GET'
       }
-    })
+    ]
 
-    console.log('📡 WHAPI Response status:', qrResponse.status)
-    console.log('📡 WHAPI Response status text:', qrResponse.statusText)
-    console.log('📡 WHAPI Response headers:', Object.fromEntries(qrResponse.headers.entries()))
-
-    if (!qrResponse.ok) {
-      const errorText = await qrResponse.text()
-      console.error('❌ WHAPI request failed:', {
-        status: qrResponse.status,
-        statusText: qrResponse.statusText,
-        errorBody: errorText
+    for (const endpoint of endpoints) {
+      console.log(`🔄 Trying ${endpoint.name} endpoint...`)
+      console.log('📡 URL:', endpoint.url)
+      console.log('🔑 Token (first 8 chars):', profile.whapi_token.substring(0, 8) + '...')
+      
+      const qrResponse = await fetch(endpoint.url, {
+        method: endpoint.method,
+        headers: endpoint.headers
       })
-      
-      return new Response(
-        JSON.stringify({ 
-          error: `WHAPI request failed: ${qrResponse.status}`, 
-          details: errorText,
-          suggestion: 'Check instance status and token validity'
-        }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
 
-    // Get the response body
-    const responseBody = await qrResponse.text()
-    console.log('📥 Raw WHAPI response length:', responseBody.length)
-    console.log('📥 Raw WHAPI response (first 500 chars):', responseBody.substring(0, 500))
+      console.log(`📡 ${endpoint.name} Response status:`, qrResponse.status)
+      console.log(`📡 ${endpoint.name} Response headers:`, Object.fromEntries(qrResponse.headers.entries()))
 
-    // Try to parse as JSON first
-    let parsedResponse
-    try {
-      parsedResponse = JSON.parse(responseBody)
-      console.log('✅ Successfully parsed JSON response')
-      console.log('📊 Response keys:', Object.keys(parsedResponse))
-      console.log('📊 Response structure:', JSON.stringify(parsedResponse, null, 2))
-    } catch (parseError) {
-      console.log('⚠️ Response is not JSON, treating as raw data')
-      console.log('📄 Response type:', typeof responseBody)
-      
-      // If it's not JSON, it might be a direct base64 image
-      if (responseBody.startsWith('data:image/') || responseBody.includes('base64')) {
-        console.log('🖼️ Detected base64 image format')
+      if (!qrResponse.ok) {
+        const errorText = await qrResponse.text()
+        console.error(`❌ ${endpoint.name} request failed:`, {
+          status: qrResponse.status,
+          statusText: qrResponse.statusText,
+          errorBody: errorText
+        })
+        continue // Try next endpoint
+      }
+
+      const contentType = qrResponse.headers.get('content-type') || ''
+      console.log(`📄 ${endpoint.name} Content type:`, contentType)
+
+      // Handle image response (direct PNG)
+      if (contentType.includes('image/png') || endpoint.name === 'login-image') {
+        console.log('🖼️ Processing image response...')
+        const arrayBuffer = await qrResponse.arrayBuffer()
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+        const dataUrl = `data:image/png;base64,${base64}`
+        
+        console.log('✅ QR image processed successfully, length:', dataUrl.length)
+        
         return new Response(
           JSON.stringify({
             success: true,
-            qr_code: responseBody,
+            qr_code: dataUrl,
             instance_id: profile.instance_id,
-            status: 'OK'
+            status: 'OK',
+            source: endpoint.name
           }),
           { status: 200, headers: corsHeaders }
         )
       }
-      
-      console.error('❌ Unable to parse response as JSON or image:', parseError)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid response format from WHAPI', 
-          details: parseError.message,
-          responsePreview: responseBody.substring(0, 200)
-        }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
 
-    // Handle different response structures
-    if (parsedResponse.status === 'TIMEOUT' || parsedResponse.status === 'ERROR') {
-      console.warn('⚠️ WHAPI returned error status:', parsedResponse.status)
-      return new Response(
-        JSON.stringify({ 
-          error: 'QR code not available', 
-          status: parsedResponse.status,
-          details: parsedResponse,
-          suggestion: 'Instance might need to be restarted'
-        }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
+      // Handle JSON response
+      if (contentType.includes('application/json')) {
+        console.log('📄 Processing JSON response...')
+        const responseBody = await qrResponse.text()
+        console.log('📥 Raw response length:', responseBody.length)
+        console.log('📥 Raw response (first 500 chars):', responseBody.substring(0, 500))
 
-    // Look for QR code in various possible fields
-    let qrCode = null
-    const possibleFields = ['qr_code', 'base64', 'image', 'data', 'qr']
-    
-    for (const field of possibleFields) {
-      if (parsedResponse[field]) {
-        qrCode = parsedResponse[field]
-        console.log(`🎯 Found QR code in field '${field}', length:`, qrCode.length)
-        break
+        let parsedResponse
+        try {
+          parsedResponse = JSON.parse(responseBody)
+          console.log('✅ Successfully parsed JSON response')
+          console.log('📊 Response keys:', Object.keys(parsedResponse))
+        } catch (parseError) {
+          console.error('❌ Failed to parse JSON:', parseError)
+          continue // Try next endpoint
+        }
+
+        // Check for error status
+        if (parsedResponse.status === 'TIMEOUT' || parsedResponse.status === 'ERROR') {
+          console.warn(`⚠️ ${endpoint.name} returned error status:`, parsedResponse.status)
+          continue // Try next endpoint
+        }
+
+        // Look for QR code in various possible fields
+        const possibleFields = ['qr_code', 'base64', 'image', 'data', 'qr']
+        let qrCode = null
+        
+        for (const field of possibleFields) {
+          if (parsedResponse[field]) {
+            qrCode = parsedResponse[field]
+            console.log(`🎯 Found QR code in field '${field}', length:`, qrCode.length)
+            break
+          }
+        }
+
+        if (qrCode) {
+          // Ensure proper data URL format
+          let finalQrCode = qrCode
+          if (typeof qrCode === 'string' && !qrCode.startsWith('data:')) {
+            finalQrCode = `data:image/png;base64,${qrCode}`
+            console.log('🔧 Added data URL prefix to QR code')
+          }
+
+          console.log('✅ QR code processed successfully from JSON')
+          
+          return new Response(
+            JSON.stringify({
+              success: true,
+              qr_code: finalQrCode,
+              instance_id: profile.instance_id,
+              status: parsedResponse.status || 'OK',
+              source: endpoint.name
+            }),
+            { status: 200, headers: corsHeaders }
+          )
+        }
+
+        console.error(`❌ No QR code found in ${endpoint.name} response`)
+        console.error('🔍 Available fields:', Object.keys(parsedResponse))
       }
     }
 
-    if (!qrCode) {
-      console.error('❌ No QR code found in any expected field')
-      console.error('🔍 Available fields:', Object.keys(parsedResponse))
-      console.error('📄 Full response:', parsedResponse)
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'QR code not found in WHAPI response', 
-          availableFields: Object.keys(parsedResponse),
-          responseData: parsedResponse,
-          suggestion: 'Check WHAPI documentation for response format'
-        }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    // Ensure proper data URL format
-    let finalQrCode = qrCode
-    if (typeof qrCode === 'string' && !qrCode.startsWith('data:')) {
-      finalQrCode = `data:image/png;base64,${qrCode}`
-      console.log('🔧 Added data URL prefix to QR code')
-    }
-
-    console.log('✅ QR code processed successfully')
-    console.log('📤 Returning QR code with length:', finalQrCode.length)
-
+    // If we get here, all endpoints failed
+    console.error('❌ All endpoints failed to provide QR code')
     return new Response(
-      JSON.stringify({
-        success: true,
-        qr_code: finalQrCode,
-        instance_id: profile.instance_id,
-        status: parsedResponse.status || 'OK'
+      JSON.stringify({ 
+        error: 'QR code not available from any endpoint', 
+        suggestion: 'Instance might need to be restarted or recreated',
+        instanceId: profile.instance_id,
+        instanceStatus: profile.instance_status
       }),
-      { status: 200, headers: corsHeaders }
+      { status: 400, headers: corsHeaders }
     )
 
   } catch (error) {
