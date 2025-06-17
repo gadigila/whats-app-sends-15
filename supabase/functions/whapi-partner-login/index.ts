@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     let whapiProjectId = Deno.env.get('WHAPI_PROJECT_ID')
     
-    console.log('🔐 WHAPI Channel Creation: Starting...')
+    console.log('🔐 WHAPI Channel Check/Creation: Starting...')
     
     if (!whapiPartnerToken) {
       console.error('❌ Missing WHAPI partner token')
@@ -41,89 +41,36 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if user already has a channel
+    // Check if user already has a channel in database
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token')
       .eq('id', userId)
       .single()
 
+    if (profileError) {
+      console.error('❌ Error fetching user profile:', profileError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch user profile' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    // If user already has instance_id and token, return them
     if (profile?.instance_id && profile?.whapi_token) {
-      console.log('🔍 Checking if existing channel is still active:', profile.instance_id)
-      
-      // Check if the existing channel is still active in WHAPI
-      try {
-        const statusResponse = await fetch(`https://manager.whapi.cloud/channels/${profile.instance_id}`, {
-          headers: {
-            'Authorization': `Bearer ${whapiPartnerToken}`
-          }
-        })
-        
-        if (statusResponse.ok) {
-          const channelData = await statusResponse.json()
-          console.log('✅ Existing channel is still active:', profile.instance_id)
-          return new Response(
-            JSON.stringify({
-              success: true,
-              channel_id: profile.instance_id,
-              message: 'Channel already exists and is valid'
-            }),
-            { status: 200, headers: corsHeaders }
-          )
-        } else {
-          console.log('🗑️ Existing channel not found in WHAPI, cleaning up database...')
-          await supabase
-            .from('profiles')
-            .update({
-              instance_id: null,
-              whapi_token: null,
-              instance_status: 'disconnected',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId)
-        }
-      } catch (error) {
-        console.error('❌ Error checking existing channel status:', error)
-        // Continue to create new channel if we can't verify the old one
-      }
+      console.log('✅ User already has existing instance:', profile.instance_id)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          channel_id: profile.instance_id,
+          message: 'Using existing instance'
+        }),
+        { status: 200, headers: corsHeaders }
+      )
     }
 
-    // Clean up any old channels for this user from WHAPI before creating a new one
-    console.log('🧹 Cleaning up old channels for user before creating new one...')
-    try {
-      const channelsResponse = await fetch('https://manager.whapi.cloud/channels', {
-        headers: {
-          'Authorization': `Bearer ${whapiPartnerToken}`
-        }
-      })
-
-      if (channelsResponse.ok) {
-        const channels = await channelsResponse.json()
-        const userChannels = channels.filter((channel: any) => 
-          channel.name && channel.name.includes(`reecher_user_${userId}`)
-        )
-        
-        console.log(`🔍 Found ${userChannels.length} existing channels for user`)
-        
-        // Delete all existing channels for this user
-        for (const channel of userChannels) {
-          try {
-            console.log(`🗑️ Deleting old channel: ${channel.id}`)
-            await fetch(`https://manager.whapi.cloud/channels/${channel.id}`, {
-              method: 'DELETE',
-              headers: {
-                'Authorization': `Bearer ${whapiPartnerToken}`
-              }
-            })
-          } catch (deleteError) {
-            console.error(`❌ Failed to delete channel ${channel.id}:`, deleteError)
-          }
-        }
-      }
-    } catch (cleanupError) {
-      console.error('❌ Error during channel cleanup:', cleanupError)
-      // Continue with creation even if cleanup fails
-    }
+    // Only create new instance if user doesn't have one
+    console.log('🏗️ No existing instance found, creating new one...')
 
     // Get project ID with fallback mechanism
     if (!whapiProjectId) {
@@ -168,7 +115,7 @@ Deno.serve(async (req) => {
 
     console.log('🏗️ Creating new channel with project ID:', whapiProjectId)
 
-    // Create new channel using Manager API with proper project ID
+    // Create new channel using Manager API
     const createChannelResponse = await fetch('https://manager.whapi.cloud/channels', {
       method: 'PUT',
       headers: {
@@ -193,7 +140,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Failed to create channel', 
-          details: `Status: ${createChannelResponse.status}, Error: ${errorText}, ProjectID: ${whapiProjectId}` 
+          details: `Status: ${createChannelResponse.status}, Error: ${errorText}` 
         }),
         { status: 400, headers: corsHeaders }
       )
@@ -203,8 +150,7 @@ Deno.serve(async (req) => {
     console.log('✅ Channel created successfully:', {
       hasToken: !!channelData?.token,
       hasId: !!channelData?.id,
-      projectId: whapiProjectId,
-      responseKeys: Object.keys(channelData || {})
+      projectId: whapiProjectId
     })
 
     const channelId = channelData?.id
@@ -214,8 +160,7 @@ Deno.serve(async (req) => {
       console.error('❌ No channel ID or token received:', channelData)
       return new Response(
         JSON.stringify({ 
-          error: 'No channel ID or token received from WHAPI', 
-          responseData: channelData 
+          error: 'No channel ID or token received from WHAPI'
         }),
         { status: 400, headers: corsHeaders }
       )
@@ -259,7 +204,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('✅ Channel creation completed successfully with project ID:', whapiProjectId)
+    console.log('✅ New channel creation completed successfully')
 
     return new Response(
       JSON.stringify({
@@ -267,13 +212,13 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        message: 'Channel created successfully'
+        message: 'New channel created successfully'
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Channel Creation Error:', error)
+    console.error('💥 Channel Check/Creation Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
