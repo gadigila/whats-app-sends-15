@@ -19,6 +19,8 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     
+    console.log('📱 Getting QR for user:', (await req.json()).userId)
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { userId }: GetQrRequest = await req.json()
 
@@ -29,19 +31,28 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('📱 Getting QR for user:', userId)
-
-    // Get user channel
+    // Get user's channel info
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token')
       .eq('id', userId)
       .single()
 
-    if (profileError || !profile?.instance_id || !profile?.whapi_token) {
-      console.error('❌ No channel found for user:', userId)
+    if (profileError || !profile) {
+      console.error('❌ Error fetching user profile:', profileError)
       return new Response(
-        JSON.stringify({ error: 'No channel found. Please create a channel first.' }),
+        JSON.stringify({ error: 'User profile not found' }),
+        { status: 404, headers: corsHeaders }
+      )
+    }
+
+    if (!profile.instance_id || !profile.whapi_token) {
+      console.log('🚨 No instance or token found, requires new instance')
+      return new Response(
+        JSON.stringify({ 
+          error: 'No WhatsApp instance found',
+          requiresNewInstance: true 
+        }),
         { status: 400, headers: corsHeaders }
       )
     }
@@ -61,16 +72,43 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${profile.whapi_token}`,
             'Accept': 'application/json',
             'Content-Type': 'application/json'
-          },
-          timeout: 30000 // 30 second timeout
+          }
         })
 
         console.log('📥 QR response status:', qrResponse.status, 'for endpoint:', endpoint)
 
         if (qrResponse.ok) {
-          const qrData = await qrResponse.json()
-          console.log('✅ QR data received from:', endpoint)
-          return { success: true, data: qrData }
+          // Handle different response types based on endpoint
+          if (endpoint.includes('/image')) {
+            // For /image endpoint, we get direct image data
+            const imageBlob = await qrResponse.blob()
+            const arrayBuffer = await imageBlob.arrayBuffer()
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+            const qrCodeUrl = `data:image/png;base64,${base64}`
+            console.log('✅ QR image received from:', endpoint)
+            return { success: true, data: { qr_code: qrCodeUrl } }
+          } else {
+            // For regular endpoint, we expect JSON with base64
+            const qrData = await qrResponse.json()
+            console.log('✅ QR data received from:', endpoint, 'Keys:', Object.keys(qrData))
+            
+            // Handle different possible response formats
+            let qrCodeUrl = null
+            if (qrData.qr_code) {
+              qrCodeUrl = qrData.qr_code.startsWith('data:') ? qrData.qr_code : `data:image/png;base64,${qrData.qr_code}`
+            } else if (qrData.qr) {
+              qrCodeUrl = qrData.qr.startsWith('data:') ? qrData.qr : `data:image/png;base64,${qrData.qr}`
+            } else if (qrData.image) {
+              qrCodeUrl = qrData.image.startsWith('data:') ? qrData.image : `data:image/png;base64,${qrData.image}`
+            }
+            
+            if (qrCodeUrl) {
+              return { success: true, data: { qr_code: qrCodeUrl } }
+            } else {
+              console.log('⚠️ No QR code found in response:', qrData)
+              return { success: false, error: { error: 'No QR code in response', endpoint, responseKeys: Object.keys(qrData) } }
+            }
+          }
         } else {
           const errorText = await qrResponse.text()
           console.log('❌ QR request failed for endpoint:', endpoint, 'Status:', qrResponse.status, 'Error:', errorText)
@@ -108,10 +146,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Try both possible QR endpoints
+    // Use the correct endpoints from WHAPI documentation
     const qrEndpoints = [
-      `https://gate.whapi.cloud/qr`,
-      `https://gate.whapi.cloud/channels/${profile.instance_id}/qr`
+      `https://gate.whapi.cloud/users/login/image`,  // Returns direct image
+      `https://gate.whapi.cloud/users/login`         // Returns JSON with base64
     ]
 
     let qrData = null
@@ -135,6 +173,8 @@ Deno.serve(async (req) => {
       // If it's a 404, the channel probably doesn't exist
       if (lastError?.status === 404) {
         console.log('🗑️ Channel not found (404), cleaning up database...')
+        
+        // Clear the invalid instance from database
         await supabase
           .from('profiles')
           .update({
@@ -147,10 +187,10 @@ Deno.serve(async (req) => {
         
         return new Response(
           JSON.stringify({ 
-            error: 'Channel not found. Please create a new channel.',
-            requiresNewInstance: true
+            error: 'WhatsApp instance not found',
+            requiresNewInstance: true 
           }),
-          { status: 400, headers: corsHeaders }
+          { status: 404, headers: corsHeaders }
         )
       }
       
@@ -169,26 +209,8 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Failed to get QR code from all endpoints', 
-          details: lastError
+          details: lastError 
         }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    console.log('📥 QR data received:', {
-      hasImage: !!qrData?.image,
-      hasQrCode: !!qrData?.qr_code,
-      hasBase64: !!qrData?.base64,
-      keys: Object.keys(qrData || {})
-    })
-
-    // QR might be base64 encoded directly or in different field
-    const qrImageUrl = qrData?.image || qrData?.qr_code || qrData?.base64
-
-    if (!qrImageUrl) {
-      console.error('❌ No QR image in response:', qrData)
-      return new Response(
-        JSON.stringify({ error: 'No QR code available', responseData: qrData }),
         { status: 400, headers: corsHeaders }
       )
     }
@@ -198,14 +220,14 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        qr_code: qrImageUrl,
-        channel_id: profile.instance_id
+        qr_code: qrData.qr_code,
+        message: 'QR code retrieved successfully'
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Get QR Error:', error)
+    console.error('💥 QR Code Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
