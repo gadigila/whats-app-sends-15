@@ -10,39 +10,6 @@ interface CheckStatusRequest {
   userId: string
 }
 
-async function getWhapiAccessToken() {
-  const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
-  const whapiPartnerEmail = Deno.env.get('WHAPI_PARTNER_EMAIL')!
-  const whapiPartnerPassword = Deno.env.get('WHAPI_PARTNER_PASSWORD')!
-
-  console.log('🔑 Getting WHAPI access token...')
-  const loginResponse = await fetch('https://gateway.whapi.cloud/partner/v1/auth/login', {
-    method: 'POST',
-    headers: {
-      'x-api-key': whapiPartnerToken,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      email: whapiPartnerEmail,
-      password: whapiPartnerPassword
-    })
-  })
-
-  if (!loginResponse.ok) {
-    const errorText = await loginResponse.text()
-    throw new Error(`WHAPI login failed: ${loginResponse.status} - ${errorText}`)
-  }
-
-  const loginData = await loginResponse.json()
-  const accessToken = loginData?.accessToken || loginData?.access_token
-
-  if (!accessToken) {
-    throw new Error('No access token received from WHAPI login')
-  }
-
-  return accessToken
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -51,9 +18,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
-    const whapiPartnerEmail = Deno.env.get('WHAPI_PARTNER_EMAIL')!
-    const whapiPartnerPassword = Deno.env.get('WHAPI_PARTNER_PASSWORD')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { userId }: CheckStatusRequest = await req.json()
@@ -65,79 +29,29 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!whapiPartnerToken || !whapiPartnerEmail || !whapiPartnerPassword) {
-      console.error('❌ Missing WHAPI partner credentials')
-      return new Response(
-        JSON.stringify({ connected: false, error: 'WHAPI partner credentials not configured' }),
-        { status: 200, headers: corsHeaders }
-      )
-    }
-
     console.log('🔍 Checking status for user:', userId)
 
-    // Get user instance
+    // Get user channel
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, instance_status')
+      .select('instance_id, whapi_token, instance_status')
       .eq('id', userId)
       .single()
 
-    if (profileError || !profile?.instance_id) {
-      console.log('❌ No instance found for user:', userId)
+    if (profileError || !profile?.instance_id || !profile?.whapi_token) {
+      console.log('❌ No channel found for user:', userId)
       return new Response(
-        JSON.stringify({ connected: false, error: 'No instance found' }),
+        JSON.stringify({ connected: false, error: 'No channel found' }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    console.log('🔍 Found instance:', profile.instance_id, 'current status:', profile.instance_status)
+    console.log('🔍 Found channel:', profile.instance_id, 'current status:', profile.instance_status)
 
-    // Get access token
-    const accessToken = await getWhapiAccessToken()
-
-    // Verify the instance exists on WHAPI's side
-    console.log('🔍 Verifying instance exists on WHAPI...')
-    const verifyResponse = await fetch('https://gateway.whapi.cloud/partner/v1/instances', {
+    // Check channel status using channel token
+    const statusResponse = await fetch(`https://gate.whapi.cloud/channels/${profile.instance_id}`, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    })
-
-    if (verifyResponse.ok) {
-      const instances = await verifyResponse.json()
-      const instanceExists = instances?.some((inst: any) => 
-        inst.instanceId === profile.instance_id || inst.id === profile.instance_id
-      )
-      
-      if (!instanceExists) {
-        console.error('❌ Instance not found on WHAPI side, cleaning up database...')
-        
-        // Clean up the database
-        await supabase
-          .from('profiles')
-          .update({
-            instance_id: null,
-            whapi_token: null,
-            instance_status: 'disconnected',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId)
-        
-        return new Response(
-          JSON.stringify({ 
-            connected: false, 
-            error: 'Instance no longer exists. Please create a new instance.',
-            requiresNewInstance: true
-          }),
-          { status: 200, headers: corsHeaders }
-        )
-      }
-    }
-
-    // Check instance status using Bearer Token
-    const statusResponse = await fetch(`https://gateway.whapi.cloud/partner/v1/instances/${profile.instance_id}/status`, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${profile.whapi_token}`
       }
     })
 
@@ -146,12 +60,12 @@ Deno.serve(async (req) => {
       console.error('❌ Status check failed:', {
         status: statusResponse.status,
         error: errorText,
-        instanceId: profile.instance_id
+        channelId: profile.instance_id
       })
 
       // If it's a 404, clean up the database
       if (statusResponse.status === 404) {
-        console.log('🗑️ Instance not found (404), cleaning up database...')
+        console.log('🗑️ Channel not found (404), cleaning up database...')
         await supabase
           .from('profiles')
           .update({
@@ -165,7 +79,7 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             connected: false, 
-            error: 'Instance not found. Please create a new instance.',
+            error: 'Channel not found. Please create a new channel.',
             requiresNewInstance: true
           }),
           { status: 200, headers: corsHeaders }
@@ -179,9 +93,10 @@ Deno.serve(async (req) => {
     }
 
     const statusData = await statusResponse.json()
-    console.log('📊 Instance status response:', statusData)
+    console.log('📊 Channel status response:', statusData)
     
-    const isConnected = statusData.status === 'active' || statusData.status === 'connected'
+    // Check if channel is connected (has phone number)
+    const isConnected = statusData.status === 'active' || !!statusData.phone
 
     // Update status in database if connected
     if (isConnected && profile.instance_status !== 'connected') {
@@ -201,7 +116,8 @@ Deno.serve(async (req) => {
       JSON.stringify({
         connected: isConnected,
         status: statusData.status,
-        instance_id: profile.instance_id
+        phone: statusData.phone,
+        channel_id: profile.instance_id
       }),
       { status: 200, headers: corsHeaders }
     )
