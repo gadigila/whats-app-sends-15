@@ -88,25 +88,21 @@ export const useWhatsAppInstance = () => {
     }
   });
 
-  // Delete instance - simplified
+  // Delete instance - now includes WHAPI deletion
   const deleteInstance = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      // For now, just clear the database - we can add WHAPI deletion later
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          instance_id: null,
-          whapi_token: null,
-          instance_status: 'disconnected',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
+      console.log('Deleting WhatsApp instance for user:', user.id);
+      
+      const { data, error } = await supabase.functions.invoke('whapi-delete-instance', {
+        body: { userId: user.id }
+      });
       
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       
-      return { success: true };
+      return data;
     },
     onSuccess: () => {
       console.log('Instance deleted successfully');
@@ -115,6 +111,14 @@ export const useWhatsAppInstance = () => {
       toast({
         title: "אינסטנס נמחק",
         description: "החיבור לוואטסאפ נותק",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Failed to delete instance:', error);
+      toast({
+        title: "שגיאה במחיקת אינסטנס",
+        description: error.message || "נסה שוב מאוחר יותר",
+        variant: "destructive",
       });
     }
   });

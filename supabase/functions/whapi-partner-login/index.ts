@@ -49,15 +49,80 @@ Deno.serve(async (req) => {
       .single()
 
     if (profile?.instance_id && profile?.whapi_token) {
-      console.log('✅ User already has a channel:', profile.instance_id)
-      return new Response(
-        JSON.stringify({
-          success: true,
-          channel_id: profile.instance_id,
-          message: 'Channel already exists and is valid'
-        }),
-        { status: 200, headers: corsHeaders }
-      )
+      console.log('🔍 Checking if existing channel is still active:', profile.instance_id)
+      
+      // Check if the existing channel is still active in WHAPI
+      try {
+        const statusResponse = await fetch(`https://manager.whapi.cloud/channels/${profile.instance_id}`, {
+          headers: {
+            'Authorization': `Bearer ${whapiPartnerToken}`
+          }
+        })
+        
+        if (statusResponse.ok) {
+          const channelData = await statusResponse.json()
+          console.log('✅ Existing channel is still active:', profile.instance_id)
+          return new Response(
+            JSON.stringify({
+              success: true,
+              channel_id: profile.instance_id,
+              message: 'Channel already exists and is valid'
+            }),
+            { status: 200, headers: corsHeaders }
+          )
+        } else {
+          console.log('🗑️ Existing channel not found in WHAPI, cleaning up database...')
+          await supabase
+            .from('profiles')
+            .update({
+              instance_id: null,
+              whapi_token: null,
+              instance_status: 'disconnected',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+        }
+      } catch (error) {
+        console.error('❌ Error checking existing channel status:', error)
+        // Continue to create new channel if we can't verify the old one
+      }
+    }
+
+    // Clean up any old channels for this user from WHAPI before creating a new one
+    console.log('🧹 Cleaning up old channels for user before creating new one...')
+    try {
+      const channelsResponse = await fetch('https://manager.whapi.cloud/channels', {
+        headers: {
+          'Authorization': `Bearer ${whapiPartnerToken}`
+        }
+      })
+
+      if (channelsResponse.ok) {
+        const channels = await channelsResponse.json()
+        const userChannels = channels.filter((channel: any) => 
+          channel.name && channel.name.includes(`reecher_user_${userId}`)
+        )
+        
+        console.log(`🔍 Found ${userChannels.length} existing channels for user`)
+        
+        // Delete all existing channels for this user
+        for (const channel of userChannels) {
+          try {
+            console.log(`🗑️ Deleting old channel: ${channel.id}`)
+            await fetch(`https://manager.whapi.cloud/channels/${channel.id}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${whapiPartnerToken}`
+              }
+            })
+          } catch (deleteError) {
+            console.error(`❌ Failed to delete channel ${channel.id}:`, deleteError)
+          }
+        }
+      }
+    } catch (cleanupError) {
+      console.error('❌ Error during channel cleanup:', cleanupError)
+      // Continue with creation even if cleanup fails
     }
 
     // Get project ID with fallback mechanism
