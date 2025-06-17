@@ -18,19 +18,33 @@ const WhatsAppConnect = () => {
   const { syncGroups } = useWhatsAppGroups();
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'created' | 'connected'>('disconnected');
 
+  console.log('🔄 WhatsAppConnect render:', {
+    user: user?.email,
+    profileLoading,
+    profile: profile ? {
+      instance_id: profile.instance_id,
+      instance_status: profile.instance_status,
+      has_token: !!profile.whapi_token
+    } : null,
+    connectionStatus
+  });
+
   // Check user's WhatsApp status on load
   useEffect(() => {
     if (profile) {
-      console.log('Profile loaded:', profile);
+      console.log('📥 Profile effect triggered:', profile);
       console.log('Instance ID:', profile.instance_id);
       console.log('Instance Status:', profile.instance_status);
       console.log('Has Token:', !!profile.whapi_token);
       
       if (profile.instance_status === 'connected') {
+        console.log('✅ Setting status to connected');
         setConnectionStatus('connected');
       } else if (profile.instance_status === 'created' && profile.instance_id && profile.whapi_token) {
+        console.log('🔄 Setting status to created');
         setConnectionStatus('created');
       } else {
+        console.log('❌ Setting status to disconnected');
         setConnectionStatus('disconnected');
       }
     }
@@ -38,14 +52,16 @@ const WhatsAppConnect = () => {
 
   // Called when QR component reports success
   const handleQrConnected = async () => {
-    console.log('QR connection successful');
+    console.log('🎉 QR connection successful, updating state...');
     setConnectionStatus('connected');
     
     // Refresh profile to get updated status
+    console.log('🔄 Refetching profile...');
     await refetchProfile();
     
     // Sync groups after successful connection
     try {
+      console.log('📱 Syncing groups...');
       await syncGroups.mutateAsync();
     } catch (error) {
       console.error('Failed to sync groups after connection:', error);
@@ -102,7 +118,16 @@ const WhatsAppConnect = () => {
     });
   };
 
+  console.log('🎯 Current render state:', {
+    profileLoading,
+    connectionStatus,
+    willRenderQr: connectionStatus === 'created' && user?.id,
+    willRenderConnected: connectionStatus === 'connected',
+    willRenderStart: connectionStatus === 'disconnected'
+  });
+
   if (profileLoading) {
+    console.log('⏳ Rendering loading state');
     return (
       <Layout>
         <div className="max-w-2xl mx-auto flex flex-col items-center min-h-[75vh] justify-center gap-8">
@@ -114,6 +139,7 @@ const WhatsAppConnect = () => {
   }
 
   if (connectionStatus === 'connected') {
+    console.log('✅ Rendering connected state');
     return (
       <Layout>
         <div className="max-w-2xl mx-auto space-y-6">
@@ -193,7 +219,8 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Main connection UI
+  // Main connection UI (created or disconnected)
+  console.log('🔄 Rendering main connection UI, status:', connectionStatus);
   return (
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
@@ -209,11 +236,16 @@ const WhatsAppConnect = () => {
         <Card>
           <CardContent className="p-8">
             {connectionStatus === 'created' && user?.id ? (
-              <WhatsAppQrSection 
-                userId={user.id} 
-                onConnected={handleQrConnected}
-                onMissingInstance={handleMissingInstance}
-              />
+              <>
+                <div className="mb-4 text-center text-sm text-blue-600">
+                  מצב: מחכה לסריקת QR | משתמש: {user.email}
+                </div>
+                <WhatsAppQrSection 
+                  userId={user.id} 
+                  onConnected={handleQrConnected}
+                  onMissingInstance={handleMissingInstance}
+                />
+              </>
             ) : (
               <div className="text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
@@ -225,6 +257,9 @@ const WhatsAppConnect = () => {
                 <p className="text-gray-600 mb-6">
                   חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות אוטומטיות לקבוצות.
                 </p>
+                <div className="mb-4 text-xs text-gray-500">
+                  מצב נוכחי: {connectionStatus} | משתמש: {user?.email || 'לא מחובר'}
+                </div>
                 <Button
                   onClick={handleStart}
                   className="bg-green-600 hover:bg-green-700"
