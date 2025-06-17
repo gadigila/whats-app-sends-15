@@ -3,41 +3,20 @@ export class QrProcessor {
   processQrResponse(qrData: any): any {
     console.log('🔄 Processing QR response:', Object.keys(qrData))
     
-    if (qrData.qr) {
+    // Handle WHAPI QR response format from GET /instance/qr
+    if (qrData.qr || qrData.qrCode || qrData.image) {
+      const qrCode = qrData.qr || qrData.qrCode || qrData.image
       console.log('✅ QR code found in response')
-      // Handle base64 QR code
-      let qrCode = qrData.qr
-      if (!qrCode.startsWith('data:image/')) {
-        qrCode = `data:image/png;base64,${qrCode}`
+      
+      // Ensure proper base64 formatting
+      let formattedQrCode = qrCode
+      if (!formattedQrCode.startsWith('data:image/')) {
+        formattedQrCode = `data:image/png;base64,${qrCode}`
       }
       
       return {
         success: true,
-        qr_code: qrCode,
-        message: 'QR code generated successfully'
-      }
-    } else if (qrData.qrCode) {
-      console.log('✅ QR code found in qrCode field')
-      let qrCode = qrData.qrCode
-      if (!qrCode.startsWith('data:image/')) {
-        qrCode = `data:image/png;base64,${qrCode}`
-      }
-      
-      return {
-        success: true,
-        qr_code: qrCode,
-        message: 'QR code generated successfully'
-      }
-    } else if (qrData.image) {
-      console.log('✅ QR code found in image field')
-      let qrCode = qrData.image
-      if (!qrCode.startsWith('data:image/')) {
-        qrCode = `data:image/png;base64,${qrCode}`
-      }
-      
-      return {
-        success: true,
-        qr_code: qrCode,
+        qr_code: formattedQrCode,
         message: 'QR code generated successfully'
       }
     } else if (qrData.data && qrData.data.qr) {

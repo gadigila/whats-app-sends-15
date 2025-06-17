@@ -35,13 +35,8 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       if (result?.success && result.qr_code) {
         console.log('✅ QR code received successfully');
         
-        // Ensure proper base64 formatting for display
-        let formattedQrCode = result.qr_code;
-        if (!formattedQrCode.startsWith('data:image/')) {
-          formattedQrCode = `data:image/png;base64,${formattedQrCode}`;
-        }
-        
-        setQrCode(formattedQrCode);
+        // The QR code should already be properly formatted from the backend
+        setQrCode(result.qr_code);
         setStatus('ready');
         setPolling(true);
         toast({
@@ -73,7 +68,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
     }
   };
 
-  // Poll for connection with webhook awareness
+  // Poll for connection status
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (polling) {
@@ -145,7 +140,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
         <span className="text-gray-700">טוען QR Code...</span>
         <div className="text-xs text-gray-500 text-center">
-          הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת 1-2 דקות...
+          הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת כ-60 שניות...
         </div>
       </div>
     );
@@ -153,15 +148,16 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
 
   return (
     <div className="text-center space-y-6">
-      <div className="p-4 bg-white rounded-2xl shadow-sm border w-fit mx-auto">
+      <div className="p-4 bg-white rounded-2xl shadow-lg border w-fit mx-auto">
         <img
           src={qrCode}
           alt="WhatsApp QR Code"
-          className="w-72 h-72 mx-auto rounded-lg"
+          className="w-80 h-80 mx-auto rounded-lg"
           style={{
-            maxWidth: '80vw',
+            maxWidth: '90vw',
             height: 'auto',
-            aspectRatio: '1/1'
+            aspectRatio: '1/1',
+            imageRendering: 'crisp-edges'
           }}
           onError={(e) => {
             console.error('🖼️ QR image failed to load:', e);
@@ -177,11 +173,13 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           }}
         />
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3">
         <h2 className="text-xl font-semibold text-gray-900">סרוק QR Code</h2>
-        <p className="text-sm text-gray-600">
-          פתח וואטסאפ ← הגדרות ← מכשירים מקושרים ← קשר מכשיר
-        </p>
+        <div className="text-sm text-gray-600 space-y-1">
+          <p>1. פתח וואטסאפ בטלפון שלך</p>
+          <p>2. לך להגדרות ← מכשירים מקושרים</p>
+          <p>3. לחץ על "קשר מכשיר" וסרוק את הקוד</p>
+        </div>
         {polling && (
           <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
             <Loader2 className="h-4 w-4 animate-spin" />

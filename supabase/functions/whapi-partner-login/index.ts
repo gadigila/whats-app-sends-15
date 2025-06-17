@@ -10,9 +10,6 @@ interface CreateChannelRequest {
   userId: string
 }
 
-// Helper function to wait/delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -24,7 +21,7 @@ Deno.serve(async (req) => {
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     let whapiProjectId = Deno.env.get('WHAPI_PROJECT_ID')
     
-    console.log('🔐 WHAPI Channel Check/Creation: Starting for user...')
+    console.log('🔐 WHAPI Channel Creation: Starting for user...')
     
     if (!whapiPartnerToken) {
       console.error('❌ Missing WHAPI partner token')
@@ -172,7 +169,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Setup webhook for the channel
+    // Setup webhook for the channel using correct WHAPI format
     console.log('🔗 Setting up webhook for channel:', channelId)
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
     
@@ -204,57 +201,31 @@ Deno.serve(async (req) => {
       // Continue anyway
     }
 
-    // Save channel data to user profile - try RPC function first, then fallback to direct update
+    // Save channel data to user profile - direct update approach
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
-    console.log('💾 Saving channel data to database...', {
+    console.log('💾 Saving channel data to database via direct update...', {
       userId,
       channelId,
-      hasToken: !!channelToken,
-      status: 'unauthorized'
+      hasToken: !!channelToken
     })
 
-    // Try using the RPC function first
-    console.log('🔧 Attempting RPC function update...')
-    const { error: rpcError } = await supabase.rpc('update_user_instance', {
-      user_id: userId,
-      new_instance_id: channelId,
-      new_whapi_token: channelToken,
-      new_status: 'unauthorized',
-      new_plan: 'trial',
-      new_trial_expires: trialExpiresAt
-    })
-
-    let updateError = rpcError
-
-    // If RPC fails, try direct update as fallback
-    if (rpcError) {
-      console.error('❌ RPC function failed:', rpcError)
-      console.log('🔄 Attempting direct database update as fallback...')
-      
-      const { error: directUpdateError } = await supabase
-        .from('profiles')
-        .update({
-          instance_id: channelId,
-          whapi_token: channelToken,
-          instance_status: 'unauthorized',
-          payment_plan: 'trial',
-          trial_expires_at: trialExpiresAt,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId)
-
-      updateError = directUpdateError
-      
-      if (!directUpdateError) {
-        console.log('✅ Direct database update successful')
-      }
-    } else {
-      console.log('✅ RPC function update successful')
-    }
+    // Use direct database update with explicit error handling
+    const { error: updateError, data: updateData } = await supabase
+      .from('profiles')
+      .update({
+        instance_id: channelId,
+        whapi_token: channelToken,
+        instance_status: 'unauthorized',
+        payment_plan: 'trial',
+        trial_expires_at: trialExpiresAt,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select()
 
     if (updateError) {
-      console.error('❌ Both RPC and direct update failed:', updateError)
+      console.error('❌ Database update failed:', updateError)
       
       // Cleanup the created channel since we couldn't save it
       try {
@@ -285,19 +256,10 @@ Deno.serve(async (req) => {
     }
 
     // Verify the data was actually saved
-    console.log('🔍 Verifying database update...')
-    const { data: verifyProfile, error: verifyError } = await supabase
-      .from('profiles')
-      .select('instance_id, whapi_token, instance_status')
-      .eq('id', userId)
-      .single()
-
-    if (verifyError || !verifyProfile?.instance_id || !verifyProfile?.whapi_token) {
-      console.error('❌ Database update verification failed:', {
-        verifyError,
-        hasInstanceId: !!verifyProfile?.instance_id,
-        hasToken: !!verifyProfile?.whapi_token
-      })
+    console.log('🔍 Verifying database update...', updateData)
+    
+    if (!updateData || updateData.length === 0) {
+      console.error('❌ Database update verification failed: No rows affected')
       
       // Try to cleanup the channel
       try {
@@ -313,16 +275,16 @@ Deno.serve(async (req) => {
       
       return new Response(
         JSON.stringify({ 
-          error: 'Database update verification failed - data not properly saved'
+          error: 'Database update failed - no rows affected'
         }),
         { status: 500, headers: corsHeaders }
       )
     }
 
     console.log('✅ Database update verified successfully:', {
-      savedInstanceId: verifyProfile.instance_id,
-      savedStatus: verifyProfile.instance_status,
-      hasToken: !!verifyProfile.whapi_token
+      savedInstanceId: updateData[0].instance_id,
+      savedStatus: updateData[0].instance_status,
+      hasToken: !!updateData[0].whapi_token
     })
 
     console.log('✅ New channel creation completed successfully')
@@ -333,15 +295,15 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        channel_ready: false, // Channel needs webhook confirmation to be ready
-        initialization_time: 120000, // 2 minutes in milliseconds
-        message: 'New channel created successfully. Webhooks configured. Waiting for channel initialization.'
+        channel_ready: false,
+        initialization_time: 60000, // 1 minute
+        message: 'New channel created successfully. Webhooks configured. Channel ready for QR generation.'
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Channel Check/Creation Error:', error)
+    console.error('💥 Channel Creation Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
