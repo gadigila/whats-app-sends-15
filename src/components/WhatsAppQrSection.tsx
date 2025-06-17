@@ -15,7 +15,6 @@ interface WhatsAppQrSectionProps {
 const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQrSectionProps) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
-  const [hasInstance, setHasInstance] = useState(true);
   const { getQrCode, checkInstanceStatus } = useWhatsAppInstance();
 
   // Get QR code on mount
@@ -24,16 +23,15 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
   }, []);
 
   const handleGetQrCode = async () => {
-    console.log('🔄 Starting QR code request for user:', userId);
+    console.log('🔄 Getting QR code for user:', userId);
     
     setQrCode(null);
-    setHasInstance(true);
     
     try {
       const result = await getQrCode.mutateAsync();
       
       if (result?.success && result.qr_code) {
-        console.log('🎯 QR code received successfully');
+        console.log('✅ QR code received successfully');
         setQrCode(result.qr_code);
         setPolling(true);
         toast({
@@ -48,8 +46,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       
       // Check if error is related to missing instance
       if (err.message?.includes('instance') || err.message?.includes('not found')) {
-        console.log('🚨 Missing instance detected, redirecting to create flow');
-        setHasInstance(false);
+        console.log('🚨 Missing instance detected');
         onMissingInstance();
         return;
       }
@@ -83,14 +80,13 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
               title: "וואטסאפ מחובר!",
               description: "החיבור בוצע בהצלחה.",
             });
-          } else {
-            console.log('⏳ Still waiting for connection...');
           }
         } catch (err) {
           console.error('💥 Status check failed:', err);
         }
       }, 3000);
     }
+    
     return () => {
       if (interval) {
         console.log('🛑 Stopping connection polling');
@@ -98,17 +94,6 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       }
     };
   }, [polling, userId, onConnected]);
-
-  if (!hasInstance) {
-    return (
-      <Alert variant="destructive" className="mb-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          לא נמצא instance עבור המשתמש. יש ליצור instance חדש תחילה.
-        </AlertDescription>
-      </Alert>
-    );
-  }
 
   if (getQrCode.isError) {
     return (
@@ -119,13 +104,6 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
             שגיאה: {getQrCode.error?.message}
           </AlertDescription>
         </Alert>
-        <div className="text-sm text-gray-600 bg-red-50 p-4 rounded-lg border border-red-200">
-          <strong>פרטי שגיאה לבדיקה:</strong><br />
-          <div className="mt-2 space-y-1 text-xs font-mono">
-            <div>משתמש: {userId}</div>
-            <div>זמן: {new Date().toLocaleString('he-IL')}</div>
-          </div>
-        </div>
         <Button onClick={handleGetQrCode} disabled={getQrCode.isPending} variant="outline">
           {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           נסה שוב
@@ -139,9 +117,6 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       <div className="flex flex-col items-center space-y-4">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
         <span className="text-gray-700">טוען קוד QR...</span>
-        <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-          משתמש: {userId}
-        </div>
       </div>
     );
   }

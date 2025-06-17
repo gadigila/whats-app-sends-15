@@ -4,19 +4,7 @@ project_id = "ifxvwettmgixfbivlzzl"
 [functions.whatsapp-scheduler]
 verify_jwt = false
 
-[functions.instance-manager]
-verify_jwt = false
-
 [functions.cleanup-expired-trials]
-verify_jwt = false
-
-[functions.create-whatsapp-instance]
-verify_jwt = false
-
-[functions.get-whatsapp-qr]
-verify_jwt = false
-
-[functions.check-whatsapp-status]
 verify_jwt = false
 
 [functions.sync-whatsapp-groups]
@@ -26,4 +14,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.manage-instance-lifecycle]
+verify_jwt = false
+
+[functions.whapi-partner-login]
+verify_jwt = false
+
+[functions.whapi-get-qr]
+verify_jwt = false
+
+[functions.whapi-check-status]
 verify_jwt = false
