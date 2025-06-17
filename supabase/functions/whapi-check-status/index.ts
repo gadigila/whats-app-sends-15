@@ -41,11 +41,14 @@ Deno.serve(async (req) => {
       .single()
 
     if (profileError || !profile?.instance_id) {
+      console.log('❌ No instance found for user:', userId)
       return new Response(
         JSON.stringify({ connected: false, error: 'No instance found' }),
         { status: 200, headers: corsHeaders }
       )
     }
+
+    console.log('🔍 Found instance:', profile.instance_id, 'current status:', profile.instance_status)
 
     // Login as partner
     const loginResponse = await fetch('https://gateway.whapi.cloud/partner/v1/auth/login', {
@@ -60,6 +63,7 @@ Deno.serve(async (req) => {
     })
 
     if (!loginResponse.ok) {
+      console.error('❌ Partner login failed for status check')
       return new Response(
         JSON.stringify({ connected: false, error: 'Authentication failed' }),
         { status: 200, headers: corsHeaders }
@@ -77,6 +81,7 @@ Deno.serve(async (req) => {
     })
 
     if (!statusResponse.ok) {
+      console.error('❌ Status check failed:', statusResponse.status)
       return new Response(
         JSON.stringify({ connected: false, error: 'Status check failed' }),
         { status: 200, headers: corsHeaders }
@@ -84,10 +89,13 @@ Deno.serve(async (req) => {
     }
 
     const statusData = await statusResponse.json()
+    console.log('📊 Instance status response:', statusData)
+    
     const isConnected = statusData.status === 'active' || statusData.status === 'connected'
 
     // Update status in database if connected
     if (isConnected && profile.instance_status !== 'connected') {
+      console.log('✅ Updating database status to connected')
       await supabase
         .from('profiles')
         .update({
@@ -97,7 +105,7 @@ Deno.serve(async (req) => {
         .eq('id', userId)
     }
 
-    console.log('✅ Status check completed:', statusData.status)
+    console.log('✅ Status check completed:', statusData.status, 'Connected:', isConnected)
 
     return new Response(
       JSON.stringify({

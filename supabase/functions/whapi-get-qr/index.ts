@@ -41,14 +41,17 @@ Deno.serve(async (req) => {
       .single()
 
     if (profileError || !profile?.instance_id) {
-      console.error('❌ No instance found for user')
+      console.error('❌ No instance found for user:', userId)
       return new Response(
         JSON.stringify({ error: 'No instance found. Please create an instance first.' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
+    console.log('🔍 Found instance ID:', profile.instance_id)
+
     // Login as partner to get access token
+    console.log('🔑 Logging in as partner...')
     const loginResponse = await fetch('https://gateway.whapi.cloud/partner/v1/auth/login', {
       method: 'POST',
       headers: {
@@ -62,9 +65,15 @@ Deno.serve(async (req) => {
 
     if (!loginResponse.ok) {
       const errorText = await loginResponse.text()
-      console.error('❌ Partner login failed:', errorText)
+      console.error('❌ Partner login failed:', {
+        status: loginResponse.status,
+        error: errorText
+      })
       return new Response(
-        JSON.stringify({ error: 'Failed to authenticate with WHAPI' }),
+        JSON.stringify({ 
+          error: 'Failed to authenticate with WHAPI',
+          details: `Status: ${loginResponse.status}, Error: ${errorText}`
+        }),
         { status: 400, headers: corsHeaders }
       )
     }
@@ -79,6 +88,8 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log('✅ Partner login successful, getting QR...')
+
     // Get QR code from instance
     const qrResponse = await fetch(`https://gateway.whapi.cloud/partner/v1/instances/${profile.instance_id}/qr`, {
       headers: {
@@ -86,22 +97,36 @@ Deno.serve(async (req) => {
       }
     })
 
+    console.log('📥 QR response status:', qrResponse.status)
+
     if (!qrResponse.ok) {
       const errorText = await qrResponse.text()
-      console.error('❌ QR request failed:', errorText)
+      console.error('❌ QR request failed:', {
+        status: qrResponse.status,
+        error: errorText
+      })
       return new Response(
-        JSON.stringify({ error: 'Failed to get QR code', details: errorText }),
+        JSON.stringify({ 
+          error: 'Failed to get QR code', 
+          details: `Status: ${qrResponse.status}, Error: ${errorText}` 
+        }),
         { status: 400, headers: corsHeaders }
       )
     }
 
     const qrData = await qrResponse.json()
+    console.log('📥 QR data received:', {
+      hasImage: !!qrData?.image,
+      hasQrCode: !!qrData?.qr_code,
+      keys: Object.keys(qrData || {})
+    })
+
     const qrImageUrl = qrData?.image || qrData?.qr_code
 
     if (!qrImageUrl) {
-      console.error('❌ No QR image in response')
+      console.error('❌ No QR image in response:', qrData)
       return new Response(
-        JSON.stringify({ error: 'No QR code available' }),
+        JSON.stringify({ error: 'No QR code available', responseData: qrData }),
         { status: 400, headers: corsHeaders }
       )
     }
