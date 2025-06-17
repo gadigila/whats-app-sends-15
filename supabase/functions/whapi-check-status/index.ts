@@ -10,6 +10,52 @@ interface CheckStatusRequest {
   userId: string
 }
 
+class WhapiService {
+  private baseURL = 'https://gate.whapi.cloud'
+
+  async checkChannelStatus(instanceId: string, channelToken: string) {
+    try {
+      const response = await fetch(`${this.baseURL}/channels/${instanceId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${channelToken}`,
+          'Accept': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return {
+            success: false,
+            error: 'Channel not found',
+            requiresCleanup: true,
+            status: 404
+          }
+        }
+        const errorText = await response.text()
+        throw new Error(`Status check failed: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      const isConnected = data.status === 'active' || !!data.phone
+      
+      return {
+        success: true,
+        status: data.status,
+        phone: data.phone || null,
+        connected: isConnected,
+        data: data
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        requiresCleanup: false
+      }
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -31,7 +77,7 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Checking status for user:', userId)
 
-    // Get user channel
+    // Get user channel info
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status')
@@ -48,23 +94,16 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Found channel:', profile.instance_id, 'current status:', profile.instance_status)
 
-    // Check channel status using channel token
-    const statusResponse = await fetch(`https://gate.whapi.cloud/channels/${profile.instance_id}`, {
-      headers: {
-        'Authorization': `Bearer ${profile.whapi_token}`
-      }
-    })
+    const whapiService = new WhapiService()
+    
+    // Check channel status using the new service
+    const statusResult = await whapiService.checkChannelStatus(profile.instance_id, profile.whapi_token)
 
-    if (!statusResponse.ok) {
-      const errorText = await statusResponse.text()
-      console.error('❌ Status check failed:', {
-        status: statusResponse.status,
-        error: errorText,
-        channelId: profile.instance_id
-      })
+    if (!statusResult.success) {
+      console.error('❌ Status check failed:', statusResult.error)
 
-      // If it's a 404, clean up the database
-      if (statusResponse.status === 404) {
+      // If channel not found (404), clean up the database
+      if (statusResult.requiresCleanup) {
         console.log('🗑️ Channel not found (404), cleaning up database...')
         await supabase
           .from('profiles')
@@ -87,19 +126,15 @@ Deno.serve(async (req) => {
       }
       
       return new Response(
-        JSON.stringify({ connected: false, error: 'Status check failed' }),
+        JSON.stringify({ connected: false, error: statusResult.error }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    const statusData = await statusResponse.json()
-    console.log('📊 Channel status response:', statusData)
+    console.log('📊 Channel status response:', statusResult.data)
     
-    // Check if channel is connected (has phone number)
-    const isConnected = statusData.status === 'active' || !!statusData.phone
-
     // Update status in database if connected
-    if (isConnected && profile.instance_status !== 'connected') {
+    if (statusResult.connected && profile.instance_status !== 'connected') {
       console.log('✅ Updating database status to connected')
       await supabase
         .from('profiles')
@@ -110,13 +145,13 @@ Deno.serve(async (req) => {
         .eq('id', userId)
     }
 
-    console.log('✅ Status check completed:', statusData.status, 'Connected:', isConnected)
+    console.log('✅ Status check completed:', statusResult.status, 'Connected:', statusResult.connected)
 
     return new Response(
       JSON.stringify({
-        connected: isConnected,
-        status: statusData.status,
-        phone: statusData.phone,
+        connected: statusResult.connected,
+        status: statusResult.status,
+        phone: statusResult.phone,
         channel_id: profile.instance_id
       }),
       { status: 200, headers: corsHeaders }
