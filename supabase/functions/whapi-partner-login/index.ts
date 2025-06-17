@@ -10,6 +10,9 @@ interface CreateChannelRequest {
   userId: string
 }
 
+// Helper function to wait/delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -204,6 +207,10 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Add delay to allow channel to be ready before QR requests
+    console.log('⏳ Waiting 3 seconds for channel to be ready...')
+    await delay(3000)
+
     console.log('✅ New channel creation completed successfully')
 
     return new Response(
@@ -212,7 +219,8 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        message: 'New channel created successfully'
+        channel_ready: true,
+        message: 'New channel created successfully and ready for QR'
       }),
       { status: 200, headers: corsHeaders }
     )

@@ -9,6 +9,65 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function to wait/delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProcessor, instanceId: string, channelToken?: string, retryCount = 0): Promise<any> {
+  const maxRetries = 3
+  const baseDelay = 2000 // 2 seconds
+  
+  try {
+    console.log(`🔄 QR retrieval attempt ${retryCount + 1}/${maxRetries + 1}`)
+    
+    // Try Manager API first (recommended approach)
+    let qrResponse = await whapiClient.getQrCode(instanceId)
+    console.log('📥 Manager API QR response status:', qrResponse.status)
+
+    // If Manager API fails and we have channel token, try Gate API as fallback
+    if (!qrResponse.ok && channelToken) {
+      console.log('⚠️ Manager API failed, trying Gate API fallback...')
+      qrResponse = await whapiClient.getQrCodeFallback(instanceId, channelToken)
+      console.log('📥 Gate API QR response status:', qrResponse.status)
+    }
+
+    if (qrResponse.ok) {
+      const qrData = await qrResponse.json()
+      console.log('✅ QR data keys received:', Object.keys(qrData))
+      return qrProcessor.processQrResponse(qrData)
+    } else {
+      const errorText = await qrResponse.text()
+      console.error(`❌ QR request failed (attempt ${retryCount + 1}):`, {
+        status: qrResponse.status,
+        error: errorText,
+        instanceId
+      })
+      
+      const errorResult = qrProcessor.createErrorResponse(qrResponse.status, errorText, instanceId)
+      
+      // If it's retryable and we haven't exhausted retries
+      if (errorResult.retryable && retryCount < maxRetries) {
+        const delayMs = baseDelay * Math.pow(2, retryCount) // Exponential backoff
+        console.log(`⏳ Retrying in ${delayMs}ms...`)
+        await delay(delayMs)
+        return attemptQrRetrieval(whapiClient, qrProcessor, instanceId, channelToken, retryCount + 1)
+      }
+      
+      return errorResult
+    }
+  } catch (networkError) {
+    console.error(`❌ Network error on attempt ${retryCount + 1}:`, networkError)
+    
+    if (retryCount < maxRetries) {
+      const delayMs = baseDelay * Math.pow(2, retryCount)
+      console.log(`⏳ Retrying after network error in ${delayMs}ms...`)
+      await delay(delayMs)
+      return attemptQrRetrieval(whapiClient, qrProcessor, instanceId, channelToken, retryCount + 1)
+    }
+    
+    return qrProcessor.createNetworkErrorResponse(networkError)
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -54,66 +113,24 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Found instance ID:', profile.instance_id)
 
-    try {
-      // Try Manager API first (recommended approach)
-      let qrResponse = await whapiClient.getQrCode(profile.instance_id)
-      console.log('📥 Manager API QR response status:', qrResponse.status)
-
-      // If Manager API fails and we have channel token, try Gate API as fallback
-      if (!qrResponse.ok && profile.whapi_token) {
-        console.log('⚠️ Manager API failed, trying Gate API fallback...')
-        qrResponse = await whapiClient.getQrCodeFallback(profile.instance_id, profile.whapi_token)
-        console.log('📥 Gate API QR response status:', qrResponse.status)
-      }
-
-      if (qrResponse.ok) {
-        const qrData = await qrResponse.json()
-        console.log('✅ QR data keys received:', Object.keys(qrData))
-        const result = qrProcessor.processQrResponse(qrData)
-        
-        return new Response(
-          JSON.stringify(result),
-          { status: result.success ? 200 : 400, headers: corsHeaders }
-        )
-      } else {
-        const errorText = await qrResponse.text()
-        console.error('❌ QR request failed:', {
-          status: qrResponse.status,
-          error: errorText,
-          instanceId: profile.instance_id
-        })
-        
-        // If it's a 404, the channel probably doesn't exist
-        if (qrResponse.status === 404) {
-          console.log('🗑️ Channel not found (404), cleaning up database...')
-          await dbService.clearInvalidInstance(userId)
-          
-          return new Response(
-            JSON.stringify(qrProcessor.createMissingInstanceResponse()),
-            { status: 404, headers: corsHeaders }
-          )
-        }
-        
-        const errorResult = qrProcessor.createErrorResponse(
-          qrResponse.status, 
-          errorText, 
-          profile.instance_id
-        )
-        
-        return new Response(
-          JSON.stringify(errorResult),
-          { status: qrResponse.status, headers: corsHeaders }
-        )
-      }
-    } catch (networkError) {
-      console.error('❌ Network error calling QR API:', networkError)
-      const errorResult = qrProcessor.createNetworkErrorResponse(networkError)
+    // Attempt QR retrieval with retry logic
+    const result = await attemptQrRetrieval(whapiClient, qrProcessor, profile.instance_id, profile.whapi_token)
+    
+    // Handle 404 errors (channel not found) by cleaning up database
+    if (!result.success && result.details?.status === 404) {
+      console.log('🗑️ Channel not found (404), cleaning up database...')
+      await dbService.clearInvalidInstance(userId)
       
       return new Response(
-        JSON.stringify(errorResult),
-        { status: 500, headers: corsHeaders }
+        JSON.stringify(qrProcessor.createMissingInstanceResponse()),
+        { status: 404, headers: corsHeaders }
       )
     }
+    
+    return new Response(
+      JSON.stringify(result),
+      { status: result.success ? 200 : 400, headers: corsHeaders }
+    )
 
   } catch (error) {
     console.error('💥 QR Code Error:', error)

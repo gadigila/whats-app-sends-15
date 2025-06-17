@@ -70,6 +70,18 @@ const WhatsAppConnect = () => {
 
   const handleStart = async () => {
     if (!user?.id) return;
+    
+    // Prevent creating new instance if one already exists
+    if (profile?.instance_id && profile?.whapi_token) {
+      console.log('⚠️ Instance already exists, setting status to created');
+      setConnectionStatus('created');
+      toast({
+        title: "יש לך כבר instance",
+        description: "מנסה להתחבר עם ה-instance הקיים",
+      });
+      return;
+    }
+    
     console.log('🚀 Starting WhatsApp connection for user:', user.id);
     
     try {
@@ -267,6 +279,9 @@ const WhatsAppConnect = () => {
                 </p>
                 <div className="mb-4 text-xs text-gray-500">
                   מצב נוכחי: {connectionStatus} | משתמש: {user?.email || 'לא מחובר'}
+                  {profile?.instance_id && (
+                    <div>יש instance קיים: {profile.instance_id}</div>
+                  )}
                 </div>
                 <Button
                   onClick={handleStart}
@@ -274,7 +289,7 @@ const WhatsAppConnect = () => {
                   disabled={createInstance.isPending}
                 >
                   {createInstance.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  התחבר עכשיו
+                  {profile?.instance_id ? 'התחבר עם Instance קיים' : 'התחבר עכשיו'}
                 </Button>
               </div>
             )}

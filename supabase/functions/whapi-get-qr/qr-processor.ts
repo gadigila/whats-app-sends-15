@@ -38,10 +38,25 @@ export class QrProcessor {
   }
 
   createErrorResponse(status: number, errorText: string, instanceId: string): QrResponse {
+    // Check if error indicates channel not ready vs not found
+    const isChannelNotReady = status === 503 || 
+                               errorText.includes('Service Temporary Unavailable') ||
+                               errorText.includes('temporarily unavailable')
+    
+    if (isChannelNotReady) {
+      return {
+        success: false,
+        error: 'Channel not ready yet',
+        details: { status, error: errorText, instanceId },
+        retryable: true
+      }
+    }
+    
     return {
       success: false,
       error: 'Failed to get QR code from API',
-      details: { status, error: errorText, instanceId }
+      details: { status, error: errorText, instanceId },
+      retryable: status >= 500 && status < 600 // 5xx errors are generally retryable
     }
   }
 
@@ -49,7 +64,8 @@ export class QrProcessor {
     return {
       success: false,
       error: 'Network error connecting to API',
-      details: error.message
+      details: error.message,
+      retryable: true
     }
   }
 
