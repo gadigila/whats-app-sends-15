@@ -16,7 +16,6 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [retryCount, setRetryCount] = useState(0);
   const { getQrCode, checkInstanceStatus } = useWhatsAppInstance();
 
   // Get QR code on mount
@@ -29,34 +28,22 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
     
     setQrCode(null);
     setStatus('loading');
-    setRetryCount(prev => prev + 1);
     
     try {
       const result = await getQrCode.mutateAsync();
       
-      console.log('📥 QR result:', result);
-      
       if (result?.success && result.qr_code) {
         console.log('✅ QR code received successfully');
         
-        // Validate QR code format
-        let formattedQrCode = result.qr_code;
-        if (!formattedQrCode.startsWith('data:image/')) {
-          console.log('🔧 Formatting QR code as base64 image');
-          formattedQrCode = `data:image/png;base64,${result.qr_code}`;
-        }
-        
-        setQrCode(formattedQrCode);
+        // The QR code should already be properly formatted from the backend
+        setQrCode(result.qr_code);
         setStatus('ready');
         setPolling(true);
-        setRetryCount(0); // Reset retry count on success
-        
         toast({
           title: "QR Code מוכן!",
           description: "סרוק את הקוד עם הוואטסאפ שלך",
         });
       } else {
-        console.error('❌ QR code not received:', result);
         setStatus('error');
         throw new Error(result?.error || 'QR code not received from server');
       }
@@ -67,26 +54,15 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       // Check if error indicates missing instance
       if (err.message?.includes('instance') || 
           err.message?.includes('not found') || 
-          err.message?.includes('requiresNewInstance') ||
-          err.message?.includes('No instance or token found')) {
+          err.message?.includes('requiresNewInstance')) {
         console.log('🚨 Missing instance detected');
         onMissingInstance();
         return;
       }
       
-      // Show specific error messages
-      let errorMessage = 'אירעה שגיאה לא ידועה';
-      if (err.message?.includes('Channel not accessible')) {
-        errorMessage = 'הערוץ לא נגיש - נדרש instance חדש';
-      } else if (err.message?.includes('not found')) {
-        errorMessage = 'הערוץ לא נמצא - צור instance חדש';
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      
       toast({
         title: "שגיאה בקבלת QR Code",
-        description: errorMessage,
+        description: err.message || 'אירעה שגיאה לא ידועה',
         variant: "destructive",
       });
     }
@@ -123,8 +99,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           console.error('💥 Status check failed:', err);
           
           // Check if status check indicates missing instance
-          if (err.message?.includes('requiresNewInstance') || 
-              err.message?.includes('not found')) {
+          if (err.message?.includes('requiresNewInstance')) {
             console.log('🚨 Missing instance detected during polling');
             setPolling(false);
             setQrCode(null);
@@ -149,21 +124,10 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             שגיאה: {getQrCode.error?.message || 'לא ניתן לטעון QR Code'}
-            {retryCount > 0 && (
-              <div className="mt-2 text-xs">נסיון {retryCount}</div>
-            )}
           </AlertDescription>
         </Alert>
-        <Button 
-          onClick={handleGetQrCode} 
-          disabled={getQrCode.isPending} 
-          variant="outline"
-        >
-          {getQrCode.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
+        <Button onClick={handleGetQrCode} disabled={getQrCode.isPending} variant="outline">
+          {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           נסה שוב
         </Button>
       </div>
@@ -177,9 +141,6 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         <span className="text-gray-700">טוען QR Code...</span>
         <div className="text-xs text-gray-500 text-center">
           הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת כ-60 שניות...
-          {retryCount > 0 && (
-            <div className="mt-1">נסיון {retryCount}</div>
-          )}
         </div>
       </div>
     );
@@ -203,7 +164,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
             setStatus('error');
             toast({
               title: "שגיאה בטעינת QR Code",
-              description: "הקוד פגום - נסה לרענן",
+              description: "נסה לרענן את הקוד",
               variant: "destructive",
             });
           }}
@@ -226,16 +187,8 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           </div>
         )}
       </div>
-      <Button 
-        onClick={handleGetQrCode} 
-        variant="outline" 
-        disabled={getQrCode.isPending}
-      >
-        {getQrCode.isPending ? (
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-        ) : (
-          <RefreshCw className="h-4 w-4 mr-2" />
-        )}
+      <Button onClick={handleGetQrCode} variant="outline" disabled={getQrCode.isPending}>
+        {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
         רענן QR Code
       </Button>
     </div>

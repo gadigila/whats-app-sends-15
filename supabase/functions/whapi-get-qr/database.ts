@@ -1,5 +1,6 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import type { UserProfile } from './types.ts'
 
 export class DatabaseService {
   private supabase: any
@@ -10,48 +11,33 @@ export class DatabaseService {
     this.supabase = createClient(supabaseUrl, supabaseServiceKey)
   }
 
-  async getUserProfile(userId: string) {
-    console.log('🔍 Fetching user profile for:', userId)
-    
+  async getUserProfile(userId: string): Promise<{ profile: UserProfile | null, error: any }> {
     const { data: profile, error } = await this.supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status, updated_at')
       .eq('id', userId)
       .single()
 
-    if (error) {
-      console.error('❌ Database error fetching profile:', error)
-      return { profile: null, error }
-    }
-
-    console.log('📋 Profile fetched:', {
-      hasInstanceId: !!profile?.instance_id,
-      hasToken: !!profile?.whapi_token,
-      instanceStatus: profile?.instance_status,
-      updatedAt: profile?.updated_at
-    })
-
-    return { profile, error: null }
+    return { profile, error }
   }
 
   async getChannelAge(userId: string): Promise<number | null> {
-    const { data, error } = await this.supabase
+    const { data: profile, error } = await this.supabase
       .from('profiles')
       .select('updated_at')
       .eq('id', userId)
       .single()
 
-    if (error || !data?.updated_at) {
-      console.log('⚠️ Could not determine channel age')
+    if (error || !profile?.updated_at) {
       return null
     }
 
-    const age = Date.now() - new Date(data.updated_at).getTime()
-    console.log(`📅 Channel age: ${age}ms`)
-    return age
+    const updatedAt = new Date(profile.updated_at)
+    const now = new Date()
+    return now.getTime() - updatedAt.getTime()
   }
 
-  async clearInvalidInstance(userId: string) {
+  async clearInvalidInstance(userId: string): Promise<void> {
     console.log('🗑️ Clearing invalid instance for user:', userId)
     
     const { error } = await this.supabase
@@ -68,6 +54,24 @@ export class DatabaseService {
       console.error('❌ Error clearing invalid instance:', error)
     } else {
       console.log('✅ Successfully cleared invalid instance')
+    }
+  }
+
+  async updateChannelStatus(userId: string, status: string): Promise<void> {
+    console.log('📝 Updating channel status for user:', userId, 'to:', status)
+    
+    const { error } = await this.supabase
+      .from('profiles')
+      .update({
+        instance_status: status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+
+    if (error) {
+      console.error('❌ Error updating channel status:', error)
+    } else {
+      console.log('✅ Successfully updated channel status')
     }
   }
 }
