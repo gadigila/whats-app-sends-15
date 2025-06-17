@@ -3,30 +3,44 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { useState } from 'react';
 
 export const useWhatsAppInstance = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [isCreatingInstance, setIsCreatingInstance] = useState(false);
 
   // Create WhatsApp instance using Partner API
   const createInstance = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('Creating WhatsApp instance for user:', user.id);
+      // Prevent concurrent instance creation
+      if (isCreatingInstance) {
+        throw new Error('Instance creation already in progress');
+      }
       
-      const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
-        body: { userId: user.id }
-      });
+      setIsCreatingInstance(true);
       
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      
-      return data;
+      try {
+        console.log('Creating WhatsApp instance for user:', user.id);
+        
+        const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
+          body: { userId: user.id }
+        });
+        
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        
+        return data;
+      } finally {
+        setIsCreatingInstance(false);
+      }
     },
     onSuccess: (data) => {
       console.log('WhatsApp instance created successfully:', data);
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       toast({
         title: "אינסטנס נוצר בהצלחה",
         description: "כעת תוכל להתחבר לוואטסאפ",
@@ -34,6 +48,7 @@ export const useWhatsAppInstance = () => {
     },
     onError: (error: any) => {
       console.error('Failed to create WhatsApp instance:', error);
+      setIsCreatingInstance(false);
       toast({
         title: "שגיאה ביצירת אינסטנס",
         description: error.message || "נסה שוב מאוחר יותר",
@@ -85,6 +100,7 @@ export const useWhatsAppInstance = () => {
     onSuccess: (data) => {
       console.log('Instance status:', data);
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
     }
   });
 
@@ -107,6 +123,7 @@ export const useWhatsAppInstance = () => {
     onSuccess: () => {
       console.log('Instance deleted successfully');
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
       toast({
         title: "אינסטנס נמחק",
@@ -127,6 +144,7 @@ export const useWhatsAppInstance = () => {
     createInstance,
     getQrCode,
     checkInstanceStatus,
-    deleteInstance
+    deleteInstance,
+    isCreatingInstance
   };
 };

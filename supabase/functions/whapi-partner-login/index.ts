@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     let whapiProjectId = Deno.env.get('WHAPI_PROJECT_ID')
     
-    console.log('🔐 WHAPI Channel Check/Creation: Starting...')
+    console.log('🔐 WHAPI Channel Check/Creation: Starting for user...')
     
     if (!whapiPartnerToken) {
       console.error('❌ Missing WHAPI partner token')
@@ -44,10 +44,12 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if user already has a channel in database
+    console.log('👤 Processing request for user:', userId)
+
+    // Check if user already has a channel in database with transaction
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, whapi_token')
+      .select('instance_id, whapi_token, instance_status')
       .eq('id', userId)
       .single()
 
@@ -61,7 +63,7 @@ Deno.serve(async (req) => {
 
     // If user already has instance_id and token, return them
     if (profile?.instance_id && profile?.whapi_token) {
-      console.log('✅ User already has existing instance:', profile.instance_id)
+      console.log('✅ User already has existing instance:', profile.instance_id, 'Status:', profile.instance_status)
       return new Response(
         JSON.stringify({
           success: true,
@@ -126,7 +128,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        name: `reecher_user_${userId}`,
+        name: `reecher_user_${userId.substring(0, 8)}`,
         projectId: whapiProjectId
       })
     })
@@ -153,7 +155,8 @@ Deno.serve(async (req) => {
     console.log('✅ Channel created successfully:', {
       hasToken: !!channelData?.token,
       hasId: !!channelData?.id,
-      projectId: whapiProjectId
+      projectId: whapiProjectId,
+      channelId: channelData?.id
     })
 
     const channelId = channelData?.id
@@ -169,26 +172,87 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Save channel data to user profile
+    // Save channel data to user profile with retry mechanism
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+    const updateData = {
+      instance_id: channelId,
+      whapi_token: channelToken,
+      instance_status: 'created',
+      payment_plan: 'trial',
+      trial_expires_at: trialExpiresAt,
+      updated_at: new Date().toISOString()
+    }
 
-    console.log('💾 Saving channel data to database...')
-    const { error: updateError } = await supabase
+    console.log('💾 Saving channel data to database...', {
+      userId,
+      channelId,
+      hasToken: !!channelToken
+    })
+
+    // First attempt to save
+    let { error: updateError } = await supabase
       .from('profiles')
-      .update({
-        instance_id: channelId,
-        whapi_token: channelToken,
-        instance_status: 'created',
-        payment_plan: 'trial',
-        trial_expires_at: trialExpiresAt,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', userId)
 
+    // If first attempt fails, try a second time
     if (updateError) {
-      console.error('❌ Failed to update user profile:', updateError)
+      console.warn('⚠️ First database save attempt failed, retrying...', updateError)
+      await delay(1000) // Wait 1 second before retry
       
-      // Attempt to delete the created channel since we couldn't save it
+      const { error: retryError } = await supabase
+        .from('profiles')
+        .update(updateData)
+        .eq('id', userId)
+      
+      if (retryError) {
+        console.error('❌ Failed to update user profile after retry:', retryError)
+        
+        // Attempt to delete the created channel since we couldn't save it
+        try {
+          console.log('🗑️ Attempting to cleanup channel from WHAPI due to DB error...')
+          const deleteResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${whapiPartnerToken}`
+            }
+          })
+          
+          if (deleteResponse.ok) {
+            console.log('✅ Successfully cleaned up channel from WHAPI')
+          } else {
+            console.error('❌ Failed to cleanup channel from WHAPI:', deleteResponse.status)
+          }
+        } catch (cleanupError) {
+          console.error('❌ Error during channel cleanup:', cleanupError)
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to save channel data to database', 
+            details: retryError.message 
+          }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+    }
+
+    // Verify the data was actually saved
+    console.log('🔍 Verifying data was saved...')
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('profiles')
+      .select('instance_id, whapi_token, instance_status')
+      .eq('id', userId)
+      .single()
+
+    if (verifyError || !verifyData?.instance_id || !verifyData?.whapi_token) {
+      console.error('❌ Database verification failed:', {
+        verifyError,
+        hasInstanceId: !!verifyData?.instance_id,
+        hasToken: !!verifyData?.whapi_token
+      })
+      
+      // Try to cleanup the channel
       try {
         await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
           method: 'DELETE',
@@ -196,20 +260,23 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${whapiPartnerToken}`
           }
         })
-        console.log('🗑️ Cleaned up channel from WHAPI due to DB error')
       } catch (cleanupError) {
-        console.error('❌ Failed to cleanup channel:', cleanupError)
+        console.error('❌ Cleanup error:', cleanupError)
       }
       
       return new Response(
-        JSON.stringify({ error: 'Failed to save channel data', details: updateError.message }),
+        JSON.stringify({ 
+          error: 'Database verification failed - data not properly saved'
+        }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    // Wait 2 minutes for channel to be ready before allowing QR requests
-    // This follows WHAPI recommendation of 1.5-2 minutes delay
-    console.log('⏳ Channel created. QR generation will be available after 2-minute initialization period.')
+    console.log('✅ Database verification successful:', {
+      savedInstanceId: verifyData.instance_id,
+      savedStatus: verifyData.instance_status,
+      hasToken: !!verifyData.whapi_token
+    })
 
     console.log('✅ New channel creation completed successfully')
 

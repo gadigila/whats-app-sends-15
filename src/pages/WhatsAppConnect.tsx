@@ -14,7 +14,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 const WhatsAppConnect = () => {
   const { user } = useAuth();
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
-  const { createInstance, deleteInstance } = useWhatsAppInstance();
+  const { createInstance, deleteInstance, isCreatingInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'created' | 'connected'>('disconnected');
 
@@ -26,7 +26,8 @@ const WhatsAppConnect = () => {
       instance_status: profile.instance_status,
       has_token: !!profile.whapi_token
     } : null,
-    connectionStatus
+    connectionStatus,
+    isCreatingInstance
   });
 
   // Check user's WhatsApp status on load
@@ -70,6 +71,16 @@ const WhatsAppConnect = () => {
 
   const handleStart = async () => {
     if (!user?.id) return;
+    
+    // Prevent multiple concurrent requests
+    if (isCreatingInstance || createInstance.isPending) {
+      console.log('⚠️ Instance creation already in progress');
+      toast({
+        title: "בתהליך",
+        description: "יצירת instance כבר בתהליך, אנא המתן",
+      });
+      return;
+    }
     
     // Prevent creating new instance if one already exists
     if (profile?.instance_id && profile?.whapi_token) {
@@ -143,7 +154,8 @@ const WhatsAppConnect = () => {
     connectionStatus,
     willRenderQr: connectionStatus === 'created' && user?.id,
     willRenderConnected: connectionStatus === 'connected',
-    willRenderStart: connectionStatus === 'disconnected'
+    willRenderStart: connectionStatus === 'disconnected',
+    isCreatingInstance
   });
 
   if (profileLoading) {
@@ -286,9 +298,9 @@ const WhatsAppConnect = () => {
                 <Button
                   onClick={handleStart}
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={createInstance.isPending}
+                  disabled={createInstance.isPending || isCreatingInstance}
                 >
-                  {createInstance.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {(createInstance.isPending || isCreatingInstance) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   {profile?.instance_id ? 'התחבר עם Instance קיים' : 'התחבר עכשיו'}
                 </Button>
               </div>
