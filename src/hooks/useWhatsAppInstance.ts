@@ -58,11 +58,17 @@ export const useWhatsAppInstance = () => {
       setIsCreatingInstance(false);
       
       let errorMessage = "נסה שוב מאוחר יותר";
+      
+      // More specific error handling
       if (error.message) {
         if (error.message.includes('Failed to save channel data')) {
-          errorMessage = "שגיאה בשמירת נתונים - נסה שוב";
+          errorMessage = "שגיאה בשמירת נתוני החיבור - נסה שוב";
         } else if (error.message.includes('Failed to create channel')) {
-          errorMessage = "שגיאה ביצירת ערוץ - בדוק את ההגדרות";
+          errorMessage = "שגיאה ביצירת ערוץ WHAPI - בדוק את ההגדרות";
+        } else if (error.message.includes('Database update verification failed')) {
+          errorMessage = "שגיאה באימות שמירת נתונים - נסה שוב";
+        } else if (error.message.includes('Both RPC and direct update failed')) {
+          errorMessage = "שגיאה במסד הנתונים - צור קשר עם התמיכה";
         } else {
           errorMessage = error.message;
         }
@@ -102,8 +108,14 @@ export const useWhatsAppInstance = () => {
       console.error('Failed to get QR code:', error);
       
       let errorMessage = "נסה שוב מאוחר יותר";
-      if (error.message && error.message.includes('No instance or token found')) {
-        errorMessage = "נדרש instance חדש - צור אחד תחילה";
+      if (error.message) {
+        if (error.message.includes('No instance or token found')) {
+          errorMessage = "נדרש instance חדש - צור אחד תחילה";
+        } else if (error.message.includes('Channel not found')) {
+          errorMessage = "הערוץ לא נמצא - צור instance חדש";
+        } else if (error.message.includes('requiresNewInstance')) {
+          errorMessage = "נדרש instance חדש - הקיים לא תקין";
+        }
       }
       
       toast({

@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
       // Continue anyway
     }
 
-    // Save channel data to user profile using the new function
+    // Save channel data to user profile - try RPC function first, then fallback to direct update
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
     console.log('💾 Saving channel data to database...', {
@@ -214,8 +214,9 @@ Deno.serve(async (req) => {
       status: 'unauthorized'
     })
 
-    // Use the new database function for reliable updates
-    const { error: updateError } = await supabase.rpc('update_user_instance', {
+    // Try using the RPC function first
+    console.log('🔧 Attempting RPC function update...')
+    const { error: rpcError } = await supabase.rpc('update_user_instance', {
       user_id: userId,
       new_instance_id: channelId,
       new_whapi_token: channelToken,
@@ -224,8 +225,36 @@ Deno.serve(async (req) => {
       new_trial_expires: trialExpiresAt
     })
 
+    let updateError = rpcError
+
+    // If RPC fails, try direct update as fallback
+    if (rpcError) {
+      console.error('❌ RPC function failed:', rpcError)
+      console.log('🔄 Attempting direct database update as fallback...')
+      
+      const { error: directUpdateError } = await supabase
+        .from('profiles')
+        .update({
+          instance_id: channelId,
+          whapi_token: channelToken,
+          instance_status: 'unauthorized',
+          payment_plan: 'trial',
+          trial_expires_at: trialExpiresAt,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      updateError = directUpdateError
+      
+      if (!directUpdateError) {
+        console.log('✅ Direct database update successful')
+      }
+    } else {
+      console.log('✅ RPC function update successful')
+    }
+
     if (updateError) {
-      console.error('❌ Failed to update user profile:', updateError)
+      console.error('❌ Both RPC and direct update failed:', updateError)
       
       // Cleanup the created channel since we couldn't save it
       try {
@@ -256,6 +285,7 @@ Deno.serve(async (req) => {
     }
 
     // Verify the data was actually saved
+    console.log('🔍 Verifying database update...')
     const { data: verifyProfile, error: verifyError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status')

@@ -34,7 +34,14 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       
       if (result?.success && result.qr_code) {
         console.log('✅ QR code received successfully');
-        setQrCode(result.qr_code);
+        
+        // Ensure proper base64 formatting for display
+        let formattedQrCode = result.qr_code;
+        if (!formattedQrCode.startsWith('data:image/')) {
+          formattedQrCode = `data:image/png;base64,${formattedQrCode}`;
+        }
+        
+        setQrCode(formattedQrCode);
         setStatus('ready');
         setPolling(true);
         toast({
@@ -146,11 +153,16 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
 
   return (
     <div className="text-center space-y-6">
-      <div className="p-4 bg-gray-50 rounded-2xl w-fit mx-auto">
+      <div className="p-4 bg-white rounded-2xl shadow-sm border w-fit mx-auto">
         <img
           src={qrCode}
           alt="WhatsApp QR Code"
-          className="w-64 h-64 mx-auto"
+          className="w-72 h-72 mx-auto rounded-lg"
+          style={{
+            maxWidth: '80vw',
+            height: 'auto',
+            aspectRatio: '1/1'
+          }}
           onError={(e) => {
             console.error('🖼️ QR image failed to load:', e);
             setStatus('error');
@@ -159,6 +171,9 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
               description: "נסה לרענן את הקוד",
               variant: "destructive",
             });
+          }}
+          onLoad={() => {
+            console.log('✅ QR image loaded successfully');
           }}
         />
       </div>
