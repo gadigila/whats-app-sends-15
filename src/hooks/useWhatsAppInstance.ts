@@ -29,9 +29,16 @@ export const useWhatsAppInstance = () => {
           body: { userId: user.id }
         });
         
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
+        if (error) {
+          console.error('Supabase function error:', error);
+          throw error;
+        }
+        if (data?.error) {
+          console.error('Function returned error:', data.error);
+          throw new Error(data.error);
+        }
         
+        console.log('✅ Instance creation successful:', data);
         return data;
       } finally {
         setIsCreatingInstance(false);
@@ -43,15 +50,27 @@ export const useWhatsAppInstance = () => {
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       toast({
         title: "אינסטנס נוצר בהצלחה",
-        description: "כעת תוכל להתחבר לוואטסאפ",
+        description: data.message || "כעת תוכל להתחבר לוואטסאפ",
       });
     },
     onError: (error: any) => {
       console.error('Failed to create WhatsApp instance:', error);
       setIsCreatingInstance(false);
+      
+      let errorMessage = "נסה שוב מאוחר יותר";
+      if (error.message) {
+        if (error.message.includes('Failed to save channel data')) {
+          errorMessage = "שגיאה בשמירת נתונים - נסה שוב";
+        } else if (error.message.includes('Failed to create channel')) {
+          errorMessage = "שגיאה ביצירת ערוץ - בדוק את ההגדרות";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "שגיאה ביצירת אינסטנס",
-        description: error.message || "נסה שוב מאוחר יותר",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -68,16 +87,28 @@ export const useWhatsAppInstance = () => {
         body: { userId: user.id }
       });
       
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
+      if (data?.error) {
+        console.error('Function returned error:', data.error);
+        throw new Error(data.error);
+      }
       
       return data;
     },
     onError: (error: any) => {
       console.error('Failed to get QR code:', error);
+      
+      let errorMessage = "נסה שוב מאוחר יותר";
+      if (error.message && error.message.includes('No instance or token found')) {
+        errorMessage = "נדרש instance חדש - צור אחד תחילה";
+      }
+      
       toast({
         title: "שגיאה בקבלת קוד QR",
-        description: error.message || "נסה שוב מאוחר יותר",
+        description: errorMessage,
         variant: "destructive",
       });
     }

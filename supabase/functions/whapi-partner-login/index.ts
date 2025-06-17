@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
           success: true,
           channel_id: profile.instance_id,
           message: 'Using existing instance',
-          channel_ready: profile.instance_status === 'authorized'
+          channel_ready: profile.instance_status === 'authorized' || profile.instance_status === 'connected'
         }),
         { status: 200, headers: corsHeaders }
       )
@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
       // Continue anyway
     }
 
-    // Save channel data to user profile using raw SQL for better reliability
+    // Save channel data to user profile using the new function
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
     console.log('💾 Saving channel data to database...', {
@@ -214,8 +214,8 @@ Deno.serve(async (req) => {
       status: 'unauthorized'
     })
 
-    // Use raw SQL update for maximum reliability
-    const { data: updateResult, error: updateError } = await supabase.rpc('update_user_instance', {
+    // Use the new database function for reliable updates
+    const { error: updateError } = await supabase.rpc('update_user_instance', {
       user_id: userId,
       new_instance_id: channelId,
       new_whapi_token: channelToken,
