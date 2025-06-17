@@ -73,15 +73,23 @@ const WhatsAppConnect = () => {
     console.log('🚀 Starting WhatsApp connection for user:', user.id);
     
     try {
-      await createInstance.mutateAsync();
-      console.log('✅ Instance created, refreshing profile...');
+      const result = await createInstance.mutateAsync();
+      console.log('✅ Instance created successfully:', result);
+      
+      // Only refresh profile and change status if creation was successful
       await refetchProfile();
       setConnectionStatus('created');
+      
+      console.log('✅ Ready to show QR code');
     } catch (error) {
       console.error('❌ Failed to create instance:', error);
+      
+      // Make sure we stay in disconnected state on error
+      setConnectionStatus('disconnected');
+      
       toast({
         title: "שגיאה ביצירת instance",
-        description: "נסה שוב מאוחר יותר",
+        description: error instanceof Error ? error.message : "נסה שוב מאוחר יותר",
         variant: "destructive",
       });
     }
