@@ -18,8 +18,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const whapiPartnerEmail = Deno.env.get('WHAPI_PARTNER_EMAIL')!
-    const whapiPartnerPassword = Deno.env.get('WHAPI_PARTNER_PASSWORD')!
+    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { userId }: CheckStatusRequest = await req.json()
@@ -28,6 +27,14 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'User ID is required' }),
         { status: 400, headers: corsHeaders }
+      )
+    }
+
+    if (!whapiPartnerToken) {
+      console.error('❌ Missing WHAPI partner token')
+      return new Response(
+        JSON.stringify({ connected: false, error: 'WHAPI partner token not configured' }),
+        { status: 200, headers: corsHeaders }
       )
     }
 
@@ -50,33 +57,10 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Found instance:', profile.instance_id, 'current status:', profile.instance_status)
 
-    // Login as partner
-    const loginResponse = await fetch('https://gateway.whapi.cloud/partner/v1/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: whapiPartnerEmail,
-        password: whapiPartnerPassword
-      })
-    })
-
-    if (!loginResponse.ok) {
-      console.error('❌ Partner login failed for status check')
-      return new Response(
-        JSON.stringify({ connected: false, error: 'Authentication failed' }),
-        { status: 200, headers: corsHeaders }
-      )
-    }
-
-    const loginData = await loginResponse.json()
-    const partnerAccessToken = loginData?.token
-
-    // Check instance status
+    // Check instance status using Partner Token
     const statusResponse = await fetch(`https://gateway.whapi.cloud/partner/v1/instances/${profile.instance_id}/status`, {
       headers: {
-        'Authorization': `Bearer ${partnerAccessToken}`
+        'x-api-key': whapiPartnerToken
       }
     })
 

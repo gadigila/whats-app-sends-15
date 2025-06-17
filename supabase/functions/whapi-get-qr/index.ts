@@ -18,8 +18,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const whapiPartnerEmail = Deno.env.get('WHAPI_PARTNER_EMAIL')!
-    const whapiPartnerPassword = Deno.env.get('WHAPI_PARTNER_PASSWORD')!
+    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { userId }: GetQrRequest = await req.json()
@@ -28,6 +27,14 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'User ID is required' }),
         { status: 400, headers: corsHeaders }
+      )
+    }
+
+    if (!whapiPartnerToken) {
+      console.error('❌ Missing WHAPI partner token')
+      return new Response(
+        JSON.stringify({ error: 'WHAPI partner token not configured' }),
+        { status: 500, headers: corsHeaders }
       )
     }
 
@@ -49,51 +56,12 @@ Deno.serve(async (req) => {
     }
 
     console.log('🔍 Found instance ID:', profile.instance_id)
+    console.log('📡 Getting QR with Partner Token...')
 
-    // Login as partner to get access token
-    console.log('🔑 Logging in as partner...')
-    const loginResponse = await fetch('https://gateway.whapi.cloud/partner/v1/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: whapiPartnerEmail,
-        password: whapiPartnerPassword
-      })
-    })
-
-    if (!loginResponse.ok) {
-      const errorText = await loginResponse.text()
-      console.error('❌ Partner login failed:', {
-        status: loginResponse.status,
-        error: errorText
-      })
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to authenticate with WHAPI',
-          details: `Status: ${loginResponse.status}, Error: ${errorText}`
-        }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    const loginData = await loginResponse.json()
-    const partnerAccessToken = loginData?.token
-
-    if (!partnerAccessToken) {
-      return new Response(
-        JSON.stringify({ error: 'No access token received' }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    console.log('✅ Partner login successful, getting QR...')
-
-    // Get QR code from instance
+    // Get QR code from instance using Partner Token
     const qrResponse = await fetch(`https://gateway.whapi.cloud/partner/v1/instances/${profile.instance_id}/qr`, {
       headers: {
-        'Authorization': `Bearer ${partnerAccessToken}`
+        'x-api-key': whapiPartnerToken
       }
     })
 
