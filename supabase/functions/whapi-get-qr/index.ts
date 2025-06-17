@@ -23,15 +23,22 @@ async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProce
       throw new Error('Channel token is required for QR generation')
     }
 
-    // Try primary QR endpoint first
+    // Try loginuser endpoint first (primary)
     let qrResponse = await whapiClient.getQrCode(instanceId, channelToken)
-    console.log('📥 WHAPI QR response status:', qrResponse.status)
+    console.log('📥 WHAPI loginuser response status:', qrResponse.status)
 
-    // If primary fails, try image endpoint as fallback
+    // If primary fails, try loginuserimage endpoint
     if (!qrResponse.ok) {
-      console.log('⚠️ Primary QR endpoint failed, trying image endpoint...')
+      console.log('⚠️ Primary loginuser endpoint failed, trying loginuserimage...')
       qrResponse = await whapiClient.getQrCodeImage(instanceId, channelToken)
-      console.log('📥 WHAPI QR image response status:', qrResponse.status)
+      console.log('📥 WHAPI loginuserimage response status:', qrResponse.status)
+    }
+
+    // If image endpoint also fails, try loginuserrowdata endpoint
+    if (!qrResponse.ok) {
+      console.log('⚠️ Image endpoint failed, trying loginuserrowdata...')
+      qrResponse = await whapiClient.getQrCodeRowData(instanceId, channelToken)
+      console.log('📥 WHAPI loginuserrowdata response status:', qrResponse.status)
     }
 
     if (qrResponse.ok) {
@@ -121,17 +128,19 @@ Deno.serve(async (req) => {
     // and add appropriate delay if needed
     const channelAge = await dbService.getChannelAge(userId)
     if (channelAge !== null && channelAge < 120000) { // 2 minutes in milliseconds
-      const remainingWait = 120000 - channelAge
-      console.log(`⏳ Channel is ${channelAge}ms old, waiting additional ${remainingWait}ms for channel to be ready...`)
-      await delay(remainingWait)
+      const remainingWait = Math.max(0, 120000 - channelAge)
+      if (remainingWait > 0) {
+        console.log(`⏳ Channel is ${channelAge}ms old, waiting additional ${remainingWait}ms for channel to be ready...`)
+        await delay(remainingWait)
+      }
     }
 
-    // Attempt QR retrieval with retry logic using channel token
+    // Attempt QR retrieval with retry logic using correct WHAPI endpoints
     const result = await attemptQrRetrieval(whapiClient, qrProcessor, profile.instance_id, profile.whapi_token)
     
     // Handle 404 errors (channel not found) by cleaning up database
-    if (!result.success && result.details?.status === 404) {
-      console.log('🗑️ Channel not found (404), cleaning up database...')
+    if (!result.success && (result.details?.status === 404 || result.requiresNewInstance)) {
+      console.log('🗑️ Channel not found or invalid, cleaning up database...')
       await dbService.clearInvalidInstance(userId)
       
       return new Response(

@@ -16,4 +16,6 @@ export interface QrResponse {
 export interface UserProfile {
   instance_id: string | null
   whapi_token: string | null
+  instance_status?: string | null
+  updated_at?: string | null
 }

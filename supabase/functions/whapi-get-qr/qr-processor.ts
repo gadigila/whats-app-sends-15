@@ -4,20 +4,31 @@ import type { QrResponse } from './types.ts'
 export class QrProcessor {
   processQrResponse(qrData: any): QrResponse {
     console.log('✅ QR data received:', Object.keys(qrData))
+    console.log('📋 QR response structure:', JSON.stringify(qrData, null, 2))
     
-    // Handle different possible response formats from Manager/Gate API
+    // Handle different possible response formats from WHAPI loginuser endpoints
     let qrCodeUrl = null
-    if (qrData.qr_code) {
-      qrCodeUrl = qrData.qr_code.startsWith('data:') ? qrData.qr_code : `data:image/png;base64,${qrData.qr_code}`
+    
+    // Check for direct QR code in various formats
+    if (qrData.qrCode) {
+      qrCodeUrl = this.formatQrCode(qrData.qrCode)
+    } else if (qrData.qr_code) {
+      qrCodeUrl = this.formatQrCode(qrData.qr_code)
     } else if (qrData.qr) {
-      qrCodeUrl = qrData.qr.startsWith('data:') ? qrData.qr : `data:image/png;base64,${qrData.qr}`
+      qrCodeUrl = this.formatQrCode(qrData.qr)
     } else if (qrData.image) {
-      qrCodeUrl = qrData.image.startsWith('data:') ? qrData.image : `data:image/png;base64,${qrData.image}`
-    } else if (qrData.data && qrData.data.qr_code) {
-      qrCodeUrl = qrData.data.qr_code.startsWith('data:') ? qrData.data.qr_code : `data:image/png;base64,${qrData.data.qr_code}`
+      qrCodeUrl = this.formatQrCode(qrData.image)
+    } else if (qrData.data?.qrCode) {
+      qrCodeUrl = this.formatQrCode(qrData.data.qrCode)
+    } else if (qrData.data?.qr_code) {
+      qrCodeUrl = this.formatQrCode(qrData.data.qr_code)
+    } else if (qrData.data?.qr) {
+      qrCodeUrl = this.formatQrCode(qrData.data.qr)
+    } else if (qrData.result?.qrCode) {
+      qrCodeUrl = this.formatQrCode(qrData.result.qrCode)
     } else if (typeof qrData === 'string') {
       // Sometimes the response might be a direct base64 string
-      qrCodeUrl = qrData.startsWith('data:') ? qrData : `data:image/png;base64,${qrData}`
+      qrCodeUrl = this.formatQrCode(qrData)
     }
     
     if (qrCodeUrl) {
@@ -37,16 +48,54 @@ export class QrProcessor {
     }
   }
 
+  private formatQrCode(qrCode: string): string {
+    if (!qrCode) return ''
+    
+    // If it's already a data URL, return as is
+    if (qrCode.startsWith('data:image/')) {
+      return qrCode
+    }
+    
+    // If it's a base64 string, format it as data URL
+    if (qrCode.match(/^[A-Za-z0-9+/]+=*$/)) {
+      return `data:image/png;base64,${qrCode}`
+    }
+    
+    // If it's a URL, return as is
+    if (qrCode.startsWith('http')) {
+      return qrCode
+    }
+    
+    // Default: assume it's base64
+    return `data:image/png;base64,${qrCode}`
+  }
+
   createErrorResponse(status: number, errorText: string, instanceId: string): QrResponse {
-    // Check if error indicates channel not ready vs not found
+    // Enhanced error handling for WHAPI specific errors
     const isChannelNotReady = status === 503 || 
+                               status === 400 ||
                                errorText.includes('Service Temporary Unavailable') ||
-                               errorText.includes('temporarily unavailable')
+                               errorText.includes('temporarily unavailable') ||
+                               errorText.includes('not ready') ||
+                               errorText.includes('unauthorized')
+    
+    const isChannelNotFound = status === 404 ||
+                              errorText.includes('not found') ||
+                              errorText.includes('channel not found')
+    
+    if (isChannelNotFound) {
+      return {
+        success: false,
+        error: 'Channel not found',
+        requiresNewInstance: true,
+        details: { status, error: errorText, instanceId }
+      }
+    }
     
     if (isChannelNotReady) {
       return {
         success: false,
-        error: 'Channel not ready yet',
+        error: 'Channel not ready for QR generation yet',
         details: { status, error: errorText, instanceId },
         retryable: true
       }

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -16,7 +15,7 @@ const WhatsAppConnect = () => {
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
   const { createInstance, deleteInstance, isCreatingInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'created' | 'connected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'unauthorized' | 'connected'>('disconnected');
 
   console.log('🔄 WhatsAppConnect render:', {
     user: user?.email,
@@ -41,9 +40,9 @@ const WhatsAppConnect = () => {
       if (profile.instance_status === 'connected') {
         console.log('✅ Setting status to connected');
         setConnectionStatus('connected');
-      } else if (profile.instance_status === 'created' && profile.instance_id && profile.whapi_token) {
-        console.log('🔄 Setting status to created');
-        setConnectionStatus('created');
+      } else if ((profile.instance_status === 'unauthorized' || profile.instance_status === 'created') && profile.instance_id && profile.whapi_token) {
+        console.log('🔄 Setting status to unauthorized (ready for QR)');
+        setConnectionStatus('unauthorized');
       } else {
         console.log('❌ Setting status to disconnected');
         setConnectionStatus('disconnected');
@@ -82,10 +81,14 @@ const WhatsAppConnect = () => {
       return;
     }
     
-    // Prevent creating new instance if one already exists
-    if (profile?.instance_id && profile?.whapi_token) {
-      console.log('⚠️ Instance already exists, setting status to created');
-      setConnectionStatus('created');
+    // Prevent creating new instance if one already exists and is valid
+    if (profile?.instance_id && profile?.whapi_token && profile?.instance_status !== 'disconnected') {
+      console.log('⚠️ Instance already exists, setting status appropriately');
+      if (profile.instance_status === 'connected') {
+        setConnectionStatus('connected');
+      } else {
+        setConnectionStatus('unauthorized');
+      }
       toast({
         title: "יש לך כבר instance",
         description: "מנסה להתחבר עם ה-instance הקיים",
@@ -101,9 +104,19 @@ const WhatsAppConnect = () => {
       
       // Only refresh profile and change status if creation was successful
       await refetchProfile();
-      setConnectionStatus('created');
       
-      console.log('✅ Ready to show QR code');
+      // Channel is created but needs time to initialize - set to unauthorized status
+      setConnectionStatus('unauthorized');
+      
+      console.log('✅ Ready to show QR code after initialization period');
+      
+      if (result.initialization_time) {
+        toast({
+          title: "Instance נוצר בהצלחה",
+          description: `אנא המתן ${Math.ceil(result.initialization_time / 60000)} דקות לפני סריקת QR`,
+        });
+      }
+      
     } catch (error) {
       console.error('❌ Failed to create instance:', error);
       
@@ -152,7 +165,7 @@ const WhatsAppConnect = () => {
   console.log('🎯 Current render state:', {
     profileLoading,
     connectionStatus,
-    willRenderQr: connectionStatus === 'created' && user?.id,
+    willRenderQr: connectionStatus === 'unauthorized' && user?.id,
     willRenderConnected: connectionStatus === 'connected',
     willRenderStart: connectionStatus === 'disconnected',
     isCreatingInstance
@@ -251,7 +264,7 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Main connection UI (created or disconnected)
+  // Main connection UI (unauthorized or disconnected)
   console.log('🔄 Rendering main connection UI, status:', connectionStatus);
   return (
     <Layout>
@@ -259,7 +272,7 @@ const WhatsAppConnect = () => {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">חבר את הוואטסאפ שלך</h1>
           <p className="text-gray-600">
-            {connectionStatus === 'created'
+            {connectionStatus === 'unauthorized'
               ? 'סרוק את קוד ה-QR עם הוואטסאפ שלך כדי להתחבר'
               : 'התחבר לוואטסאפ כדי להתחיל לשלוח הודעות לקבוצות שלך'}
           </p>
@@ -267,7 +280,7 @@ const WhatsAppConnect = () => {
         
         <Card>
           <CardContent className="p-8">
-            {connectionStatus === 'created' && user?.id ? (
+            {connectionStatus === 'unauthorized' && user?.id ? (
               <>
                 <div className="mb-4 text-center text-sm text-blue-600">
                   מצב: מחכה לסריקת QR | משתמש: {user.email}
@@ -292,7 +305,7 @@ const WhatsAppConnect = () => {
                 <div className="mb-4 text-xs text-gray-500">
                   מצב נוכחי: {connectionStatus} | משתמש: {user?.email || 'לא מחובר'}
                   {profile?.instance_id && (
-                    <div>יש instance קיים: {profile.instance_id}</div>
+                    <div>יש instance קיים: {profile.instance_id} | סטטוס: {profile.instance_status}</div>
                   )}
                 </div>
                 <Button
@@ -301,12 +314,13 @@ const WhatsAppConnect = () => {
                   disabled={createInstance.isPending || isCreatingInstance}
                 >
                   {(createInstance.isPending || isCreatingInstance) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  {profile?.instance_id ? 'התחבר עם Instance קיים' : 'התחבר עכשיו'}
+                  {profile?.instance_id && profile?.instance_status !== 'disconnected' ? 'התחבר עם Instance קיים' : 'התחבר עכשיו'}
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
+        
         <Card>
           <CardContent className="p-6">
             <div className="flex items-start gap-3">

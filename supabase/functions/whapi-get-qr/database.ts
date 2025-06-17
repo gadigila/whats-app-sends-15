@@ -14,7 +14,7 @@ export class DatabaseService {
   async getUserProfile(userId: string): Promise<{ profile: UserProfile | null, error: any }> {
     const { data: profile, error } = await this.supabase
       .from('profiles')
-      .select('instance_id, whapi_token, updated_at')
+      .select('instance_id, whapi_token, instance_status, updated_at')
       .eq('id', userId)
       .single()
 
@@ -38,7 +38,9 @@ export class DatabaseService {
   }
 
   async clearInvalidInstance(userId: string): Promise<void> {
-    await this.supabase
+    console.log('🗑️ Clearing invalid instance for user:', userId)
+    
+    const { error } = await this.supabase
       .from('profiles')
       .update({
         instance_id: null,
@@ -47,5 +49,29 @@ export class DatabaseService {
         updated_at: new Date().toISOString()
       })
       .eq('id', userId)
+
+    if (error) {
+      console.error('❌ Error clearing invalid instance:', error)
+    } else {
+      console.log('✅ Successfully cleared invalid instance')
+    }
+  }
+
+  async updateChannelStatus(userId: string, status: string): Promise<void> {
+    console.log('📝 Updating channel status for user:', userId, 'to:', status)
+    
+    const { error } = await this.supabase
+      .from('profiles')
+      .update({
+        instance_status: status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+
+    if (error) {
+      console.error('❌ Error updating channel status:', error)
+    } else {
+      console.log('✅ Successfully updated channel status')
+    }
   }
 }

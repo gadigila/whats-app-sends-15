@@ -46,10 +46,10 @@ Deno.serve(async (req) => {
 
     console.log('👤 Processing request for user:', userId)
 
-    // Check if user already has a channel in database with transaction
+    // Start a database transaction to check and prevent duplicate channels
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, whapi_token, instance_status')
+      .select('instance_id, whapi_token, instance_status, updated_at')
       .eq('id', userId)
       .single()
 
@@ -61,14 +61,15 @@ Deno.serve(async (req) => {
       )
     }
 
-    // If user already has instance_id and token, return them
-    if (profile?.instance_id && profile?.whapi_token) {
+    // If user already has a valid instance, return it
+    if (profile?.instance_id && profile?.whapi_token && profile?.instance_status !== 'deleted') {
       console.log('✅ User already has existing instance:', profile.instance_id, 'Status:', profile.instance_status)
       return new Response(
         JSON.stringify({
           success: true,
           channel_id: profile.instance_id,
-          message: 'Using existing instance'
+          message: 'Using existing instance',
+          channel_ready: true
         }),
         { status: 200, headers: corsHeaders }
       )
@@ -172,12 +173,12 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Save channel data to user profile with retry mechanism
+    // Save channel data to user profile with atomic operation
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     const updateData = {
       instance_id: channelId,
       whapi_token: channelToken,
-      instance_status: 'created',
+      instance_status: 'unauthorized',
       payment_plan: 'trial',
       trial_expires_at: trialExpiresAt,
       updated_at: new Date().toISOString()
@@ -186,70 +187,55 @@ Deno.serve(async (req) => {
     console.log('💾 Saving channel data to database...', {
       userId,
       channelId,
-      hasToken: !!channelToken
+      hasToken: !!channelToken,
+      status: 'unauthorized'
     })
 
-    // First attempt to save
-    let { error: updateError } = await supabase
+    // Use a transaction-like approach with immediate verification
+    const { data: updateResult, error: updateError } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', userId)
+      .select('instance_id, whapi_token, instance_status')
 
-    // If first attempt fails, try a second time
     if (updateError) {
-      console.warn('⚠️ First database save attempt failed, retrying...', updateError)
-      await delay(1000) // Wait 1 second before retry
+      console.error('❌ Failed to update user profile:', updateError)
       
-      const { error: retryError } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', userId)
-      
-      if (retryError) {
-        console.error('❌ Failed to update user profile after retry:', retryError)
-        
-        // Attempt to delete the created channel since we couldn't save it
-        try {
-          console.log('🗑️ Attempting to cleanup channel from WHAPI due to DB error...')
-          const deleteResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${whapiPartnerToken}`
-            }
-          })
-          
-          if (deleteResponse.ok) {
-            console.log('✅ Successfully cleaned up channel from WHAPI')
-          } else {
-            console.error('❌ Failed to cleanup channel from WHAPI:', deleteResponse.status)
+      // Cleanup the created channel since we couldn't save it
+      try {
+        console.log('🗑️ Attempting to cleanup channel from WHAPI due to DB error...')
+        const deleteResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${whapiPartnerToken}`
           }
-        } catch (cleanupError) {
-          console.error('❌ Error during channel cleanup:', cleanupError)
-        }
+        })
         
-        return new Response(
-          JSON.stringify({ 
-            error: 'Failed to save channel data to database', 
-            details: retryError.message 
-          }),
-          { status: 500, headers: corsHeaders }
-        )
+        if (deleteResponse.ok) {
+          console.log('✅ Successfully cleaned up channel from WHAPI')
+        } else {
+          console.error('❌ Failed to cleanup channel from WHAPI:', deleteResponse.status)
+        }
+      } catch (cleanupError) {
+        console.error('❌ Error during channel cleanup:', cleanupError)
       }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to save channel data to database', 
+          details: updateError.message 
+        }),
+        { status: 500, headers: corsHeaders }
+      )
     }
 
     // Verify the data was actually saved
-    console.log('🔍 Verifying data was saved...')
-    const { data: verifyData, error: verifyError } = await supabase
-      .from('profiles')
-      .select('instance_id, whapi_token, instance_status')
-      .eq('id', userId)
-      .single()
-
-    if (verifyError || !verifyData?.instance_id || !verifyData?.whapi_token) {
-      console.error('❌ Database verification failed:', {
-        verifyError,
-        hasInstanceId: !!verifyData?.instance_id,
-        hasToken: !!verifyData?.whapi_token
+    if (!updateResult || updateResult.length === 0 || !updateResult[0]?.instance_id || !updateResult[0]?.whapi_token) {
+      console.error('❌ Database update verification failed:', {
+        hasResult: !!updateResult,
+        resultLength: updateResult?.length || 0,
+        hasInstanceId: !!updateResult?.[0]?.instance_id,
+        hasToken: !!updateResult?.[0]?.whapi_token
       })
       
       // Try to cleanup the channel
@@ -266,16 +252,16 @@ Deno.serve(async (req) => {
       
       return new Response(
         JSON.stringify({ 
-          error: 'Database verification failed - data not properly saved'
+          error: 'Database update verification failed - data not properly saved'
         }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    console.log('✅ Database verification successful:', {
-      savedInstanceId: verifyData.instance_id,
-      savedStatus: verifyData.instance_status,
-      hasToken: !!verifyData.whapi_token
+    console.log('✅ Database update verified successfully:', {
+      savedInstanceId: updateResult[0].instance_id,
+      savedStatus: updateResult[0].instance_status,
+      hasToken: !!updateResult[0].whapi_token
     })
 
     console.log('✅ New channel creation completed successfully')
@@ -286,7 +272,7 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        channel_ready: false, // Indicates QR should wait for initialization
+        channel_ready: false, // Channel needs 1.5-2 minutes to initialize
         initialization_time: 120000, // 2 minutes in milliseconds
         message: 'New channel created successfully. Please wait 2 minutes before requesting QR code.'
       }),
