@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
+    let whapiProjectId = Deno.env.get('WHAPI_PROJECT_ID')
     
     console.log('🔐 WHAPI Channel Creation: Starting...')
     
@@ -59,9 +60,50 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Create new channel using Manager API
-    console.log('🏗️ Creating new channel with Manager API...')
-    
+    // Get project ID with fallback mechanism
+    if (!whapiProjectId) {
+      console.log('🔍 No WHAPI_PROJECT_ID set, fetching from API...')
+      
+      try {
+        const projectsResponse = await fetch('https://manager.whapi.cloud/projects', {
+          headers: {
+            'Authorization': `Bearer ${whapiPartnerToken}`
+          }
+        })
+
+        if (projectsResponse.ok) {
+          const projectsData = await projectsResponse.json()
+          console.log('📥 Projects response:', projectsData)
+          
+          if (projectsData && projectsData.length > 0) {
+            whapiProjectId = projectsData[0].id
+            console.log('✅ Using fallback project ID:', whapiProjectId)
+          } else {
+            console.error('❌ No projects found in account')
+            return new Response(
+              JSON.stringify({ error: 'No projects found in WHAPI account' }),
+              { status: 400, headers: corsHeaders }
+            )
+          }
+        } else {
+          console.error('❌ Failed to fetch projects:', projectsResponse.status)
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch project ID from WHAPI' }),
+            { status: 400, headers: corsHeaders }
+          )
+        }
+      } catch (error) {
+        console.error('❌ Error fetching projects:', error)
+        return new Response(
+          JSON.stringify({ error: 'Error fetching project ID' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+    }
+
+    console.log('🏗️ Creating new channel with project ID:', whapiProjectId)
+
+    // Create new channel using Manager API with proper project ID
     const createChannelResponse = await fetch('https://manager.whapi.cloud/channels', {
       method: 'PUT',
       headers: {
@@ -70,7 +112,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         name: `reecher_user_${userId}`,
-        projectId: `reecher_project_${userId}`
+        projectId: whapiProjectId
       })
     })
 
@@ -80,12 +122,13 @@ Deno.serve(async (req) => {
       const errorText = await createChannelResponse.text()
       console.error('❌ Channel creation failed:', {
         status: createChannelResponse.status,
-        error: errorText
+        error: errorText,
+        projectId: whapiProjectId
       })
       return new Response(
         JSON.stringify({ 
           error: 'Failed to create channel', 
-          details: `Status: ${createChannelResponse.status}, Error: ${errorText}` 
+          details: `Status: ${createChannelResponse.status}, Error: ${errorText}, ProjectID: ${whapiProjectId}` 
         }),
         { status: 400, headers: corsHeaders }
       )
@@ -95,6 +138,7 @@ Deno.serve(async (req) => {
     console.log('✅ Channel created successfully:', {
       hasToken: !!channelData?.token,
       hasId: !!channelData?.id,
+      projectId: whapiProjectId,
       responseKeys: Object.keys(channelData || {})
     })
 
@@ -150,12 +194,13 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('✅ Channel creation completed successfully')
+    console.log('✅ Channel creation completed successfully with project ID:', whapiProjectId)
 
     return new Response(
       JSON.stringify({
         success: true,
         channel_id: channelId,
+        project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
         message: 'Channel created successfully'
       }),
