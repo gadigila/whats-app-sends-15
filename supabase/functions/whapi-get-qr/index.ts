@@ -56,6 +56,45 @@ Deno.serve(async (req) => {
     }
 
     console.log('🔍 Found instance ID:', profile.instance_id)
+
+    // First, verify the instance exists on WHAPI's side
+    console.log('🔍 Verifying instance exists on WHAPI...')
+    const verifyResponse = await fetch('https://gateway.whapi.cloud/partner/v1/instances', {
+      headers: {
+        'x-api-key': whapiPartnerToken
+      }
+    })
+
+    if (verifyResponse.ok) {
+      const instances = await verifyResponse.json()
+      const instanceExists = instances?.some((inst: any) => 
+        inst.instanceId === profile.instance_id || inst.id === profile.instance_id
+      )
+      
+      if (!instanceExists) {
+        console.error('❌ Instance not found on WHAPI side, cleaning up database...')
+        
+        // Clean up the database
+        await supabase
+          .from('profiles')
+          .update({
+            instance_id: null,
+            whapi_token: null,
+            instance_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Instance no longer exists on WHAPI. Please create a new instance.',
+            requiresNewInstance: true
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+    }
+
     console.log('📡 Getting QR with Partner Token...')
 
     // Get QR code from instance using Partner Token
@@ -71,8 +110,32 @@ Deno.serve(async (req) => {
       const errorText = await qrResponse.text()
       console.error('❌ QR request failed:', {
         status: qrResponse.status,
-        error: errorText
+        error: errorText,
+        instanceId: profile.instance_id
       })
+
+      // If it's a 404, the instance probably doesn't exist
+      if (qrResponse.status === 404) {
+        console.log('🗑️ Instance not found (404), cleaning up database...')
+        await supabase
+          .from('profiles')
+          .update({
+            instance_id: null,
+            whapi_token: null,
+            instance_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Instance not found. Please create a new instance.',
+            requiresNewInstance: true
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: 'Failed to get QR code', 

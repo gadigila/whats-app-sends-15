@@ -35,25 +35,27 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         setQrCode(result.qr_code);
         setPolling(true);
         toast({
-          title: "קוד QR מוכן!",
-          description: "סרוק את הקוד עם הוואטסאפ שלך.",
+          title: "QR Code Ready!",
+          description: "Scan the code with your WhatsApp.",
         });
       } else {
-        throw new Error('QR לא התקבל מהשרת');
+        throw new Error('QR code not received from server');
       }
     } catch (err: any) {
       console.error('💥 QR code request failed:', err);
       
-      // Check if error is related to missing instance
-      if (err.message?.includes('instance') || err.message?.includes('not found')) {
+      // Check if error indicates missing instance
+      if (err.message?.includes('instance') || 
+          err.message?.includes('not found') || 
+          err.message?.includes('requiresNewInstance')) {
         console.log('🚨 Missing instance detected');
         onMissingInstance();
         return;
       }
       
       toast({
-        title: "שגיאה בקבלת QR",
-        description: err.message || 'שגיאה לא ידועה',
+        title: "Error Getting QR Code",
+        description: err.message || 'Unknown error occurred',
         variant: "destructive",
       });
     }
@@ -77,12 +79,25 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
             setQrCode(null);
             onConnected();
             toast({
-              title: "וואטסאפ מחובר!",
-              description: "החיבור בוצע בהצלחה.",
+              title: "WhatsApp Connected!",
+              description: "Connection established successfully.",
             });
+          } else if (result?.requiresNewInstance) {
+            console.log('🚨 Instance requires recreation');
+            setPolling(false);
+            setQrCode(null);
+            onMissingInstance();
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error('💥 Status check failed:', err);
+          
+          // Check if status check indicates missing instance
+          if (err.message?.includes('requiresNewInstance')) {
+            console.log('🚨 Missing instance detected during polling');
+            setPolling(false);
+            setQrCode(null);
+            onMissingInstance();
+          }
         }
       }, 3000);
     }
@@ -93,7 +108,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         clearInterval(interval);
       }
     };
-  }, [polling, userId, onConnected]);
+  }, [polling, userId, onConnected, onMissingInstance]);
 
   if (getQrCode.isError) {
     return (
@@ -101,12 +116,12 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            שגיאה: {getQrCode.error?.message}
+            Error: {getQrCode.error?.message}
           </AlertDescription>
         </Alert>
         <Button onClick={handleGetQrCode} disabled={getQrCode.isPending} variant="outline">
           {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          נסה שוב
+          Try Again
         </Button>
       </div>
     );
@@ -116,7 +131,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
     return (
       <div className="flex flex-col items-center space-y-4">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="text-gray-700">טוען קוד QR...</span>
+        <span className="text-gray-700">Loading QR Code...</span>
       </div>
     );
   }
@@ -131,22 +146,22 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           onError={(e) => {
             console.error('🖼️ QR image failed to load:', e);
             toast({
-              title: "שגיאה בטעינת QR",
-              description: "נסה לרענן את הקוד",
+              title: "Error Loading QR Code",
+              description: "Try refreshing the code",
               variant: "destructive",
             });
           }}
         />
       </div>
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold text-gray-900">סרוק קוד QR</h2>
+        <h2 className="text-xl font-semibold text-gray-900">Scan QR Code</h2>
         <p className="text-sm text-gray-600">
-          פתח את וואטסאפ ← הגדרות ← מכשירים מקושרים ← קשר מכשיר
+          Open WhatsApp → Settings → Linked Devices → Link a Device
         </p>
       </div>
       <Button onClick={handleGetQrCode} variant="outline" disabled={getQrCode.isPending}>
         {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-        רענן קוד QR
+        Refresh QR Code
       </Button>
     </div>
   );

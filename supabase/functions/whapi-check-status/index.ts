@@ -57,6 +57,45 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Found instance:', profile.instance_id, 'current status:', profile.instance_status)
 
+    // First verify the instance exists on WHAPI's side
+    console.log('🔍 Verifying instance exists on WHAPI...')
+    const verifyResponse = await fetch('https://gateway.whapi.cloud/partner/v1/instances', {
+      headers: {
+        'x-api-key': whapiPartnerToken
+      }
+    })
+
+    if (verifyResponse.ok) {
+      const instances = await verifyResponse.json()
+      const instanceExists = instances?.some((inst: any) => 
+        inst.instanceId === profile.instance_id || inst.id === profile.instance_id
+      )
+      
+      if (!instanceExists) {
+        console.error('❌ Instance not found on WHAPI side, cleaning up database...')
+        
+        // Clean up the database
+        await supabase
+          .from('profiles')
+          .update({
+            instance_id: null,
+            whapi_token: null,
+            instance_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+        
+        return new Response(
+          JSON.stringify({ 
+            connected: false, 
+            error: 'Instance no longer exists. Please create a new instance.',
+            requiresNewInstance: true
+          }),
+          { status: 200, headers: corsHeaders }
+        )
+      }
+    }
+
     // Check instance status using Partner Token
     const statusResponse = await fetch(`https://gateway.whapi.cloud/partner/v1/instances/${profile.instance_id}/status`, {
       headers: {
@@ -65,7 +104,36 @@ Deno.serve(async (req) => {
     })
 
     if (!statusResponse.ok) {
-      console.error('❌ Status check failed:', statusResponse.status)
+      const errorText = await statusResponse.text()
+      console.error('❌ Status check failed:', {
+        status: statusResponse.status,
+        error: errorText,
+        instanceId: profile.instance_id
+      })
+
+      // If it's a 404, clean up the database
+      if (statusResponse.status === 404) {
+        console.log('🗑️ Instance not found (404), cleaning up database...')
+        await supabase
+          .from('profiles')
+          .update({
+            instance_id: null,
+            whapi_token: null,
+            instance_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+        
+        return new Response(
+          JSON.stringify({ 
+            connected: false, 
+            error: 'Instance not found. Please create a new instance.',
+            requiresNewInstance: true
+          }),
+          { status: 200, headers: corsHeaders }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ connected: false, error: 'Status check failed' }),
         { status: 200, headers: corsHeaders }
