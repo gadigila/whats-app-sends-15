@@ -15,9 +15,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('📱 Getting QR for user:', (await req.json()).userId)
+    // Read and parse request body once
+    const requestBody = await req.text()
+    console.log('📱 Request body received:', requestBody)
     
-    const { userId }: GetQrRequest = await req.json()
+    const { userId }: GetQrRequest = JSON.parse(requestBody)
+    console.log('📱 Getting QR for user:', userId)
 
     if (!userId) {
       return new Response(
@@ -41,22 +44,31 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!profile.instance_id || !profile.whapi_token) {
-      console.log('🚨 No instance or token found, requires new instance')
+    if (!profile.instance_id) {
+      console.log('🚨 No instance found, requires new instance')
       return new Response(
         JSON.stringify(qrProcessor.createMissingInstanceResponse()),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    console.log('🔍 Found channel ID:', profile.instance_id)
+    console.log('🔍 Found instance ID:', profile.instance_id)
 
     try {
-      const qrResponse = await whapiClient.getQrCode(profile.instance_id, profile.whapi_token)
-      console.log('📥 QR response status:', qrResponse.status)
+      // Try Manager API first (recommended approach)
+      let qrResponse = await whapiClient.getQrCode(profile.instance_id)
+      console.log('📥 Manager API QR response status:', qrResponse.status)
+
+      // If Manager API fails and we have channel token, try Gate API as fallback
+      if (!qrResponse.ok && profile.whapi_token) {
+        console.log('⚠️ Manager API failed, trying Gate API fallback...')
+        qrResponse = await whapiClient.getQrCodeFallback(profile.instance_id, profile.whapi_token)
+        console.log('📥 Gate API QR response status:', qrResponse.status)
+      }
 
       if (qrResponse.ok) {
         const qrData = await qrResponse.json()
+        console.log('✅ QR data keys received:', Object.keys(qrData))
         const result = qrProcessor.processQrResponse(qrData)
         
         return new Response(
@@ -65,10 +77,10 @@ Deno.serve(async (req) => {
         )
       } else {
         const errorText = await qrResponse.text()
-        console.error('❌ Partner API QR request failed:', {
+        console.error('❌ QR request failed:', {
           status: qrResponse.status,
           error: errorText,
-          endpoint: `https://partner-api.whapi.cloud/api/v1/channels/${profile.instance_id}/qr`
+          instanceId: profile.instance_id
         })
         
         // If it's a 404, the channel probably doesn't exist
@@ -85,7 +97,7 @@ Deno.serve(async (req) => {
         const errorResult = qrProcessor.createErrorResponse(
           qrResponse.status, 
           errorText, 
-          `https://partner-api.whapi.cloud/api/v1/channels/${profile.instance_id}/qr`
+          profile.instance_id
         )
         
         return new Response(
@@ -94,7 +106,7 @@ Deno.serve(async (req) => {
         )
       }
     } catch (networkError) {
-      console.error('❌ Network error calling Partner API:', networkError)
+      console.error('❌ Network error calling QR API:', networkError)
       const errorResult = qrProcessor.createNetworkErrorResponse(networkError)
       
       return new Response(
