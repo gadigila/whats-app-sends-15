@@ -48,7 +48,67 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Found channel ID:', profile.instance_id)
 
-    // Try both possible QR endpoints to handle API differences
+    // Retry mechanism for WHAPI API calls
+    const maxRetries = 3
+    const retryDelay = 1000 // 1 second
+
+    const tryEndpointWithRetry = async (endpoint: string, retryCount = 0): Promise<any> => {
+      try {
+        console.log(`📡 Trying QR endpoint (attempt ${retryCount + 1}):`, endpoint)
+        
+        const qrResponse = await fetch(endpoint, {
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000 // 30 second timeout
+        })
+
+        console.log('📥 QR response status:', qrResponse.status, 'for endpoint:', endpoint)
+
+        if (qrResponse.ok) {
+          const qrData = await qrResponse.json()
+          console.log('✅ QR data received from:', endpoint)
+          return { success: true, data: qrData }
+        } else {
+          const errorText = await qrResponse.text()
+          console.log('❌ QR request failed for endpoint:', endpoint, 'Status:', qrResponse.status, 'Error:', errorText)
+          
+          // If it's a 503 (service unavailable) or 502 (bad gateway), retry
+          if ((qrResponse.status === 503 || qrResponse.status === 502) && retryCount < maxRetries) {
+            console.log(`⏳ Retrying in ${retryDelay}ms due to service unavailable...`)
+            await new Promise(resolve => setTimeout(resolve, retryDelay))
+            return tryEndpointWithRetry(endpoint, retryCount + 1)
+          }
+          
+          return {
+            success: false,
+            error: {
+              status: qrResponse.status,
+              error: errorText,
+              endpoint
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ Network error with endpoint:', endpoint, error)
+        
+        // Retry on network errors too
+        if (retryCount < maxRetries) {
+          console.log(`⏳ Retrying in ${retryDelay}ms due to network error...`)
+          await new Promise(resolve => setTimeout(resolve, retryDelay))
+          return tryEndpointWithRetry(endpoint, retryCount + 1)
+        }
+        
+        return {
+          success: false,
+          error: { error: error.message, endpoint }
+        }
+      }
+    }
+
+    // Try both possible QR endpoints
     const qrEndpoints = [
       `https://gate.whapi.cloud/qr`,
       `https://gate.whapi.cloud/channels/${profile.instance_id}/qr`
@@ -58,39 +118,19 @@ Deno.serve(async (req) => {
     let lastError = null
 
     for (const endpoint of qrEndpoints) {
-      try {
-        console.log('📡 Trying QR endpoint:', endpoint)
-        
-        const qrResponse = await fetch(endpoint, {
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`
-          }
-        })
-
-        console.log('📥 QR response status:', qrResponse.status, 'for endpoint:', endpoint)
-
-        if (qrResponse.ok) {
-          qrData = await qrResponse.json()
-          console.log('✅ QR data received from:', endpoint)
-          break
-        } else {
-          const errorText = await qrResponse.text()
-          lastError = {
-            status: qrResponse.status,
-            error: errorText,
-            endpoint
-          }
-          console.log('❌ QR request failed for endpoint:', endpoint, 'Status:', qrResponse.status)
-        }
-      } catch (error) {
-        console.error('❌ Error with endpoint:', endpoint, error)
-        lastError = { error: error.message, endpoint }
+      const result = await tryEndpointWithRetry(endpoint)
+      
+      if (result.success) {
+        qrData = result.data
+        break
+      } else {
+        lastError = result.error
       }
     }
 
     // If no endpoint worked, handle the error
     if (!qrData) {
-      console.error('❌ All QR endpoints failed. Last error:', lastError)
+      console.error('❌ All QR endpoints failed after retries. Last error:', lastError)
       
       // If it's a 404, the channel probably doesn't exist
       if (lastError?.status === 404) {
@@ -111,6 +151,18 @@ Deno.serve(async (req) => {
             requiresNewInstance: true
           }),
           { status: 400, headers: corsHeaders }
+        )
+      }
+      
+      // For 503 errors, provide a more helpful message
+      if (lastError?.status === 503) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'שירות WHAPI זמנית לא זמין. אנא נסה שוב בעוד כמה רגעים.',
+            isTemporary: true,
+            details: lastError
+          }),
+          { status: 503, headers: corsHeaders }
         )
       }
       
