@@ -23,6 +23,22 @@ async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProce
       throw new Error('Channel token is required for QR generation')
     }
 
+    // Verify channel accessibility first
+    console.log('🔍 Verifying channel accessibility...')
+    const settingsResponse = await fetch(`https://gate.whapi.cloud/settings`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${channelToken}`
+      }
+    })
+
+    if (!settingsResponse.ok) {
+      console.error('❌ Channel not accessible:', settingsResponse.status)
+      return qrProcessor.createErrorResponse(settingsResponse.status, 'Channel not accessible', instanceId)
+    }
+
+    console.log('✅ Channel verified as accessible')
+
     // Use correct WHAPI QR endpoint
     const qrResponse = await whapiClient.getQrCode(instanceId, channelToken)
     console.log('📥 WHAPI QR response status:', qrResponse.status)
@@ -88,7 +104,7 @@ Deno.serve(async (req) => {
     const whapiClient = new WhapiClient()
     const qrProcessor = new QrProcessor()
 
-    // Get user's channel info
+    // Get user's channel info with validation
     const { profile, error: profileError } = await dbService.getUserProfile(userId)
 
     if (profileError || !profile) {
@@ -98,6 +114,13 @@ Deno.serve(async (req) => {
         { status: 404, headers: corsHeaders }
       )
     }
+
+    console.log('📋 Profile data:', {
+      hasInstanceId: !!profile.instance_id,
+      hasToken: !!profile.whapi_token,
+      instanceStatus: profile.instance_status,
+      instanceId: profile.instance_id
+    })
 
     if (!profile.instance_id || !profile.whapi_token) {
       console.log('🚨 No instance or token found, requires new instance')

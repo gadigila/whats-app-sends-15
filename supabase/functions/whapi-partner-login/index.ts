@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
 
     console.log('👤 Processing request for user:', userId)
 
-    // Check if user already has a valid instance
+    // Check if user profile exists first
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status, updated_at')
@@ -169,6 +169,46 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Verify the channel is accessible before saving to database
+    console.log('🔍 Verifying channel accessibility...')
+    try {
+      const verifyResponse = await fetch(`https://gate.whapi.cloud/settings`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${channelToken}`
+        }
+      })
+      
+      if (!verifyResponse.ok) {
+        console.error('❌ Channel verification failed:', verifyResponse.status)
+        throw new Error(`Channel not accessible: ${verifyResponse.status}`)
+      }
+      console.log('✅ Channel verified as accessible')
+    } catch (verifyError) {
+      console.error('❌ Channel verification error:', verifyError)
+      
+      // Cleanup the created channel since it's not accessible
+      try {
+        await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${whapiPartnerToken}`
+          }
+        })
+        console.log('✅ Cleaned up inaccessible channel')
+      } catch (cleanupError) {
+        console.error('❌ Failed to cleanup channel:', cleanupError)
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Created channel is not accessible',
+          details: verifyError.message
+        }),
+        { status: 500, headers: corsHeaders }
+      )
+    }
+
     // Setup webhook for the channel using correct WHAPI format
     console.log('🔗 Setting up webhook for channel:', channelId)
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
@@ -201,91 +241,144 @@ Deno.serve(async (req) => {
       // Continue anyway
     }
 
-    // Save channel data to user profile - direct update approach
+    // Save channel data to user profile with comprehensive error handling
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
-    console.log('💾 Saving channel data to database via direct update...', {
+    console.log('💾 Saving channel data to database...', {
       userId,
       channelId,
-      hasToken: !!channelToken
+      hasToken: !!channelToken,
+      tokenLength: channelToken.length
     })
 
-    // Use direct database update with explicit error handling
-    const { error: updateError, data: updateData } = await supabase
-      .from('profiles')
-      .update({
-        instance_id: channelId,
-        whapi_token: channelToken,
-        instance_status: 'unauthorized',
-        payment_plan: 'trial',
-        trial_expires_at: trialExpiresAt,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select()
+    // First, try using the RPC function
+    console.log('🔄 Attempting RPC function update...')
+    const { error: rpcError } = await supabase.rpc('update_user_instance', {
+      user_id: userId,
+      new_instance_id: channelId,
+      new_whapi_token: channelToken,
+      new_status: 'unauthorized',
+      new_plan: 'trial',
+      new_trial_expires: trialExpiresAt
+    })
 
-    if (updateError) {
-      console.error('❌ Database update failed:', updateError)
+    if (rpcError) {
+      console.error('❌ RPC update failed:', rpcError)
       
-      // Cleanup the created channel since we couldn't save it
-      try {
-        console.log('🗑️ Attempting to cleanup channel from WHAPI due to DB error...')
-        const deleteResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${whapiPartnerToken}`
-          }
+      // Fallback to direct update
+      console.log('🔄 Attempting direct database update...')
+      const { error: updateError, data: updateData } = await supabase
+        .from('profiles')
+        .update({
+          instance_id: channelId,
+          whapi_token: channelToken,
+          instance_status: 'unauthorized',
+          payment_plan: 'trial',
+          trial_expires_at: trialExpiresAt,
+          updated_at: new Date().toISOString()
         })
+        .eq('id', userId)
+        .select()
+
+      if (updateError) {
+        console.error('❌ Direct update also failed:', updateError)
         
-        if (deleteResponse.ok) {
-          console.log('✅ Successfully cleaned up channel from WHAPI')
-        } else {
-          console.error('❌ Failed to cleanup channel from WHAPI:', deleteResponse.status)
-        }
-      } catch (cleanupError) {
-        console.error('❌ Error during channel cleanup:', cleanupError)
-      }
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to save channel data to database', 
-          details: updateError.message 
-        }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
-
-    // Verify the data was actually saved
-    console.log('🔍 Verifying database update...', updateData)
-    
-    if (!updateData || updateData.length === 0) {
-      console.error('❌ Database update verification failed: No rows affected')
-      
-      // Try to cleanup the channel
-      try {
-        await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${whapiPartnerToken}`
+        // Cleanup the created channel since we couldn't save it
+        try {
+          console.log('🗑️ Attempting to cleanup channel from WHAPI due to DB error...')
+          const deleteResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${whapiPartnerToken}`
+            }
+          })
+          
+          if (deleteResponse.ok) {
+            console.log('✅ Successfully cleaned up channel from WHAPI')
+          } else {
+            console.error('❌ Failed to cleanup channel from WHAPI:', deleteResponse.status)
           }
-        })
-      } catch (cleanupError) {
-        console.error('❌ Cleanup error:', cleanupError)
+        } catch (cleanupError) {
+          console.error('❌ Error during channel cleanup:', cleanupError)
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Both RPC and direct update failed', 
+            details: `RPC: ${rpcError.message}, Direct: ${updateError.message}` 
+          }),
+          { status: 500, headers: corsHeaders }
+        )
       }
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Database update failed - no rows affected'
-        }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
 
-    console.log('✅ Database update verified successfully:', {
-      savedInstanceId: updateData[0].instance_id,
-      savedStatus: updateData[0].instance_status,
-      hasToken: !!updateData[0].whapi_token
-    })
+      // Verify the direct update worked
+      if (!updateData || updateData.length === 0) {
+        console.error('❌ Database update verification failed: No rows affected')
+        
+        // Try to cleanup the channel
+        try {
+          await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${whapiPartnerToken}`
+            }
+          })
+        } catch (cleanupError) {
+          console.error('❌ Cleanup error:', cleanupError)
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Database update verification failed'
+          }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
+      console.log('✅ Direct database update verified:', {
+        savedInstanceId: updateData[0].instance_id,
+        savedStatus: updateData[0].instance_status,
+        hasToken: !!updateData[0].whapi_token
+      })
+    } else {
+      console.log('✅ RPC update successful')
+      
+      // Verify RPC update worked
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('profiles')
+        .select('instance_id, whapi_token, instance_status')
+        .eq('id', userId)
+        .single()
+
+      if (verifyError || !verifyData?.instance_id || !verifyData?.whapi_token) {
+        console.error('❌ RPC update verification failed:', { verifyError, verifyData })
+        
+        // Cleanup and return error
+        try {
+          await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${whapiPartnerToken}`
+            }
+          })
+        } catch (cleanupError) {
+          console.error('❌ Cleanup error:', cleanupError)
+        }
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'RPC update verification failed'
+          }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
+      console.log('✅ RPC update verified:', {
+        savedInstanceId: verifyData.instance_id,
+        savedStatus: verifyData.instance_status,
+        hasToken: !!verifyData.whapi_token
+      })
+    }
 
     console.log('✅ New channel creation completed successfully')
 
