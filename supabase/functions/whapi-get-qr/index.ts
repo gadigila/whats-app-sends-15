@@ -48,27 +48,52 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Found channel ID:', profile.instance_id)
 
-    console.log('📡 Getting QR with channel token...')
+    // Try both possible QR endpoints to handle API differences
+    const qrEndpoints = [
+      `https://gate.whapi.cloud/qr`,
+      `https://gate.whapi.cloud/channels/${profile.instance_id}/qr`
+    ]
 
-    // Get QR code from channel using channel token
-    const qrResponse = await fetch(`https://gate.whapi.cloud/channels/${profile.instance_id}/qr`, {
-      headers: {
-        'Authorization': `Bearer ${profile.whapi_token}`
+    let qrData = null
+    let lastError = null
+
+    for (const endpoint of qrEndpoints) {
+      try {
+        console.log('📡 Trying QR endpoint:', endpoint)
+        
+        const qrResponse = await fetch(endpoint, {
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`
+          }
+        })
+
+        console.log('📥 QR response status:', qrResponse.status, 'for endpoint:', endpoint)
+
+        if (qrResponse.ok) {
+          qrData = await qrResponse.json()
+          console.log('✅ QR data received from:', endpoint)
+          break
+        } else {
+          const errorText = await qrResponse.text()
+          lastError = {
+            status: qrResponse.status,
+            error: errorText,
+            endpoint
+          }
+          console.log('❌ QR request failed for endpoint:', endpoint, 'Status:', qrResponse.status)
+        }
+      } catch (error) {
+        console.error('❌ Error with endpoint:', endpoint, error)
+        lastError = { error: error.message, endpoint }
       }
-    })
+    }
 
-    console.log('📥 QR response status:', qrResponse.status)
-
-    if (!qrResponse.ok) {
-      const errorText = await qrResponse.text()
-      console.error('❌ QR request failed:', {
-        status: qrResponse.status,
-        error: errorText,
-        channelId: profile.instance_id
-      })
-
+    // If no endpoint worked, handle the error
+    if (!qrData) {
+      console.error('❌ All QR endpoints failed. Last error:', lastError)
+      
       // If it's a 404, the channel probably doesn't exist
-      if (qrResponse.status === 404) {
+      if (lastError?.status === 404) {
         console.log('🗑️ Channel not found (404), cleaning up database...')
         await supabase
           .from('profiles')
@@ -91,17 +116,17 @@ Deno.serve(async (req) => {
       
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to get QR code', 
-          details: `Status: ${qrResponse.status}, Error: ${errorText}` 
+          error: 'Failed to get QR code from all endpoints', 
+          details: lastError
         }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    const qrData = await qrResponse.json()
     console.log('📥 QR data received:', {
       hasImage: !!qrData?.image,
       hasQrCode: !!qrData?.qr_code,
+      hasBase64: !!qrData?.base64,
       keys: Object.keys(qrData || {})
     })
 
