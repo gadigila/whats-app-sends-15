@@ -1,5 +1,5 @@
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -8,21 +8,15 @@ export const useWhatsAppInstance = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Create WhatsApp instance
+  // Create WhatsApp instance using Partner API
   const createInstance = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
       console.log('Creating WhatsApp instance for user:', user.id);
       
-      // Build webhook URL for this Supabase project
-      const webhookUrl = 'https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/whatsapp-webhook';
-      
-      const { data, error } = await supabase.functions.invoke('create-whatsapp-instance', {
-        body: { 
-          userId: user.id,
-          webhookUrl: webhookUrl
-        }
+      const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
+        body: { userId: user.id }
       });
       
       if (error) throw error;
@@ -48,14 +42,14 @@ export const useWhatsAppInstance = () => {
     }
   });
 
-  // Get QR code
+  // Get QR code using Partner API
   const getQrCode = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
       console.log('Getting QR code for user:', user.id);
       
-      const { data, error } = await supabase.functions.invoke('get-whatsapp-qr', {
+      const { data, error } = await supabase.functions.invoke('whapi-get-qr', {
         body: { userId: user.id }
       });
       
@@ -74,12 +68,12 @@ export const useWhatsAppInstance = () => {
     }
   });
 
-  // Check instance status
+  // Check instance status using Partner API
   const checkInstanceStatus = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      const { data, error } = await supabase.functions.invoke('check-whatsapp-status', {
+      const { data, error } = await supabase.functions.invoke('whapi-check-status', {
         body: { userId: user.id }
       });
       
@@ -94,19 +88,25 @@ export const useWhatsAppInstance = () => {
     }
   });
 
-  // Delete instance
+  // Delete instance - simplified
   const deleteInstance = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      const { data, error } = await supabase.functions.invoke('manage-instance-lifecycle', {
-        body: { userId: user.id, action: 'delete' }
-      });
+      // For now, just clear the database - we can add WHAPI deletion later
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          instance_id: null,
+          whapi_token: null,
+          instance_status: 'disconnected',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
       
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       
-      return data;
+      return { success: true };
     },
     onSuccess: () => {
       console.log('Instance deleted successfully');

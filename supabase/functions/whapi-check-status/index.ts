@@ -11,20 +11,17 @@ interface CheckStatusRequest {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    // Create Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const whapiPartnerEmail = Deno.env.get('WHAPI_PARTNER_EMAIL')!
+    const whapiPartnerPassword = Deno.env.get('WHAPI_PARTNER_PASSWORD')!
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    console.log('Check WhatsApp Status: Starting...')
-
     const { userId }: CheckStatusRequest = await req.json()
 
     if (!userId) {
@@ -34,35 +31,52 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('Checking status for user:', userId)
+    console.log('🔍 Checking status for user:', userId)
 
-    // Get user's instance details
+    // Get user instance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, whapi_token, instance_status')
+      .select('instance_id, instance_status')
       .eq('id', userId)
       .single()
 
-    if (profileError || !profile?.instance_id || !profile?.whapi_token) {
+    if (profileError || !profile?.instance_id) {
       return new Response(
         JSON.stringify({ connected: false, error: 'No instance found' }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    console.log('Checking instance status with WHAPI...')
-
-    // Check instance status using the user token
-    const statusResponse = await fetch(`https://gate.whapi.cloud/instance/status?id=${profile.instance_id}`, {
-      method: 'GET',
+    // Login as partner
+    const loginResponse = await fetch('https://gateway.whapi.cloud/partner/v1/auth/login', {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${profile.whapi_token}`,
-        'Accept': 'application/json'
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: whapiPartnerEmail,
+        password: whapiPartnerPassword
+      })
+    })
+
+    if (!loginResponse.ok) {
+      return new Response(
+        JSON.stringify({ connected: false, error: 'Authentication failed' }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
+    const loginData = await loginResponse.json()
+    const partnerAccessToken = loginData?.token
+
+    // Check instance status
+    const statusResponse = await fetch(`https://gateway.whapi.cloud/partner/v1/instances/${profile.instance_id}/status`, {
+      headers: {
+        'Authorization': `Bearer ${partnerAccessToken}`
       }
     })
 
     if (!statusResponse.ok) {
-      console.error('WHAPI status check failed:', await statusResponse.text())
       return new Response(
         JSON.stringify({ connected: false, error: 'Status check failed' }),
         { status: 200, headers: corsHeaders }
@@ -70,11 +84,9 @@ Deno.serve(async (req) => {
     }
 
     const statusData = await statusResponse.json()
-    console.log('Status data:', statusData)
-
     const isConnected = statusData.status === 'active' || statusData.status === 'connected'
 
-    // Update instance status in database if connected
+    // Update status in database if connected
     if (isConnected && profile.instance_status !== 'connected') {
       await supabase
         .from('profiles')
@@ -84,6 +96,8 @@ Deno.serve(async (req) => {
         })
         .eq('id', userId)
     }
+
+    console.log('✅ Status check completed:', statusData.status)
 
     return new Response(
       JSON.stringify({
@@ -95,7 +109,7 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Check WhatsApp Status Error:', error)
+    console.error('💥 Check Status Error:', error)
     return new Response(
       JSON.stringify({ connected: false, error: error.message }),
       { status: 200, headers: corsHeaders }
