@@ -14,11 +14,27 @@ export class DatabaseService {
   async getUserProfile(userId: string): Promise<{ profile: UserProfile | null, error: any }> {
     const { data: profile, error } = await this.supabase
       .from('profiles')
-      .select('instance_id, whapi_token')
+      .select('instance_id, whapi_token, updated_at')
       .eq('id', userId)
       .single()
 
     return { profile, error }
+  }
+
+  async getChannelAge(userId: string): Promise<number | null> {
+    const { data: profile, error } = await this.supabase
+      .from('profiles')
+      .select('updated_at')
+      .eq('id', userId)
+      .single()
+
+    if (error || !profile?.updated_at) {
+      return null
+    }
+
+    const updatedAt = new Date(profile.updated_at)
+    const now = new Date()
+    return now.getTime() - updatedAt.getTime()
   }
 
   async clearInvalidInstance(userId: string): Promise<void> {

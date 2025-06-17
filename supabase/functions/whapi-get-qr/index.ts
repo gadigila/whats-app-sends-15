@@ -12,22 +12,26 @@ const corsHeaders = {
 // Helper function to wait/delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProcessor, instanceId: string, channelToken?: string, retryCount = 0): Promise<any> {
+async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProcessor, instanceId: string, channelToken: string, retryCount = 0): Promise<any> {
   const maxRetries = 3
-  const baseDelay = 2000 // 2 seconds
+  const baseDelay = 3000 // 3 seconds between retries
   
   try {
     console.log(`🔄 QR retrieval attempt ${retryCount + 1}/${maxRetries + 1}`)
     
-    // Try Manager API first (recommended approach)
-    let qrResponse = await whapiClient.getQrCode(instanceId)
-    console.log('📥 Manager API QR response status:', qrResponse.status)
+    if (!channelToken) {
+      throw new Error('Channel token is required for QR generation')
+    }
 
-    // If Manager API fails and we have channel token, try Gate API as fallback
-    if (!qrResponse.ok && channelToken) {
-      console.log('⚠️ Manager API failed, trying Gate API fallback...')
-      qrResponse = await whapiClient.getQrCodeFallback(instanceId, channelToken)
-      console.log('📥 Gate API QR response status:', qrResponse.status)
+    // Try primary QR endpoint first
+    let qrResponse = await whapiClient.getQrCode(instanceId, channelToken)
+    console.log('📥 WHAPI QR response status:', qrResponse.status)
+
+    // If primary fails, try image endpoint as fallback
+    if (!qrResponse.ok) {
+      console.log('⚠️ Primary QR endpoint failed, trying image endpoint...')
+      qrResponse = await whapiClient.getQrCodeImage(instanceId, channelToken)
+      console.log('📥 WHAPI QR image response status:', qrResponse.status)
     }
 
     if (qrResponse.ok) {
@@ -74,7 +78,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Read and parse request body once
     const requestBody = await req.text()
     console.log('📱 Request body received:', requestBody)
     
@@ -103,8 +106,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!profile.instance_id) {
-      console.log('🚨 No instance found, requires new instance')
+    if (!profile.instance_id || !profile.whapi_token) {
+      console.log('🚨 No instance or token found, requires new instance')
       return new Response(
         JSON.stringify(qrProcessor.createMissingInstanceResponse()),
         { status: 400, headers: corsHeaders }
@@ -112,8 +115,18 @@ Deno.serve(async (req) => {
     }
 
     console.log('🔍 Found instance ID:', profile.instance_id)
+    console.log('🔑 Using channel token for QR generation')
 
-    // Attempt QR retrieval with retry logic
+    // Check if channel was recently created (within last 2 minutes)
+    // and add appropriate delay if needed
+    const channelAge = await dbService.getChannelAge(userId)
+    if (channelAge !== null && channelAge < 120000) { // 2 minutes in milliseconds
+      const remainingWait = 120000 - channelAge
+      console.log(`⏳ Channel is ${channelAge}ms old, waiting additional ${remainingWait}ms for channel to be ready...`)
+      await delay(remainingWait)
+    }
+
+    // Attempt QR retrieval with retry logic using channel token
     const result = await attemptQrRetrieval(whapiClient, qrProcessor, profile.instance_id, profile.whapi_token)
     
     // Handle 404 errors (channel not found) by cleaning up database

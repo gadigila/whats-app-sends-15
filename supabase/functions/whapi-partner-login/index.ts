@@ -207,9 +207,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Add delay to allow channel to be ready before QR requests
-    console.log('⏳ Waiting 3 seconds for channel to be ready...')
-    await delay(3000)
+    // Wait 2 minutes for channel to be ready before allowing QR requests
+    // This follows WHAPI recommendation of 1.5-2 minutes delay
+    console.log('⏳ Channel created. QR generation will be available after 2-minute initialization period.')
 
     console.log('✅ New channel creation completed successfully')
 
@@ -219,8 +219,9 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        channel_ready: true,
-        message: 'New channel created successfully and ready for QR'
+        channel_ready: false, // Indicates QR should wait for initialization
+        initialization_time: 120000, // 2 minutes in milliseconds
+        message: 'New channel created successfully. Please wait 2 minutes before requesting QR code.'
       }),
       { status: 200, headers: corsHeaders }
     )
