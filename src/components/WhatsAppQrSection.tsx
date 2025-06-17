@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -15,6 +15,7 @@ interface WhatsAppQrSectionProps {
 const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQrSectionProps) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const { getQrCode, checkInstanceStatus } = useWhatsAppInstance();
 
   // Get QR code on mount
@@ -26,6 +27,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
     console.log('🔄 Getting QR code for user:', userId);
     
     setQrCode(null);
+    setStatus('loading');
     
     try {
       const result = await getQrCode.mutateAsync();
@@ -33,16 +35,19 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       if (result?.success && result.qr_code) {
         console.log('✅ QR code received successfully');
         setQrCode(result.qr_code);
+        setStatus('ready');
         setPolling(true);
         toast({
-          title: "QR Code Ready!",
-          description: "Scan the code with your WhatsApp.",
+          title: "QR Code מוכן!",
+          description: "סרוק את הקוד עם הוואטסאפ שלך",
         });
       } else {
-        throw new Error('QR code not received from server');
+        setStatus('error');
+        throw new Error(result?.error || 'QR code not received from server');
       }
     } catch (err: any) {
       console.error('💥 QR code request failed:', err);
+      setStatus('error');
       
       // Check if error indicates missing instance
       if (err.message?.includes('instance') || 
@@ -54,14 +59,14 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
       }
       
       toast({
-        title: "Error Getting QR Code",
-        description: err.message || 'Unknown error occurred',
+        title: "שגיאה בקבלת QR Code",
+        description: err.message || 'אירעה שגיאה לא ידועה',
         variant: "destructive",
       });
     }
   };
 
-  // Poll for connection
+  // Poll for connection with webhook awareness
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (polling) {
@@ -73,14 +78,14 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           
           console.log('📥 Status check response:', result);
           
-          if (result?.connected) {
+          if (result?.connected || result?.status === 'connected') {
             console.log('🎉 WhatsApp connected successfully!');
             setPolling(false);
             setQrCode(null);
             onConnected();
             toast({
-              title: "WhatsApp Connected!",
-              description: "Connection established successfully.",
+              title: "וואטסאפ מחובר!",
+              description: "החיבור הושלם בהצלחה",
             });
           } else if (result?.requiresNewInstance) {
             console.log('🚨 Instance requires recreation');
@@ -110,28 +115,31 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
     };
   }, [polling, userId, onConnected, onMissingInstance]);
 
-  if (getQrCode.isError) {
+  if (status === 'error' && !qrCode) {
     return (
       <div className="text-center space-y-4">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Error: {getQrCode.error?.message}
+            שגיאה: {getQrCode.error?.message || 'לא ניתן לטעון QR Code'}
           </AlertDescription>
         </Alert>
         <Button onClick={handleGetQrCode} disabled={getQrCode.isPending} variant="outline">
-          {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Try Again
+          {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          נסה שוב
         </Button>
       </div>
     );
   }
 
-  if (!qrCode) {
+  if (status === 'loading' || !qrCode) {
     return (
       <div className="flex flex-col items-center space-y-4">
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <span className="text-gray-700">Loading QR Code...</span>
+        <span className="text-gray-700">טוען QR Code...</span>
+        <div className="text-xs text-gray-500 text-center">
+          הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת 1-2 דקות...
+        </div>
       </div>
     );
   }
@@ -145,23 +153,30 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           className="w-64 h-64 mx-auto"
           onError={(e) => {
             console.error('🖼️ QR image failed to load:', e);
+            setStatus('error');
             toast({
-              title: "Error Loading QR Code",
-              description: "Try refreshing the code",
+              title: "שגיאה בטעינת QR Code",
+              description: "נסה לרענן את הקוד",
               variant: "destructive",
             });
           }}
         />
       </div>
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold text-gray-900">Scan QR Code</h2>
+        <h2 className="text-xl font-semibold text-gray-900">סרוק QR Code</h2>
         <p className="text-sm text-gray-600">
-          Open WhatsApp → Settings → Linked Devices → Link a Device
+          פתח וואטסאפ ← הגדרות ← מכשירים מקושרים ← קשר מכשיר
         </p>
+        {polling && (
+          <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            מחכה לסריקת הקוד...
+          </div>
+        )}
       </div>
       <Button onClick={handleGetQrCode} variant="outline" disabled={getQrCode.isPending}>
-        {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-        Refresh QR Code
+        {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+        רענן QR Code
       </Button>
     </div>
   );

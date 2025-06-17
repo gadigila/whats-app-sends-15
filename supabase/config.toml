@@ -24,3 +24,6 @@ verify_jwt = false
 
 [functions.whapi-check-status]
 verify_jwt = false
+
+[functions.whapi-webhook]
+verify_jwt = false

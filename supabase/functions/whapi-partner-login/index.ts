@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
     console.log('👤 Processing request for user:', userId)
 
-    // Start a database transaction to check and prevent duplicate channels
+    // Check if user already has a valid instance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status, updated_at')
@@ -62,21 +62,20 @@ Deno.serve(async (req) => {
     }
 
     // If user already has a valid instance, return it
-    if (profile?.instance_id && profile?.whapi_token && profile?.instance_status !== 'deleted') {
+    if (profile?.instance_id && profile?.whapi_token && profile?.instance_status !== 'disconnected') {
       console.log('✅ User already has existing instance:', profile.instance_id, 'Status:', profile.instance_status)
       return new Response(
         JSON.stringify({
           success: true,
           channel_id: profile.instance_id,
           message: 'Using existing instance',
-          channel_ready: true
+          channel_ready: profile.instance_status === 'authorized'
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    // Only create new instance if user doesn't have one
-    console.log('🏗️ No existing instance found, creating new one...')
+    console.log('🏗️ Creating new instance...')
 
     // Get project ID with fallback mechanism
     if (!whapiProjectId) {
@@ -173,17 +172,41 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Save channel data to user profile with atomic operation
-    const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-    const updateData = {
-      instance_id: channelId,
-      whapi_token: channelToken,
-      instance_status: 'unauthorized',
-      payment_plan: 'trial',
-      trial_expires_at: trialExpiresAt,
-      updated_at: new Date().toISOString()
+    // Setup webhook for the channel
+    console.log('🔗 Setting up webhook for channel:', channelId)
+    const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
+    
+    try {
+      const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${channelToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          webhooks: [{
+            url: webhookUrl,
+            events: ['users', 'channel'],
+            mode: 'body'
+          }]
+        })
+      })
+
+      if (webhookResponse.ok) {
+        console.log('✅ Webhook setup successful')
+      } else {
+        const webhookError = await webhookResponse.text()
+        console.error('⚠️ Webhook setup failed:', webhookError)
+        // Continue anyway - webhook failure shouldn't block channel creation
+      }
+    } catch (webhookError) {
+      console.error('⚠️ Webhook setup error:', webhookError)
+      // Continue anyway
     }
 
+    // Save channel data to user profile using raw SQL for better reliability
+    const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+    
     console.log('💾 Saving channel data to database...', {
       userId,
       channelId,
@@ -191,12 +214,15 @@ Deno.serve(async (req) => {
       status: 'unauthorized'
     })
 
-    // Use a transaction-like approach with immediate verification
-    const { data: updateResult, error: updateError } = await supabase
-      .from('profiles')
-      .update(updateData)
-      .eq('id', userId)
-      .select('instance_id, whapi_token, instance_status')
+    // Use raw SQL update for maximum reliability
+    const { data: updateResult, error: updateError } = await supabase.rpc('update_user_instance', {
+      user_id: userId,
+      new_instance_id: channelId,
+      new_whapi_token: channelToken,
+      new_status: 'unauthorized',
+      new_plan: 'trial',
+      new_trial_expires: trialExpiresAt
+    })
 
     if (updateError) {
       console.error('❌ Failed to update user profile:', updateError)
@@ -230,12 +256,17 @@ Deno.serve(async (req) => {
     }
 
     // Verify the data was actually saved
-    if (!updateResult || updateResult.length === 0 || !updateResult[0]?.instance_id || !updateResult[0]?.whapi_token) {
+    const { data: verifyProfile, error: verifyError } = await supabase
+      .from('profiles')
+      .select('instance_id, whapi_token, instance_status')
+      .eq('id', userId)
+      .single()
+
+    if (verifyError || !verifyProfile?.instance_id || !verifyProfile?.whapi_token) {
       console.error('❌ Database update verification failed:', {
-        hasResult: !!updateResult,
-        resultLength: updateResult?.length || 0,
-        hasInstanceId: !!updateResult?.[0]?.instance_id,
-        hasToken: !!updateResult?.[0]?.whapi_token
+        verifyError,
+        hasInstanceId: !!verifyProfile?.instance_id,
+        hasToken: !!verifyProfile?.whapi_token
       })
       
       // Try to cleanup the channel
@@ -259,9 +290,9 @@ Deno.serve(async (req) => {
     }
 
     console.log('✅ Database update verified successfully:', {
-      savedInstanceId: updateResult[0].instance_id,
-      savedStatus: updateResult[0].instance_status,
-      hasToken: !!updateResult[0].whapi_token
+      savedInstanceId: verifyProfile.instance_id,
+      savedStatus: verifyProfile.instance_status,
+      hasToken: !!verifyProfile.whapi_token
     })
 
     console.log('✅ New channel creation completed successfully')
@@ -272,9 +303,9 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        channel_ready: false, // Channel needs 1.5-2 minutes to initialize
+        channel_ready: false, // Channel needs webhook confirmation to be ready
         initialization_time: 120000, // 2 minutes in milliseconds
-        message: 'New channel created successfully. Please wait 2 minutes before requesting QR code.'
+        message: 'New channel created successfully. Webhooks configured. Waiting for channel initialization.'
       }),
       { status: 200, headers: corsHeaders }
     )

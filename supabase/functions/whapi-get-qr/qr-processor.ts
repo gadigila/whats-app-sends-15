@@ -1,128 +1,123 @@
 
-import type { QrResponse } from './types.ts'
-
 export class QrProcessor {
-  processQrResponse(qrData: any): QrResponse {
-    console.log('✅ QR data received:', Object.keys(qrData))
-    console.log('📋 QR response structure:', JSON.stringify(qrData, null, 2))
+  processQrResponse(qrData: any): any {
+    console.log('🔄 Processing QR response:', Object.keys(qrData))
     
-    // Handle different possible response formats from WHAPI loginuser endpoints
-    let qrCodeUrl = null
-    
-    // Check for direct QR code in various formats
-    if (qrData.qrCode) {
-      qrCodeUrl = this.formatQrCode(qrData.qrCode)
-    } else if (qrData.qr_code) {
-      qrCodeUrl = this.formatQrCode(qrData.qr_code)
-    } else if (qrData.qr) {
-      qrCodeUrl = this.formatQrCode(qrData.qr)
-    } else if (qrData.image) {
-      qrCodeUrl = this.formatQrCode(qrData.image)
-    } else if (qrData.data?.qrCode) {
-      qrCodeUrl = this.formatQrCode(qrData.data.qrCode)
-    } else if (qrData.data?.qr_code) {
-      qrCodeUrl = this.formatQrCode(qrData.data.qr_code)
-    } else if (qrData.data?.qr) {
-      qrCodeUrl = this.formatQrCode(qrData.data.qr)
-    } else if (qrData.result?.qrCode) {
-      qrCodeUrl = this.formatQrCode(qrData.result.qrCode)
-    } else if (typeof qrData === 'string') {
-      // Sometimes the response might be a direct base64 string
-      qrCodeUrl = this.formatQrCode(qrData)
-    }
-    
-    if (qrCodeUrl) {
-      console.log('✅ QR code processed successfully')
+    if (qrData.qr) {
+      console.log('✅ QR code found in response')
+      // Handle base64 QR code
+      let qrCode = qrData.qr
+      if (!qrCode.startsWith('data:image/')) {
+        qrCode = `data:image/png;base64,${qrCode}`
+      }
+      
       return {
         success: true,
-        qr_code: qrCodeUrl,
-        message: 'QR code retrieved successfully'
+        qr_code: qrCode,
+        message: 'QR code generated successfully'
+      }
+    } else if (qrData.qrCode) {
+      console.log('✅ QR code found in qrCode field')
+      let qrCode = qrData.qrCode
+      if (!qrCode.startsWith('data:image/')) {
+        qrCode = `data:image/png;base64,${qrCode}`
+      }
+      
+      return {
+        success: true,
+        qr_code: qrCode,
+        message: 'QR code generated successfully'
+      }
+    } else if (qrData.image) {
+      console.log('✅ QR code found in image field')
+      let qrCode = qrData.image
+      if (!qrCode.startsWith('data:image/')) {
+        qrCode = `data:image/png;base64,${qrCode}`
+      }
+      
+      return {
+        success: true,
+        qr_code: qrCode,
+        message: 'QR code generated successfully'
+      }
+    } else if (qrData.data && qrData.data.qr) {
+      console.log('✅ QR code found in data.qr field')
+      let qrCode = qrData.data.qr
+      if (!qrCode.startsWith('data:image/')) {
+        qrCode = `data:image/png;base64,${qrCode}`
+      }
+      
+      return {
+        success: true,
+        qr_code: qrCode,
+        message: 'QR code generated successfully'
       }
     } else {
-      console.error('⚠️ No QR code found in API response:', qrData)
-      return {
-        success: false,
-        error: 'No QR code in API response',
-        details: { responseKeys: Object.keys(qrData), response: qrData }
+      console.log('⚠️ No QR code found in response, checking for success status')
+      
+      // Check if it's a success response without QR (maybe already connected)
+      if (qrData.success === true || qrData.status === 'success') {
+        return {
+          success: false,
+          error: 'Channel may already be connected or QR not available',
+          requiresNewInstance: false,
+          retryable: true
+        }
       }
-    }
-  }
-
-  private formatQrCode(qrCode: string): string {
-    if (!qrCode) return ''
-    
-    // If it's already a data URL, return as is
-    if (qrCode.startsWith('data:image/')) {
-      return qrCode
-    }
-    
-    // If it's a base64 string, format it as data URL
-    if (qrCode.match(/^[A-Za-z0-9+/]+=*$/)) {
-      return `data:image/png;base64,${qrCode}`
-    }
-    
-    // If it's a URL, return as is
-    if (qrCode.startsWith('http')) {
-      return qrCode
-    }
-    
-    // Default: assume it's base64
-    return `data:image/png;base64,${qrCode}`
-  }
-
-  createErrorResponse(status: number, errorText: string, instanceId: string): QrResponse {
-    // Enhanced error handling for WHAPI specific errors
-    const isChannelNotReady = status === 503 || 
-                               status === 400 ||
-                               errorText.includes('Service Temporary Unavailable') ||
-                               errorText.includes('temporarily unavailable') ||
-                               errorText.includes('not ready') ||
-                               errorText.includes('unauthorized')
-    
-    const isChannelNotFound = status === 404 ||
-                              errorText.includes('not found') ||
-                              errorText.includes('channel not found')
-    
-    if (isChannelNotFound) {
+      
+      console.error('❌ No QR code found in response:', qrData)
       return {
         success: false,
-        error: 'Channel not found',
-        requiresNewInstance: true,
-        details: { status, error: errorText, instanceId }
-      }
-    }
-    
-    if (isChannelNotReady) {
-      return {
-        success: false,
-        error: 'Channel not ready for QR generation yet',
-        details: { status, error: errorText, instanceId },
+        error: 'QR code not found in response',
+        details: qrData,
         retryable: true
       }
     }
+  }
+
+  createErrorResponse(status: number, errorText: string, instanceId: string): any {
+    console.error('❌ Creating error response:', { status, errorText, instanceId })
+    
+    // Determine if error is retryable
+    const retryable = status >= 500 || status === 429 || status === 502 || status === 503 || status === 504
+    
+    // Determine if new instance is required
+    const requiresNewInstance = status === 404 || errorText.includes('not found') || errorText.includes('does not exist')
     
     return {
       success: false,
-      error: 'Failed to get QR code from API',
-      details: { status, error: errorText, instanceId },
-      retryable: status >= 500 && status < 600 // 5xx errors are generally retryable
+      error: `WHAPI request failed: ${status}`,
+      details: {
+        status,
+        error: errorText,
+        instanceId
+      },
+      retryable,
+      requiresNewInstance
     }
   }
 
-  createNetworkErrorResponse(error: Error): QrResponse {
+  createNetworkErrorResponse(error: any): any {
+    console.error('❌ Creating network error response:', error)
+    
     return {
       success: false,
-      error: 'Network error connecting to API',
-      details: error.message,
-      retryable: true
+      error: 'Network error occurred',
+      details: error.message || 'Unknown network error',
+      retryable: true,
+      requiresNewInstance: false
     }
   }
 
-  createMissingInstanceResponse(): QrResponse {
+  createMissingInstanceResponse(): any {
+    console.log('🚨 Creating missing instance response')
+    
     return {
       success: false,
-      error: 'WhatsApp instance not found',
-      requiresNewInstance: true
+      error: 'No instance or token found',
+      message: 'Please create a new instance first',
+      requiresNewInstance: true,
+      retryable: false
     }
   }
 }
