@@ -19,17 +19,15 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
+    const whapiPartnerEmail = Deno.env.get('WHAPI_PARTNER_EMAIL')!
+    const whapiPartnerPassword = Deno.env.get('WHAPI_PARTNER_PASSWORD')!
     
     console.log('🔐 WHAPI Partner Login: Starting...')
-    console.log('🔍 Environment check:', {
-      hasToken: !!whapiPartnerToken,
-      tokenLength: whapiPartnerToken ? whapiPartnerToken.length : 0
-    })
     
-    if (!whapiPartnerToken) {
-      console.error('❌ Missing WHAPI partner token')
+    if (!whapiPartnerToken || !whapiPartnerEmail || !whapiPartnerPassword) {
+      console.error('❌ Missing WHAPI partner credentials')
       return new Response(
-        JSON.stringify({ error: 'WHAPI partner token not configured' }),
+        JSON.stringify({ error: 'WHAPI partner credentials not configured' }),
         { status: 500, headers: corsHeaders }
       )
     }
@@ -44,31 +42,67 @@ Deno.serve(async (req) => {
       )
     }
 
-    // First, verify the Partner Token works by checking partner info
-    console.log('🔍 Verifying Partner Token...')
-    const verifyResponse = await fetch('https://gateway.whapi.cloud/partner/v1/instances', {
+    // Step 1: Login to WHAPI Partner API to get access token
+    console.log('🔑 Authenticating with WHAPI Partner API...')
+    const loginResponse = await fetch('https://gateway.whapi.cloud/partner/v1/auth/login', {
+      method: 'POST',
       headers: {
-        'x-api-key': whapiPartnerToken
-      }
+        'x-api-key': whapiPartnerToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: whapiPartnerEmail,
+        password: whapiPartnerPassword
+      })
     })
 
-    if (!verifyResponse.ok) {
-      const errorText = await verifyResponse.text()
-      console.error('❌ Partner Token verification failed:', {
-        status: verifyResponse.status,
+    if (!loginResponse.ok) {
+      const errorText = await loginResponse.text()
+      console.error('❌ WHAPI login failed:', {
+        status: loginResponse.status,
         error: errorText
       })
       return new Response(
         JSON.stringify({ 
-          error: 'Invalid Partner Token or insufficient permissions', 
-          details: `Status: ${verifyResponse.status}, Error: ${errorText}` 
+          error: 'Failed to authenticate with WHAPI', 
+          details: `Status: ${loginResponse.status}, Error: ${errorText}` 
         }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    const existingInstances = await verifyResponse.json()
-    console.log('✅ Partner Token verified. Existing instances:', existingInstances?.length || 0)
+    const loginData = await loginResponse.json()
+    const accessToken = loginData?.accessToken || loginData?.access_token
+
+    if (!accessToken) {
+      console.error('❌ No access token received from WHAPI login:', loginData)
+      return new Response(
+        JSON.stringify({ error: 'No access token received from WHAPI' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    console.log('✅ WHAPI authentication successful')
+
+    // Step 2: Check existing instances
+    console.log('🔍 Checking existing instances...')
+    const instancesResponse = await fetch('https://gateway.whapi.cloud/partner/v1/instances', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    })
+
+    if (!instancesResponse.ok) {
+      const errorText = await instancesResponse.text()
+      console.error('❌ Failed to list instances:', errorText)
+      return new Response(
+        JSON.stringify({ error: 'Failed to list instances' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    const existingInstances = await instancesResponse.json()
+    console.log('📋 Found existing instances:', existingInstances?.length || 0)
 
     // Check if user already has an instance in our database
     const { data: profile, error: profileError } = await supabase
@@ -102,23 +136,22 @@ Deno.serve(async (req) => {
           JSON.stringify({
             success: true,
             instance_id: profile.instance_id,
-            message: 'Instance already exists and is valid'
+            message: 'Instance already exists and is valid',
+            access_token: accessToken
           }),
           { status: 200, headers: corsHeaders }
         )
       }
     }
 
-    console.log('🏗️ Creating new instance with Partner Token...')
-
-    // Create new instance using Partner Token
+    // Step 3: Create new instance
+    console.log('🏗️ Creating new instance...')
     const webhookUrl = `${supabaseUrl}/functions/v1/whatsapp-webhook`
     
-    console.log('🏗️ Creating instance with webhook:', webhookUrl)
     const createInstanceResponse = await fetch('https://gateway.whapi.cloud/partner/v1/instances', {
       method: 'POST',
       headers: {
-        'x-api-key': whapiPartnerToken,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -147,12 +180,10 @@ Deno.serve(async (req) => {
     const instanceData = await createInstanceResponse.json()
     console.log('✅ Instance created successfully:', {
       hasInstanceId: !!instanceData?.instanceId || !!instanceData?.id,
-      hasToken: !!instanceData?.token,
       responseKeys: Object.keys(instanceData || {})
     })
 
     const instanceId = instanceData?.instanceId || instanceData?.id
-    const instanceToken = instanceData?.token
 
     if (!instanceId) {
       console.error('❌ No instance ID received from WHAPI:', instanceData)
@@ -165,7 +196,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Save instance data to user profile ONLY after successful creation
+    // Step 4: Save instance data to user profile
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
 
     console.log('💾 Saving instance data to database...')
@@ -173,7 +204,6 @@ Deno.serve(async (req) => {
       .from('profiles')
       .update({
         instance_id: instanceId,
-        whapi_token: instanceToken,
         instance_status: 'created',
         payment_plan: 'trial',
         trial_expires_at: trialExpiresAt,
@@ -189,7 +219,7 @@ Deno.serve(async (req) => {
         await fetch(`https://gateway.whapi.cloud/partner/v1/instances/${instanceId}`, {
           method: 'DELETE',
           headers: {
-            'x-api-key': whapiPartnerToken
+            'Authorization': `Bearer ${accessToken}`
           }
         })
         console.log('🗑️ Cleaned up instance from WHAPI due to DB error')
@@ -210,6 +240,7 @@ Deno.serve(async (req) => {
         success: true,
         instance_id: instanceId,
         trial_expires_at: trialExpiresAt,
+        access_token: accessToken,
         message: 'Instance created successfully'
       }),
       { status: 200, headers: corsHeaders }
