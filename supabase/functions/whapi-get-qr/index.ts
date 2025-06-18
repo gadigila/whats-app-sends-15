@@ -30,6 +30,7 @@ async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProce
     if (qrResponse.ok) {
       const qrData = await qrResponse.json()
       console.log('✅ QR data received:', Object.keys(qrData))
+      console.log('🔍 Raw QR response for debugging:', JSON.stringify(qrData, null, 2))
       return qrProcessor.processQrResponse(qrData)
     } else {
       const errorText = await qrResponse.text()
@@ -99,6 +100,13 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log('🔍 Current user profile status:', {
+      hasInstanceId: !!profile.instance_id,
+      hasToken: !!profile.whapi_token,
+      instanceStatus: profile.instance_status,
+      lastUpdated: profile.updated_at
+    })
+
     if (!profile.instance_id || !profile.whapi_token) {
       console.log('🚨 No instance or token found, requires new instance')
       return new Response(
@@ -107,8 +115,54 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('🔍 Found instance ID:', profile.instance_id)
-    console.log('🔑 Using channel token for QR generation')
+    // ENHANCED: Check if instance is in the correct state for QR generation
+    if (profile.instance_status !== 'unauthorized') {
+      console.log('⚠️ Instance not ready for QR generation:', {
+        currentStatus: profile.instance_status,
+        requiredStatus: 'unauthorized',
+        instanceId: profile.instance_id
+      })
+      
+      if (profile.instance_status === 'initializing') {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Instance still initializing',
+            message: 'Please wait for webhook to confirm unauthorized status',
+            requiresNewInstance: false,
+            retryable: true
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      } else if (profile.instance_status === 'connected') {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Instance already connected',
+            message: 'QR code not needed - instance is already authenticated',
+            requiresNewInstance: false,
+            retryable: false
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      } else {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Instance not in QR-ready state: ${profile.instance_status}`,
+            message: 'Please wait for unauthorized status from WHAPI webhook',
+            requiresNewInstance: false,
+            retryable: true
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      }
+    }
+
+    console.log('✅ Instance ready for QR generation:', {
+      instanceId: profile.instance_id,
+      status: profile.instance_status
+    })
 
     // Check if channel was recently created (within last 1 minute)
     const channelAge = await dbService.getChannelAge(userId)

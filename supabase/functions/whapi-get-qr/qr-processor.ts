@@ -1,12 +1,24 @@
 
 export class QrProcessor {
   processQrResponse(qrData: any): any {
-    console.log('🔄 Processing QR response:', Object.keys(qrData))
+    console.log('🔄 Processing QR response with enhanced detection...')
+    console.log('📥 Raw response structure:', {
+      keys: Object.keys(qrData),
+      hasQr: 'qr' in qrData,
+      hasQrCode: 'qrCode' in qrData,
+      hasImage: 'image' in qrData,
+      hasType: 'type' in qrData,
+      hasMessage: 'message' in qrData,
+      hasData: 'data' in qrData,
+      dataType: qrData.data ? typeof qrData.data : 'undefined'
+    })
     
-    // Handle WHAPI QR response format from GET /instance/qr
+    // ENHANCED: Handle WHAPI's various QR response formats
+    
+    // Format 1: Direct QR fields
     if (qrData.qr || qrData.qrCode || qrData.image) {
       const qrCode = qrData.qr || qrData.qrCode || qrData.image
-      console.log('✅ QR code found in response')
+      console.log('✅ QR code found in direct field')
       
       // Ensure proper base64 formatting
       let formattedQrCode = qrCode
@@ -19,7 +31,10 @@ export class QrProcessor {
         qr_code: formattedQrCode,
         message: 'QR code generated successfully'
       }
-    } else if (qrData.data && qrData.data.qr) {
+    }
+    
+    // Format 2: Nested in data object
+    else if (qrData.data && qrData.data.qr) {
       console.log('✅ QR code found in data.qr field')
       let qrCode = qrData.data.qr
       if (!qrCode.startsWith('data:image/')) {
@@ -31,24 +46,56 @@ export class QrProcessor {
         qr_code: qrCode,
         message: 'QR code generated successfully'
       }
-    } else {
-      console.log('⚠️ No QR code found in response, checking for success status')
-      
-      // Check if it's a success response without QR (maybe already connected)
-      if (qrData.success === true || qrData.status === 'success') {
-        return {
-          success: false,
-          error: 'Channel may already be connected or QR not available',
-          requiresNewInstance: false,
-          retryable: true
-        }
+    }
+    
+    // Format 3: WHAPI type/message format
+    else if (qrData.type === 'qrCode' && qrData.message) {
+      console.log('✅ QR code found in type/message format')
+      let qrCode = qrData.message
+      if (!qrCode.startsWith('data:image/')) {
+        qrCode = `data:image/png;base64,${qrCode}`
       }
       
-      console.error('❌ No QR code found in response:', qrData)
+      return {
+        success: true,
+        qr_code: qrCode,
+        message: 'QR code generated successfully'
+      }
+    }
+    
+    // Format 4: Check for success status without QR (maybe already connected)
+    else if (qrData.success === true || qrData.status === 'success') {
+      console.log('⚠️ Success response without QR - possibly already connected')
+      return {
+        success: false,
+        error: 'Channel may already be connected or QR not available',
+        requiresNewInstance: false,
+        retryable: true
+      }
+    }
+    
+    // Format 5: Error responses
+    else if (qrData.error || qrData.errors) {
+      const errorMessage = qrData.error || (qrData.errors && qrData.errors[0] ? qrData.errors[0].message : 'Unknown error')
+      console.error('❌ Error in QR response:', errorMessage)
+      return {
+        success: false,
+        error: errorMessage,
+        details: qrData,
+        retryable: true
+      }
+    }
+    
+    // Format 6: Unknown format
+    else {
+      console.error('❌ No QR code found in response. Unknown format:', qrData)
       return {
         success: false,
         error: 'QR code not found in response',
-        details: qrData,
+        details: {
+          responseKeys: Object.keys(qrData),
+          fullResponse: qrData
+        },
         retryable: true
       }
     }

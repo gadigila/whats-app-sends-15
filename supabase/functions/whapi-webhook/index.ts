@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -26,7 +25,8 @@ Deno.serve(async (req) => {
       console.log('📢 Channel status update:', {
         event,
         status: data.status,
-        channelId: data.id
+        channelId: data.id,
+        timestamp: new Date().toISOString()
       })
 
       // Find user by instance_id and update status
@@ -49,15 +49,24 @@ Deno.serve(async (req) => {
           console.log('👤 Found profile for channel update:', {
             userId: profile.id,
             currentStatus: profile.instance_status,
-            newStatus: data.status
+            incomingStatus: data.status
           })
 
-          // Map WHAPI status to our internal status
+          // ENHANCED: Map WHAPI status to our internal status with better logic
           let newStatus = data.status
-          if (data.status === 'ready') {
+          
+          if (data.status === 'unauthorized') {
+            // This is the key status we're waiting for - QR is now ready
+            newStatus = 'unauthorized'
+            console.log('🎯 Channel is now ready for QR generation!')
+          } else if (data.status === 'ready') {
             newStatus = 'authorized'
           } else if (data.status === 'authenticated') {
             newStatus = 'connected'
+            console.log('🎉 WhatsApp session is now connected!')
+          } else {
+            // Keep the original status for any other cases
+            console.log('📝 Keeping status as received:', data.status)
           }
 
           // Update the profile status
@@ -74,7 +83,9 @@ Deno.serve(async (req) => {
           } else {
             console.log('✅ Profile status updated successfully:', {
               userId: profile.id,
-              newStatus
+              oldStatus: profile.instance_status,
+              newStatus: newStatus,
+              webhookStatus: data.status
             })
           }
         } else {
@@ -95,6 +106,8 @@ Deno.serve(async (req) => {
         // For now, we'll just log this as we may need additional mapping
         console.log('🔐 User authenticated:', data.phone)
       }
+    } else {
+      console.log('📝 Received webhook event:', event, 'with data:', data)
     }
 
     // Always return success to WHAPI

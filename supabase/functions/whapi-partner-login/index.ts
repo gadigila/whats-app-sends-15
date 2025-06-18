@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
           success: true,
           channel_id: profile.instance_id,
           message: 'Using existing instance',
-          channel_ready: profile.instance_status === 'authorized' || profile.instance_status === 'connected'
+          channel_ready: profile.instance_status === 'unauthorized' || profile.instance_status === 'connected'
         }),
         { status: 200, headers: corsHeaders }
       )
@@ -153,7 +153,8 @@ Deno.serve(async (req) => {
       hasToken: !!channelData?.token,
       hasId: !!channelData?.id,
       projectId: whapiProjectId,
-      channelId: channelData?.id
+      channelId: channelData?.id,
+      managerStatus: channelData?.status
     })
 
     const channelId = channelData?.id
@@ -201,10 +202,10 @@ Deno.serve(async (req) => {
       // Continue anyway
     }
 
-    // Save channel data to user profile - direct update approach
+    // Save channel data to user profile - CRITICAL FIX: Set status to 'initializing'
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
-    console.log('💾 Saving channel data to database via direct update...', {
+    console.log('💾 Saving channel data to database with INITIALIZING status...', {
       userId,
       channelId,
       hasToken: !!channelToken
@@ -216,7 +217,7 @@ Deno.serve(async (req) => {
       .update({
         instance_id: channelId,
         whapi_token: channelToken,
-        instance_status: 'unauthorized',
+        instance_status: 'initializing', // FIXED: Changed from 'unauthorized' to 'initializing'
         payment_plan: 'trial',
         trial_expires_at: trialExpiresAt,
         updated_at: new Date().toISOString()
@@ -287,7 +288,7 @@ Deno.serve(async (req) => {
       hasToken: !!updateData[0].whapi_token
     })
 
-    console.log('✅ New channel creation completed successfully')
+    console.log('✅ New channel creation completed successfully with INITIALIZING status')
 
     return new Response(
       JSON.stringify({
@@ -295,9 +296,9 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        channel_ready: false,
+        channel_ready: false, // Changed to false since we're in initializing state
         initialization_time: 60000, // 1 minute
-        message: 'New channel created successfully. Webhooks configured. Channel ready for QR generation.'
+        message: 'New channel created with initializing status. Waiting for webhook to confirm unauthorized status for QR generation.'
       }),
       { status: 200, headers: corsHeaders }
     )
