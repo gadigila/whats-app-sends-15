@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
@@ -15,6 +16,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [retryCount, setRetryCount] = useState(0);
   const { getQrCode, checkInstanceStatus, manualStatusSync } = useWhatsAppInstance();
 
   // Get QR code on mount
@@ -23,7 +25,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
   }, []);
 
   const handleGetQrCode = async () => {
-    console.log('🔄 Getting QR code for user:', userId);
+    console.log('🔄 Getting QR code for user:', userId, 'attempt:', retryCount + 1);
     
     setQrCode(null);
     setStatus('loading');
@@ -31,39 +33,51 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
     try {
       const result = await getQrCode.mutateAsync();
       
+      console.log('📥 QR code result:', result);
+      
       if (result?.success && result.qr_code) {
         console.log('✅ QR code received successfully');
         
-        // The QR code should already be properly formatted from the backend
         setQrCode(result.qr_code);
         setStatus('ready');
         setPolling(true);
+        setRetryCount(0); // Reset retry count on success
+        
         toast({
           title: "QR Code מוכן!",
           description: "סרוק את הקוד עם הוואטסאפ שלך",
         });
       } else {
+        console.error('❌ QR code response invalid:', result);
         setStatus('error');
         throw new Error(result?.error || 'QR code not received from server');
       }
     } catch (err: any) {
       console.error('💥 QR code request failed:', err);
       setStatus('error');
+      setRetryCount(prev => prev + 1);
       
-      // Check if error indicates missing instance
-      if (err.message?.includes('instance') || 
-          err.message?.includes('not found') || 
-          err.message?.includes('requiresNewInstance')) {
+      // Enhanced error handling
+      if (err.message?.includes('Instance still initializing')) {
+        console.log('⏳ Instance still initializing, will try manual sync');
+        toast({
+          title: "Instance עדיין מתאתחל",
+          description: "נסה בדיקת סטטוס ידנית או המתן עוד קצת",
+          variant: "destructive",
+        });
+      } else if (err.message?.includes('instance') || 
+                 err.message?.includes('not found') || 
+                 err.message?.includes('requiresNewInstance')) {
         console.log('🚨 Missing instance detected');
         onMissingInstance();
         return;
+      } else {
+        toast({
+          title: "שגיאה בקבלת QR Code",
+          description: err.message || 'אירעה שגיאה לא ידועה',
+          variant: "destructive",
+        });
       }
-      
-      toast({
-        title: "שגיאה בקבלת QR Code",
-        description: err.message || 'אירעה שגיאה לא ידועה',
-        variant: "destructive",
-      });
     }
   };
 
@@ -71,20 +85,47 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
     console.log('🔄 Manual status sync triggered');
     try {
       const result = await manualStatusSync.mutateAsync();
+      console.log('📥 Manual sync result:', result);
       
       if (result?.newStatus === 'unauthorized') {
         console.log('✅ Status synced to unauthorized, retrying QR...');
+        toast({
+          title: "סטטוס מסונכרן",
+          description: "נסה כעת לקבל QR Code",
+        });
         // Wait a moment then try QR again
         setTimeout(() => {
           handleGetQrCode();
         }, 1000);
+      } else if (result?.newStatus === 'connected') {
+        console.log('🎉 Already connected!');
+        onConnected();
+      } else if (result?.requiresNewInstance) {
+        console.log('🚨 Instance requires recreation');
+        onMissingInstance();
+      } else {
+        toast({
+          title: "סטטוס נבדק",
+          description: result?.message || "הסטטוס נבדק בהצלחה",
+        });
       }
     } catch (err: any) {
       console.error('💥 Manual sync failed:', err);
+      
+      if (err.message?.includes('requiresNewInstance')) {
+        console.log('🚨 Missing instance detected during manual sync');
+        onMissingInstance();
+      } else {
+        toast({
+          title: "שגיאה בסנכרון סטטוס",
+          description: err.message || "נסה שוב מאוחר יותר",
+          variant: "destructive",
+        });
+      }
     }
   };
 
-  // Poll for connection status
+  // Enhanced polling logic
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (polling) {
@@ -140,6 +181,11 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             שגיאה: {getQrCode.error?.message || 'לא ניתן לטעון QR Code'}
+            {retryCount > 0 && (
+              <div className="mt-2 text-xs">
+                ניסיונות כושלים: {retryCount}
+              </div>
+            )}
           </AlertDescription>
         </Alert>
         <div className="flex gap-2 justify-center">
@@ -152,6 +198,9 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
             סנכרן סטטוס
           </Button>
         </div>
+        <div className="text-xs text-gray-500">
+          אם הבעיה נמשכת, נסה ליצור instance חדש
+        </div>
       </div>
     );
   }
@@ -162,12 +211,24 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
         <span className="text-gray-700">טוען QR Code...</span>
         <div className="text-xs text-gray-500 text-center">
-          הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת כ-60 שניות...
+          {retryCount > 0 ? (
+            <div>ניסיון {retryCount + 1} - הערוץ מתחבר לשירות WHAPI...</div>
+          ) : (
+            <div>הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת כ-60 שניות...</div>
+          )}
         </div>
-        <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline" size="sm">
-          {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          בדוק סטטוס
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline" size="sm">
+            {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            בדוק סטטוס
+          </Button>
+          {retryCount >= 2 && (
+            <Button onClick={handleGetQrCode} disabled={getQrCode.isPending} variant="outline" size="sm">
+              {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              נסה שוב
+            </Button>
+          )}
+        </div>
       </div>
     );
   }

@@ -13,7 +13,7 @@ const corsHeaders = {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProcessor, instanceId: string, channelToken: string, retryCount = 0): Promise<any> {
-  const maxRetries = 2
+  const maxRetries = 3
   const baseDelay = 2000 // 2 seconds between retries
   
   try {
@@ -124,16 +124,63 @@ Deno.serve(async (req) => {
       })
       
       if (profile.instance_status === 'initializing') {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Instance still initializing',
-            message: 'Please wait for webhook to confirm unauthorized status',
-            requiresNewInstance: false,
-            retryable: true
-          }),
-          { status: 400, headers: corsHeaders }
-        )
+        // Try to check WHAPI status directly first
+        console.log('🔍 Checking WHAPI status for initializing instance...')
+        try {
+          const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${profile.whapi_token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          if (statusResponse.ok) {
+            const whapiStatus = await statusResponse.json()
+            console.log('📊 Direct WHAPI status check:', whapiStatus)
+            
+            if (whapiStatus.status === 'qr' || whapiStatus.status === 'unauthorized') {
+              console.log('✅ WHAPI shows QR ready, updating database status...')
+              await dbService.updateChannelStatus(userId, 'unauthorized')
+              // Continue with QR generation
+            } else {
+              return new Response(
+                JSON.stringify({
+                  success: false,
+                  error: 'Instance still initializing',
+                  message: `WHAPI status: ${whapiStatus.status}. Please wait for webhook to confirm unauthorized status`,
+                  requiresNewInstance: false,
+                  retryable: true
+                }),
+                { status: 400, headers: corsHeaders }
+              )
+            }
+          } else {
+            console.log('⚠️ Could not check WHAPI status directly')
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Instance still initializing',
+                message: 'Please wait for webhook to confirm unauthorized status',
+                requiresNewInstance: false,
+                retryable: true
+              }),
+              { status: 400, headers: corsHeaders }
+            )
+          }
+        } catch (statusError) {
+          console.error('❌ Error checking WHAPI status:', statusError)
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Instance still initializing',
+              message: 'Cannot verify WHAPI status. Please wait for webhook',
+              requiresNewInstance: false,
+              retryable: true
+            }),
+            { status: 400, headers: corsHeaders }
+          )
+        }
       } else if (profile.instance_status === 'connected') {
         return new Response(
           JSON.stringify({
@@ -150,9 +197,9 @@ Deno.serve(async (req) => {
           JSON.stringify({
             success: false,
             error: `Instance not in QR-ready state: ${profile.instance_status}`,
-            message: 'Please wait for unauthorized status from WHAPI webhook',
-            requiresNewInstance: false,
-            retryable: true
+            message: 'Please check instance status or create a new instance',
+            requiresNewInstance: true,
+            retryable: false
           }),
           { status: 400, headers: corsHeaders }
         )
@@ -163,16 +210,6 @@ Deno.serve(async (req) => {
       instanceId: profile.instance_id,
       status: profile.instance_status
     })
-
-    // Check if channel was recently created (within last 1 minute)
-    const channelAge = await dbService.getChannelAge(userId)
-    if (channelAge !== null && channelAge < 60000) { // 1 minute in milliseconds
-      const remainingWait = Math.max(0, 60000 - channelAge)
-      if (remainingWait > 0) {
-        console.log(`⏳ Channel is ${channelAge}ms old, waiting additional ${remainingWait}ms for channel to be ready...`)
-        await delay(remainingWait)
-      }
-    }
 
     // Attempt QR retrieval using correct WHAPI endpoint
     const result = await attemptQrRetrieval(whapiClient, qrProcessor, profile.instance_id, profile.whapi_token)
