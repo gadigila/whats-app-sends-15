@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import WhatsAppConnector from '@/components/WhatsAppConnector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Loader2, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { CheckCircle, Loader2, Wifi, WifiOff, RefreshCw, Smartphone } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';

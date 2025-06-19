@@ -65,8 +65,41 @@ export const useWhatsAppInstance = () => {
     }
   });
 
+  // Legacy compatibility methods (deprecated but kept for backward compatibility)
+  const getQrCode = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      const { data, error } = await supabase.functions.invoke('whapi-get-qr', {
+        body: { userId: user.id }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    }
+  });
+
+  const manualStatusSync = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      const { data, error } = await supabase.functions.invoke('whapi-manual-status-sync', {
+        body: { userId: user.id }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    }
+  });
+
   return {
     checkInstanceStatus,
-    deleteInstance
+    deleteInstance,
+    getQrCode,
+    manualStatusSync
   };
 };
