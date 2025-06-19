@@ -1,3 +1,4 @@
+
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -125,6 +126,55 @@ export const useWhatsAppInstance = () => {
     }
   });
 
+  // Manual status sync - NEW FEATURE
+  const manualStatusSync = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      console.log('Manual status sync for user:', user.id);
+      
+      const { data, error } = await supabase.functions.invoke('whapi-manual-status-sync', {
+        body: { userId: user.id }
+      });
+      
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw error;
+      }
+      if (data?.error) {
+        console.error('Function returned error:', data.error);
+        throw new Error(data.error);
+      }
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('Manual status sync successful:', data);
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      
+      if (data.updated) {
+        toast({
+          title: "סטטוס עודכן",
+          description: `סטטוס שונה מ-${data.oldStatus} ל-${data.newStatus}`,
+        });
+      } else {
+        toast({
+          title: "סטטוס מסונכרן",
+          description: "הסטטוס כבר מעודכן",
+        });
+      }
+    },
+    onError: (error: any) => {
+      console.error('Failed to sync status:', error);
+      toast({
+        title: "שגיאה בסנכרון סטטוס",
+        description: error.message || "נסה שוב מאוחר יותר",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Check instance status using Partner API
   const checkInstanceStatus = useMutation({
     mutationFn: async () => {
@@ -187,6 +237,7 @@ export const useWhatsAppInstance = () => {
     getQrCode,
     checkInstanceStatus,
     deleteInstance,
+    manualStatusSync,
     isCreatingInstance
   };
 };

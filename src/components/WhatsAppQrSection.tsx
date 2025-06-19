@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw, Sync } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -16,7 +16,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const { getQrCode, checkInstanceStatus } = useWhatsAppInstance();
+  const { getQrCode, checkInstanceStatus, manualStatusSync } = useWhatsAppInstance();
 
   // Get QR code on mount
   useEffect(() => {
@@ -65,6 +65,23 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         description: err.message || 'אירעה שגיאה לא ידועה',
         variant: "destructive",
       });
+    }
+  };
+
+  const handleManualSync = async () => {
+    console.log('🔄 Manual status sync triggered');
+    try {
+      const result = await manualStatusSync.mutateAsync();
+      
+      if (result?.newStatus === 'unauthorized') {
+        console.log('✅ Status synced to unauthorized, retrying QR...');
+        // Wait a moment then try QR again
+        setTimeout(() => {
+          handleGetQrCode();
+        }, 1000);
+      }
+    } catch (err: any) {
+      console.error('💥 Manual sync failed:', err);
     }
   };
 
@@ -126,10 +143,16 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
             שגיאה: {getQrCode.error?.message || 'לא ניתן לטעון QR Code'}
           </AlertDescription>
         </Alert>
-        <Button onClick={handleGetQrCode} disabled={getQrCode.isPending} variant="outline">
-          {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          נסה שוב
-        </Button>
+        <div className="flex gap-2 justify-center">
+          <Button onClick={handleGetQrCode} disabled={getQrCode.isPending} variant="outline">
+            {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            נסה שוב
+          </Button>
+          <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline">
+            {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sync className="h-4 w-4 mr-2" />}
+            סנכרן סטטוס
+          </Button>
+        </div>
       </div>
     );
   }
@@ -142,6 +165,10 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
         <div className="text-xs text-gray-500 text-center">
           הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת כ-60 שניות...
         </div>
+        <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline" size="sm">
+          {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sync className="h-4 w-4 mr-2" />}
+          בדוק סטטוס
+        </Button>
       </div>
     );
   }
@@ -187,10 +214,16 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           </div>
         )}
       </div>
-      <Button onClick={handleGetQrCode} variant="outline" disabled={getQrCode.isPending}>
-        {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-        רענן QR Code
-      </Button>
+      <div className="flex gap-2 justify-center">
+        <Button onClick={handleGetQrCode} variant="outline" disabled={getQrCode.isPending}>
+          {getQrCode.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          רענן QR Code
+        </Button>
+        <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline">
+          {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sync className="h-4 w-4 mr-2" />}
+          סנכרן סטטוס
+        </Button>
+      </div>
     </div>
   );
 };

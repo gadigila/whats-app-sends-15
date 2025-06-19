@@ -170,11 +170,13 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Setup webhook for the channel using correct WHAPI format
+    // IMPROVED: Setup webhook with better error handling and verification
     console.log('🔗 Setting up webhook for channel:', channelId)
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
     
     try {
+      console.log('📡 Webhook URL:', webhookUrl)
+      
       const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
         method: 'PATCH',
         headers: {
@@ -190,19 +192,26 @@ Deno.serve(async (req) => {
         })
       })
 
+      console.log('📥 Webhook setup response status:', webhookResponse.status)
+      
       if (webhookResponse.ok) {
-        console.log('✅ Webhook setup successful')
+        const webhookResult = await webhookResponse.json()
+        console.log('✅ Webhook setup successful:', webhookResult)
       } else {
         const webhookError = await webhookResponse.text()
-        console.error('⚠️ Webhook setup failed:', webhookError)
-        // Continue anyway - webhook failure shouldn't block channel creation
+        console.error('⚠️ Webhook setup failed:', {
+          status: webhookResponse.status,
+          error: webhookError,
+          url: webhookUrl
+        })
+        // Don't fail the entire process, but log the issue
       }
     } catch (webhookError) {
       console.error('⚠️ Webhook setup error:', webhookError)
-      // Continue anyway
+      // Continue anyway - webhook failure shouldn't block channel creation
     }
 
-    // Save channel data to user profile - CRITICAL FIX: Set status to 'initializing'
+    // Save channel data to user profile - Set status to 'initializing'
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
     console.log('💾 Saving channel data to database with INITIALIZING status...', {
@@ -217,7 +226,7 @@ Deno.serve(async (req) => {
       .update({
         instance_id: channelId,
         whapi_token: channelToken,
-        instance_status: 'initializing', // FIXED: Changed from 'unauthorized' to 'initializing'
+        instance_status: 'initializing',
         payment_plan: 'trial',
         trial_expires_at: trialExpiresAt,
         updated_at: new Date().toISOString()
@@ -288,7 +297,42 @@ Deno.serve(async (req) => {
       hasToken: !!updateData[0].whapi_token
     })
 
-    console.log('✅ New channel creation completed successfully with INITIALIZING status')
+    // IMPROVEMENT: Try to sync status immediately after creation
+    console.log('🔄 Attempting immediate status sync...')
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds for channel to initialize
+      
+      const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${channelToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (statusResponse.ok) {
+        const whapiStatus = await statusResponse.json()
+        console.log('📊 Initial WHAPI status:', whapiStatus)
+        
+        if (whapiStatus.status === 'qr' || whapiStatus.status === 'unauthorized') {
+          console.log('🎯 Channel already ready for QR! Updating status...')
+          
+          await supabase
+            .from('profiles')
+            .update({
+              instance_status: 'unauthorized',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+            
+          console.log('✅ Status immediately updated to unauthorized')
+        }
+      }
+    } catch (statusError) {
+      console.log('⚠️ Initial status sync failed, will rely on webhook:', statusError.message)
+    }
+
+    console.log('✅ New channel creation completed successfully')
 
     return new Response(
       JSON.stringify({
@@ -296,9 +340,10 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
-        channel_ready: false, // Changed to false since we're in initializing state
-        initialization_time: 60000, // 1 minute
-        message: 'New channel created with initializing status. Waiting for webhook to confirm unauthorized status for QR generation.'
+        channel_ready: false,
+        initialization_time: 60000,
+        webhook_url: webhookUrl,
+        message: 'New channel created. Status will be updated via webhook or manual sync.'
       }),
       { status: 200, headers: corsHeaders }
     )
