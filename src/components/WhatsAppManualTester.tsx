@@ -74,11 +74,11 @@ const WhatsAppManualTester = () => {
 
     console.log('🚀 Starting comprehensive WHAPI test with token:', token.substring(0, 20) + '...');
 
+    // Updated endpoints with correct WHAPI paths
     const endpoints = [
-      { path: '/status', method: 'GET' },
-      { path: '/screen', method: 'GET' },
+      { path: '/health', method: 'GET' },
+      { path: '/qr', method: 'GET' },
       { path: '/settings', method: 'GET' },
-      { path: '/channels', method: 'GET' }, // This might not work with channel token
       { path: '/me', method: 'GET' },
       { path: '/groups', method: 'GET' }
     ];
@@ -135,7 +135,7 @@ const WhatsAppManualTester = () => {
       <CardHeader>
         <CardTitle>🧪 WHAPI Manual Tester</CardTitle>
         <p className="text-sm text-gray-600">
-          Test WHAPI endpoints directly to diagnose connection issues
+          Test WHAPI endpoints directly to diagnose connection issues (Updated with correct endpoints)
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -170,7 +170,7 @@ const WhatsAppManualTester = () => {
             onChange={(e) => setManualToken(e.target.value)}
           />
           <p className="text-xs text-gray-500 mt-1">
-            Leave empty to use token from database
+            Leave empty to use token from database. Test endpoints: /health, /qr, /settings, /me, /groups
           </p>
         </div>
 
@@ -179,7 +179,7 @@ const WhatsAppManualTester = () => {
           disabled={isLoading || !user?.id}
           className="w-full"
         >
-          {isLoading ? 'Running Tests...' : 'Run Comprehensive Test'}
+          {isLoading ? 'Running Tests...' : 'Run Comprehensive Test (Fixed Endpoints)'}
         </Button>
 
         {testResults && (

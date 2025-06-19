@@ -17,8 +17,8 @@ async function checkWhapiStatus(token: string) {
   try {
     console.log(`🔍 Checking WHAPI status...`)
     
-    // ✅ CORRECT ENDPOINT - No instance ID needed
-    const response = await fetch(`https://gate.whapi.cloud/status`, {
+    // FIX: Use correct endpoint and method for status check
+    const response = await fetch(`https://gate.whapi.cloud/health`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -31,7 +31,7 @@ async function checkWhapiStatus(token: string) {
     if (response.ok) {
       const data = await response.json()
       console.log(`✅ WHAPI status data:`, data)
-      return { success: true, status: data.status, data }
+      return { success: true, status: data.status || data.state, data }
     }
     
     const errorText = await response.text()
@@ -49,8 +49,8 @@ async function getQrCode(token: string, retryCount = 0) {
   try {
     console.log(`📱 Getting QR code (attempt ${retryCount + 1}/${maxRetries + 1})`)
     
-    // ✅ CORRECT ENDPOINT - Simple /screen endpoint
-    const qrResponse = await fetch(`https://gate.whapi.cloud/screen`, {
+    // FIX: Use correct endpoint for QR code
+    const qrResponse = await fetch(`https://gate.whapi.cloud/qr`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -81,6 +81,8 @@ async function getQrCode(token: string, retryCount = 0) {
         qrCode = qrData.data.qr
       } else if (qrData.message && qrData.type === 'qrCode') {
         qrCode = qrData.message
+      } else if (qrData.base64) {
+        qrCode = qrData.base64
       }
       
       if (qrCode) {
@@ -269,7 +271,7 @@ Deno.serve(async (req) => {
             instance_id: instanceId
           }), { status: 200, headers: corsHeaders })
           
-        } else if (statusCheck.status === 'qr' || statusCheck.status === 'unauthorized') {
+        } else if (statusCheck.status === 'qr' || statusCheck.status === 'unauthorized' || statusCheck.status === 'loading') {
           // Ready for QR - this is good!
           console.log('✅ Existing instance ready for QR')
           
@@ -327,39 +329,18 @@ Deno.serve(async (req) => {
         
         console.log('✅ New instance saved to database')
         
-        // Wait for instance to initialize and become ready for QR
+        // Wait for instance to initialize
         console.log('⏳ Waiting for instance to initialize...')
-        await delay(3000) // Wait 3 seconds initially
+        await delay(5000) // Wait 5 seconds for initialization
         
-        // Check status periodically until ready for QR
-        let attempts = 0
-        const maxAttempts = 10
-        
-        while (attempts < maxAttempts) {
-          const statusCheck = await checkWhapiStatus(token)
-          
-          if (statusCheck.success && (statusCheck.status === 'qr' || statusCheck.status === 'unauthorized')) {
-            console.log('✅ New instance ready for QR!')
-            
-            await supabase
-              .from('profiles')
-              .update({ 
-                instance_status: 'unauthorized',
-                updated_at: new Date().toISOString() 
-              })
-              .eq('id', userId)
-            
-            break
-          }
-          
-          attempts++
-          console.log(`⏳ Instance still initializing... attempt ${attempts}/${maxAttempts}`)
-          await delay(2000) // Wait 2 seconds between checks
-        }
-        
-        if (attempts >= maxAttempts) {
-          console.log('⚠️ Instance taking longer than expected to initialize')
-        }
+        // Update status to ready for QR
+        await supabase
+          .from('profiles')
+          .update({ 
+            instance_status: 'unauthorized',
+            updated_at: new Date().toISOString() 
+          })
+          .eq('id', userId)
         
       } catch (error) {
         console.error('❌ Failed to create instance:', error)
@@ -401,3 +382,69 @@ Deno.serve(async (req) => {
     }), { status: 500, headers: corsHeaders })
   }
 })
+
+async function createNewInstance(whapiPartnerToken: string, whapiProjectId: string, userId: string, supabaseUrl: string) {
+  console.log('🏗️ Creating new WHAPI instance...')
+  
+  const createResponse = await fetch('https://manager.whapi.cloud/channels', {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${whapiPartnerToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      name: `reecher_user_${userId.substring(0, 8)}`,
+      projectId: whapiProjectId
+    })
+  })
+  
+  console.log(`🏗️ Create response status: ${createResponse.status}`)
+  
+  if (!createResponse.ok) {
+    const errorText = await createResponse.text()
+    console.error(`❌ Failed to create instance: ${errorText}`)
+    throw new Error(`Failed to create instance: ${errorText}`)
+  }
+  
+  const channelData = await createResponse.json()
+  console.log(`✅ Channel created:`, Object.keys(channelData))
+  
+  if (!channelData.id || !channelData.token) {
+    console.error(`❌ Invalid channel data:`, channelData)
+    throw new Error('Invalid channel data received')
+  }
+  
+  // Setup webhook after instance creation
+  const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
+  console.log(`🔗 Setting up webhook: ${webhookUrl}`)
+  
+  try {
+    const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${channelData.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhooks: [{
+          url: webhookUrl,
+          events: ['users', 'channel'],
+          mode: 'body'
+        }]
+      })
+    })
+    
+    if (webhookResponse.ok) {
+      console.log('✅ Webhook setup successful')
+    } else {
+      console.log('⚠️ Webhook setup failed, but continuing...')
+    }
+  } catch (webhookError) {
+    console.log('⚠️ Webhook setup error, but continuing...', webhookError.message)
+  }
+  
+  return {
+    instanceId: channelData.id,
+    token: channelData.token
+  }
+}
