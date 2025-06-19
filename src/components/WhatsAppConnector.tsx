@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, CheckCircle, Smartphone, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle, Smartphone, AlertCircle, RefreshCw } from 'lucide-react';
 import { useWhatsAppConnect } from '@/hooks/useWhatsAppConnect';
+import { useWhapiRecovery } from '@/hooks/useWhapiRecovery';
 
 interface WhatsAppConnectorProps {
   userId: string;
@@ -15,6 +16,7 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { connectWhatsApp, checkStatus, isConnecting } = useWhatsAppConnect();
+  const { runRecovery, forceNewInstance, isLoading: isRecovering } = useWhapiRecovery();
 
   const handleConnect = async () => {
     try {
@@ -35,12 +37,59 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
         setQrCode(result.qr_code);
         setPolling(true);
       } else {
-        console.log('⚠️ No QR code in response:', result);
-        setError('לא הצלחנו לקבל קוד QR. נסה שוב.');
+        console.log('⚠️ No QR code in response, trying recovery...');
+        handleRecovery();
       }
     } catch (error) {
       console.error('❌ Connection failed:', error);
-      setError('שגיאה בחיבור. בדוק את החיבור לאינטרנט ונסה שוב.');
+      setError('שגיאה בחיבור. נסה את מצב השחזור.');
+    }
+  };
+
+  const handleRecovery = async () => {
+    try {
+      setError(null);
+      console.log('🚑 Starting recovery...');
+      
+      const result = await runRecovery.mutateAsync(false);
+      
+      if (result.success) {
+        if (result.qr_code) {
+          setQrCode(result.qr_code);
+          setPolling(true);
+        } else if (result.message.includes('already connected')) {
+          onConnected();
+        } else if (result.retry_after) {
+          setError(`המערכת מתכוננת... נסה שוב בעוד ${result.retry_after} שניות`);
+          setTimeout(() => handleRecovery(), result.retry_after * 1000);
+        } else {
+          setError(result.message || 'בעיה בשחזור המערכת');
+        }
+      } else {
+        setError(result.error || 'שחזור נכשל');
+      }
+    } catch (error) {
+      console.error('❌ Recovery failed:', error);
+      setError('שחזור נכשל. נסה ליצור instance חדש.');
+    }
+  };
+
+  const handleForceNew = async () => {
+    try {
+      setError(null);
+      console.log('🆕 Creating new instance...');
+      
+      const result = await forceNewInstance.mutateAsync();
+      
+      if (result.success && result.qr_code) {
+        setQrCode(result.qr_code);
+        setPolling(true);
+      } else {
+        setError(result.error || 'יצירת instance חדש נכשלה');
+      }
+    } catch (error) {
+      console.error('❌ Force new failed:', error);
+      setError('יצירת instance חדש נכשלה');
     }
   };
 
@@ -79,13 +128,15 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
   }, [polling, qrCode, checkStatus, onConnected]);
 
   // Loading state
-  if (isConnecting) {
+  if (isConnecting || isRecovering) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
           <div className="flex flex-col items-center space-y-4">
             <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-            <h3 className="text-lg font-semibold">מתחבר לוואטסאפ...</h3>
+            <h3 className="text-lg font-semibold">
+              {isRecovering ? 'מתקן חיבור...' : 'מתחבר לוואטסאפ...'}
+            </h3>
             <p className="text-gray-600 text-sm">
               זה עשוי לקחת כמה שניות
             </p>
@@ -102,18 +153,41 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
         <CardContent className="p-8 text-center">
           <div className="flex flex-col items-center space-y-4">
             <AlertCircle className="h-12 w-12 text-red-600" />
-            <h3 className="text-lg font-semibold text-red-800">שגיאה בחיבור</h3>
+            <h3 className="text-lg font-semibold text-red-800">בעיה בחיבור</h3>
             <p className="text-red-600 text-sm">{error}</p>
-            <Button
-              onClick={() => {
-                setError(null);
-                handleConnect();
-              }}
-              variant="outline"
-              className="border-red-600 text-red-600 hover:bg-red-50"
-            >
-              נסה שוב
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  setError(null);
+                  handleConnect();
+                }}
+                variant="outline"
+                className="border-blue-600 text-blue-600 hover:bg-blue-50"
+              >
+                נסה שוב
+              </Button>
+              <Button
+                onClick={() => {
+                  setError(null);
+                  handleRecovery();
+                }}
+                variant="outline"
+                className="border-green-600 text-green-600 hover:bg-green-50"
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                שחזור
+              </Button>
+              <Button
+                onClick={() => {
+                  setError(null);
+                  handleForceNew();
+                }}
+                variant="outline"
+                className="border-orange-600 text-orange-600 hover:bg-orange-50"
+              >
+                יצור חדש
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -172,13 +246,24 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
         <p className="text-gray-600 mb-6">
           חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות לקבוצות
         </p>
-        <Button
-          onClick={handleConnect}
-          className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg"
-          disabled={isConnecting}
-        >
-          התחבר עכשיו
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={handleConnect}
+            className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg"
+            disabled={isConnecting || isRecovering}
+          >
+            התחבר עכשיו
+          </Button>
+          <Button
+            onClick={handleRecovery}
+            variant="outline"
+            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+            disabled={isConnecting || isRecovering}
+          >
+            <RefreshCw className="h-4 w-4 mr-1" />
+            שחזור חיבור
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

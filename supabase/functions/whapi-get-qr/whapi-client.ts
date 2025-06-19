@@ -5,11 +5,12 @@ export class WhapiClient {
       throw new Error('Channel token is required for QR generation')
     }
 
-    // Use correct WHAPI QR endpoint according to documentation
-    const qrEndpoint = `https://gate.whapi.cloud/instance/qr?id=${instanceId}`
+    // FIX: Use the correct WHAPI endpoint - just /screen without instance ID
+    // The channel token contains all the necessary authentication
+    const qrEndpoint = `https://gate.whapi.cloud/screen`
     
     console.log('📡 Requesting QR from WHAPI Gate API:', qrEndpoint)
-    console.log('🔑 Using instance ID:', instanceId)
+    console.log('🔑 Using channel token (not instance ID in URL)')
 
     return await fetch(qrEndpoint, {
       method: 'GET',
