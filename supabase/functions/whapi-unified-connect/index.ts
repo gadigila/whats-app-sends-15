@@ -13,11 +13,12 @@ interface ConnectRequest {
 // Helper function to wait/delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-async function checkWhapiStatus(instanceId: string, token: string) {
+async function checkWhapiStatus(token: string) {
   try {
-    console.log(`🔍 Checking WHAPI status for instance: ${instanceId}`)
+    console.log(`🔍 Checking WHAPI status...`)
     
-    const response = await fetch(`https://gate.whapi.cloud/instances/${instanceId}/status`, {
+    // ✅ CORRECT ENDPOINT - No instance ID needed
+    const response = await fetch(`https://gate.whapi.cloud/status`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -42,13 +43,14 @@ async function checkWhapiStatus(instanceId: string, token: string) {
   }
 }
 
-async function getQrCode(instanceId: string, token: string, retryCount = 0) {
+async function getQrCode(token: string, retryCount = 0) {
   const maxRetries = 3
   
   try {
-    console.log(`📱 Getting QR code for instance ${instanceId} (attempt ${retryCount + 1}/${maxRetries + 1})`)
+    console.log(`📱 Getting QR code (attempt ${retryCount + 1}/${maxRetries + 1})`)
     
-    const qrResponse = await fetch(`https://gate.whapi.cloud/instances/${instanceId}/screen`, {
+    // ✅ CORRECT ENDPOINT - Simple /screen endpoint
+    const qrResponse = await fetch(`https://gate.whapi.cloud/screen`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -61,27 +63,52 @@ async function getQrCode(instanceId: string, token: string, retryCount = 0) {
     if (qrResponse.ok) {
       const qrData = await qrResponse.json()
       console.log(`✅ QR data received:`, Object.keys(qrData))
+      console.log(`🔍 Full QR response:`, qrData)
       
-      if (qrData.qr_code || qrData.qr || qrData.screen) {
-        const qrCode = qrData.qr_code || qrData.qr || qrData.screen
-        console.log(`🎯 QR code found, length: ${qrCode?.length}`)
+      // Enhanced QR code extraction
+      let qrCode = null
+      
+      // Try different possible QR code fields
+      if (qrData.qr) {
+        qrCode = qrData.qr
+      } else if (qrData.qrCode) {
+        qrCode = qrData.qrCode
+      } else if (qrData.image) {
+        qrCode = qrData.image
+      } else if (qrData.screen) {
+        qrCode = qrData.screen
+      } else if (qrData.data && qrData.data.qr) {
+        qrCode = qrData.data.qr
+      } else if (qrData.message && qrData.type === 'qrCode') {
+        qrCode = qrData.message
+      }
+      
+      if (qrCode) {
+        // Ensure proper base64 formatting
+        if (!qrCode.startsWith('data:image/')) {
+          qrCode = `data:image/png;base64,${qrCode}`
+        }
+        
+        console.log(`🎯 QR code found and formatted, length: ${qrCode.length}`)
         return { success: true, qr_code: qrCode }
       }
       
-      console.log(`⚠️ No QR code in response:`, qrData)
+      console.log(`⚠️ No QR code found in response fields:`, Object.keys(qrData))
+      return { success: false, error: 'QR code not found in response', details: qrData }
     }
     
     const errorText = await qrResponse.text()
     console.error(`❌ QR request failed: ${qrResponse.status} - ${errorText}`)
     
-    if (retryCount < maxRetries) {
+    // Retry logic for server errors
+    if ((qrResponse.status >= 500 || qrResponse.status === 429) && retryCount < maxRetries) {
       const delayMs = 2000 * Math.pow(2, retryCount)
       console.log(`⏳ Retrying QR request in ${delayMs}ms...`)
       await delay(delayMs)
-      return getQrCode(instanceId, token, retryCount + 1)
+      return getQrCode(token, retryCount + 1)
     }
     
-    return { success: false, error: 'QR code not available after retries' }
+    return { success: false, error: `QR request failed: ${qrResponse.status}`, details: errorText }
   } catch (error) {
     console.error(`💥 QR request network error:`, error)
     
@@ -89,7 +116,7 @@ async function getQrCode(instanceId: string, token: string, retryCount = 0) {
       const delayMs = 2000 * Math.pow(2, retryCount)
       console.log(`⏳ Retrying QR request after error in ${delayMs}ms...`)
       await delay(delayMs)
-      return getQrCode(instanceId, token, retryCount + 1)
+      return getQrCode(token, retryCount + 1)
     }
     
     return { success: false, error: error.message }
@@ -99,10 +126,6 @@ async function getQrCode(instanceId: string, token: string, retryCount = 0) {
 async function createNewInstance(whapiPartnerToken: string, whapiProjectId: string, userId: string, supabaseUrl: string) {
   console.log('🏗️ Creating new WHAPI instance...')
   
-  // Create webhook URL for status updates
-  const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
-  console.log(`📞 Webhook URL: ${webhookUrl}`)
-  
   const createResponse = await fetch('https://manager.whapi.cloud/channels', {
     method: 'PUT',
     headers: {
@@ -111,8 +134,7 @@ async function createNewInstance(whapiPartnerToken: string, whapiProjectId: stri
     },
     body: JSON.stringify({
       name: `reecher_user_${userId.substring(0, 8)}`,
-      projectId: whapiProjectId,
-      webhook: webhookUrl
+      projectId: whapiProjectId
     })
   })
   
@@ -130,6 +152,35 @@ async function createNewInstance(whapiPartnerToken: string, whapiProjectId: stri
   if (!channelData.id || !channelData.token) {
     console.error(`❌ Invalid channel data:`, channelData)
     throw new Error('Invalid channel data received')
+  }
+  
+  // Setup webhook after instance creation
+  const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
+  console.log(`🔗 Setting up webhook: ${webhookUrl}`)
+  
+  try {
+    const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${channelData.token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhooks: [{
+          url: webhookUrl,
+          events: ['users', 'channel'],
+          mode: 'body'
+        }]
+      })
+    })
+    
+    if (webhookResponse.ok) {
+      console.log('✅ Webhook setup successful')
+    } else {
+      console.log('⚠️ Webhook setup failed, but continuing...')
+    }
+  } catch (webhookError) {
+    console.log('⚠️ Webhook setup error, but continuing...', webhookError.message)
   }
   
   return {
@@ -151,6 +202,13 @@ Deno.serve(async (req) => {
     
     console.log(`🔧 Environment check - WHAPI Project ID: ${whapiProjectId ? 'Set' : 'Missing'}`)
     console.log(`🔧 Environment check - WHAPI Partner Token: ${whapiPartnerToken ? 'Set' : 'Missing'}`)
+    
+    if (!whapiPartnerToken || !whapiProjectId) {
+      return new Response(JSON.stringify({ 
+        error: 'WHAPI configuration missing',
+        details: 'Partner token or project ID not configured'
+      }), { status: 500, headers: corsHeaders })
+    }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const { userId }: ConnectRequest = await req.json()
@@ -189,11 +247,12 @@ Deno.serve(async (req) => {
     // Check if we have a valid existing instance
     if (instanceId && token) {
       console.log('🔍 Checking existing instance status...')
-      const statusCheck = await checkWhapiStatus(instanceId, token)
+      const statusCheck = await checkWhapiStatus(token)
       
       if (statusCheck.success) {
         console.log(`📊 Current instance status: ${statusCheck.status}`)
         
+        // Map WHAPI status properly
         if (statusCheck.status === 'authenticated' || statusCheck.status === 'ready') {
           // Already connected!
           console.log('🎉 Instance already authenticated!')
@@ -206,13 +265,25 @@ Deno.serve(async (req) => {
           return new Response(JSON.stringify({
             success: true,
             already_connected: true,
-            message: 'WhatsApp already connected'
+            message: 'WhatsApp already connected',
+            instance_id: instanceId
           }), { status: 200, headers: corsHeaders })
+          
         } else if (statusCheck.status === 'qr' || statusCheck.status === 'unauthorized') {
-          // Ready for QR
+          // Ready for QR - this is good!
           console.log('✅ Existing instance ready for QR')
+          
+          // Update status in database
+          await supabase
+            .from('profiles')
+            .update({ 
+              instance_status: 'unauthorized',
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', userId)
+            
         } else {
-          console.log(`⚠️ Instance status not suitable: ${statusCheck.status}`)
+          console.log(`⚠️ Instance status not suitable for QR: ${statusCheck.status}`)
           needsNewInstance = true
         }
       } else {
@@ -242,7 +313,7 @@ Deno.serve(async (req) => {
           .update({
             instance_id: instanceId,
             whapi_token: token,
-            instance_status: 'unauthorized',
+            instance_status: 'initializing',
             payment_plan: 'trial',
             trial_expires_at: trialExpiresAt,
             updated_at: new Date().toISOString()
@@ -256,9 +327,40 @@ Deno.serve(async (req) => {
         
         console.log('✅ New instance saved to database')
         
-        // Wait for instance to initialize
+        // Wait for instance to initialize and become ready for QR
         console.log('⏳ Waiting for instance to initialize...')
-        await delay(5000)
+        await delay(3000) // Wait 3 seconds initially
+        
+        // Check status periodically until ready for QR
+        let attempts = 0
+        const maxAttempts = 10
+        
+        while (attempts < maxAttempts) {
+          const statusCheck = await checkWhapiStatus(token)
+          
+          if (statusCheck.success && (statusCheck.status === 'qr' || statusCheck.status === 'unauthorized')) {
+            console.log('✅ New instance ready for QR!')
+            
+            await supabase
+              .from('profiles')
+              .update({ 
+                instance_status: 'unauthorized',
+                updated_at: new Date().toISOString() 
+              })
+              .eq('id', userId)
+            
+            break
+          }
+          
+          attempts++
+          console.log(`⏳ Instance still initializing... attempt ${attempts}/${maxAttempts}`)
+          await delay(2000) // Wait 2 seconds between checks
+        }
+        
+        if (attempts >= maxAttempts) {
+          console.log('⚠️ Instance taking longer than expected to initialize')
+        }
+        
       } catch (error) {
         console.error('❌ Failed to create instance:', error)
         return new Response(JSON.stringify({ 
@@ -270,24 +372,16 @@ Deno.serve(async (req) => {
 
     // Get QR code
     console.log('📱 Getting QR code...')
-    const qrResult = await getQrCode(instanceId!, token!)
+    const qrResult = await getQrCode(token!)
     
     if (!qrResult.success) {
       console.error('❌ Failed to get QR code:', qrResult.error)
       return new Response(JSON.stringify({ 
         error: 'Failed to get QR code',
-        details: qrResult.error 
+        details: qrResult.error,
+        qr_debug: qrResult.details
       }), { status: 400, headers: corsHeaders })
     }
-
-    // Update status to unauthorized (ready for QR)
-    await supabase
-      .from('profiles')
-      .update({ 
-        instance_status: 'unauthorized',
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', userId)
 
     console.log('✅ Connection flow completed successfully')
 
@@ -295,7 +389,8 @@ Deno.serve(async (req) => {
       success: true,
       qr_code: qrResult.qr_code,
       instance_id: instanceId,
-      message: 'Ready to scan QR code'
+      message: 'Ready to scan QR code. Scan with WhatsApp mobile app.',
+      instructions: 'Open WhatsApp on your phone > Settings > Linked Devices > Link a Device > Scan this QR code'
     }), { status: 200, headers: corsHeaders })
 
   } catch (error) {
