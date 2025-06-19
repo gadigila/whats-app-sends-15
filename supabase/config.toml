@@ -39,3 +39,6 @@ verify_jwt = false
 
 [functions.whapi-auto-recovery]
 verify_jwt = false
+
+[functions.whapi-diagnostics]
+verify_jwt = false

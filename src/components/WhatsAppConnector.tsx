@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, CheckCircle, Smartphone, AlertCircle, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, Smartphone, AlertCircle, RefreshCw, Stethoscope } from 'lucide-react';
 import { useWhatsAppConnect } from '@/hooks/useWhatsAppConnect';
 import { useWhapiRecovery } from '@/hooks/useWhapiRecovery';
+import { useWhapiDiagnostics } from '@/hooks/useWhapiDiagnostics';
 
 interface WhatsAppConnectorProps {
   userId: string;
@@ -15,8 +16,10 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diagnosticsResult, setDiagnosticsResult] = useState<any>(null);
   const { connectWhatsApp, checkStatus, isConnecting } = useWhatsAppConnect();
   const { runRecovery, forceNewInstance, isLoading: isRecovering } = useWhapiRecovery();
+  const { runDiagnostics, isRunning: isDiagnosing } = useWhapiDiagnostics();
 
   const handleConnect = async () => {
     try {
@@ -93,6 +96,29 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
     }
   };
 
+  const handleDiagnostics = async () => {
+    try {
+      setError(null);
+      console.log('🔬 Running diagnostics...');
+      
+      const result = await runDiagnostics.mutateAsync();
+      setDiagnosticsResult(result);
+      
+      // Auto-apply simple fixes based on diagnostics
+      if (result.recommendations.some((r: string) => r.includes('need new instance'))) {
+        setError('נדרש instance חדש. לחץ על "יצור חדש"');
+      } else if (result.recommendations.some((r: string) => r.includes('QR code is available'))) {
+        setError('קוד QR זמין. נסה להתחבר שוב.');
+      } else if (result.recommendations.some((r: string) => r.includes('already authenticated'))) {
+        onConnected();
+      }
+      
+    } catch (error) {
+      console.error('❌ Diagnostics failed:', error);
+      setError('בדיקה נכשלה');
+    }
+  };
+
   // Poll for connection status when QR is displayed
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -146,7 +172,7 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
     );
   }
 
-  // Error state
+  // Error state with diagnostics
   if (error) {
     return (
       <Card>
@@ -155,10 +181,24 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
             <AlertCircle className="h-12 w-12 text-red-600" />
             <h3 className="text-lg font-semibold text-red-800">בעיה בחיבור</h3>
             <p className="text-red-600 text-sm">{error}</p>
-            <div className="flex gap-2">
+            
+            {/* Show diagnostics results if available */}
+            {diagnosticsResult && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg text-left text-xs max-w-md">
+                <h4 className="font-semibold mb-2">המלצות לפתרון:</h4>
+                <ul className="space-y-1">
+                  {diagnosticsResult.recommendations.map((rec: string, idx: number) => (
+                    <li key={idx} className="text-gray-700">{rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={() => {
                   setError(null);
+                  setDiagnosticsResult(null);
                   handleConnect();
                 }}
                 variant="outline"
@@ -169,6 +209,7 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
               <Button
                 onClick={() => {
                   setError(null);
+                  setDiagnosticsResult(null);
                   handleRecovery();
                 }}
                 variant="outline"
@@ -180,12 +221,22 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
               <Button
                 onClick={() => {
                   setError(null);
+                  setDiagnosticsResult(null);
                   handleForceNew();
                 }}
                 variant="outline"
                 className="border-orange-600 text-orange-600 hover:bg-orange-50"
               >
                 יצור חדש
+              </Button>
+              <Button
+                onClick={handleDiagnostics}
+                variant="outline"
+                className="border-purple-600 text-purple-600 hover:bg-purple-50"
+                disabled={isDiagnosing}
+              >
+                {isDiagnosing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Stethoscope className="h-4 w-4 mr-1" />}
+                בדיקה
               </Button>
             </div>
           </div>
@@ -254,15 +305,25 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
           >
             התחבר עכשיו
           </Button>
-          <Button
-            onClick={handleRecovery}
-            variant="outline"
-            className="border-blue-600 text-blue-600 hover:bg-blue-50"
-            disabled={isConnecting || isRecovering}
-          >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            שחזור חיבור
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleRecovery}
+              variant="outline"
+              className="border-blue-600 text-blue-600 hover:bg-blue-50 flex-1"
+              disabled={isConnecting || isRecovering}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              שחזור חיבור
+            </Button>
+            <Button
+              onClick={handleDiagnostics}
+              variant="outline"
+              className="border-purple-600 text-purple-600 hover:bg-purple-50"
+              disabled={isConnecting || isRecovering || isDiagnosing}
+            >
+              {isDiagnosing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stethoscope className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
