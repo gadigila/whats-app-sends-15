@@ -27,3 +27,12 @@ verify_jwt = false
 
 [functions.whapi-webhook]
 verify_jwt = false
+
+[functions.whapi-unified-connect]
+verify_jwt = false
+
+[functions.whapi-delete-instance]
+verify_jwt = false
+
+[functions.whapi-manual-status-sync]
+verify_jwt = false

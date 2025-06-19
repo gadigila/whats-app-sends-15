@@ -1,3 +1,4 @@
+
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -52,20 +53,22 @@ Deno.serve(async (req) => {
             incomingStatus: data.status
           })
 
-          // ENHANCED: Map WHAPI status to our internal status with better logic
+          // Map WHAPI status to our internal status
           let newStatus = data.status
           
           if (data.status === 'unauthorized') {
-            // This is the key status we're waiting for - QR is now ready
             newStatus = 'unauthorized'
             console.log('🎯 Channel is now ready for QR generation!')
           } else if (data.status === 'ready') {
             newStatus = 'authorized'
+            console.log('📱 Channel is ready but not authenticated')
           } else if (data.status === 'authenticated') {
             newStatus = 'connected'
             console.log('🎉 WhatsApp session is now connected!')
+          } else if (data.status === 'qr') {
+            newStatus = 'unauthorized'
+            console.log('📱 QR code is ready for scanning')
           } else {
-            // Keep the original status for any other cases
             console.log('📝 Keeping status as received:', data.status)
           }
 
@@ -100,11 +103,11 @@ Deno.serve(async (req) => {
       })
 
       // Handle user authentication status updates
-      // This indicates when a user has scanned QR and is connected
       if (data.status === 'authenticated' && data.phone) {
-        // Find profile by phone or other identifier and update to connected
-        // For now, we'll just log this as we may need additional mapping
         console.log('🔐 User authenticated:', data.phone)
+        
+        // Try to find profile by phone or update all instances to connected
+        // For now, we'll just log this as we may need additional mapping
       }
     } else {
       console.log('📝 Received webhook event:', event, 'with data:', data)

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, CheckCircle, Smartphone } from 'lucide-react';
+import { Loader2, CheckCircle, Smartphone, AlertCircle } from 'lucide-react';
 import { useWhatsAppConnect } from '@/hooks/useWhatsAppConnect';
 
 interface WhatsAppConnectorProps {
@@ -13,23 +13,34 @@ interface WhatsAppConnectorProps {
 const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { connectWhatsApp, checkStatus, isConnecting } = useWhatsAppConnect();
 
   const handleConnect = async () => {
     try {
+      setError(null);
+      console.log('🔄 Starting WhatsApp connection...');
+      
       const result = await connectWhatsApp.mutateAsync();
+      console.log('📱 Connection result:', result);
       
       if (result.already_connected) {
+        console.log('✅ Already connected!');
         onConnected();
         return;
       }
       
       if (result.qr_code) {
+        console.log('📱 QR code received, starting polling...');
         setQrCode(result.qr_code);
         setPolling(true);
+      } else {
+        console.log('⚠️ No QR code in response:', result);
+        setError('לא הצלחנו לקבל קוד QR. נסה שוב.');
       }
     } catch (error) {
-      console.error('Connection failed:', error);
+      console.error('❌ Connection failed:', error);
+      setError('שגיאה בחיבור. בדוק את החיבור לאינטרנט ונסה שוב.');
     }
   };
 
@@ -38,23 +49,32 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
     let interval: NodeJS.Timeout;
     
     if (polling && qrCode) {
+      console.log('🔄 Starting status polling...');
+      
       interval = setInterval(async () => {
         try {
+          console.log('🔍 Checking connection status...');
           const result = await checkStatus.mutateAsync();
+          console.log('📊 Status check result:', result);
           
-          if (result.connected || result.status === 'connected') {
+          if (result.connected || result.status === 'connected' || result.status === 'authenticated') {
+            console.log('🎉 Connection successful!');
             setPolling(false);
             setQrCode(null);
             onConnected();
           }
         } catch (error) {
-          console.error('Status check failed:', error);
+          console.error('❌ Status check failed:', error);
+          // Don't stop polling on status check errors
         }
       }, 3000);
     }
     
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        console.log('🛑 Stopping status polling');
+        clearInterval(interval);
+      }
     };
   }, [polling, qrCode, checkStatus, onConnected]);
 
@@ -69,6 +89,31 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
             <p className="text-gray-600 text-sm">
               זה עשוי לקחת כמה שניות
             </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="flex flex-col items-center space-y-4">
+            <AlertCircle className="h-12 w-12 text-red-600" />
+            <h3 className="text-lg font-semibold text-red-800">שגיאה בחיבור</h3>
+            <p className="text-red-600 text-sm">{error}</p>
+            <Button
+              onClick={() => {
+                setError(null);
+                handleConnect();
+              }}
+              variant="outline"
+              className="border-red-600 text-red-600 hover:bg-red-50"
+            >
+              נסה שוב
+            </Button>
           </div>
         </CardContent>
       </Card>
