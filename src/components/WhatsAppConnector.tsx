@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, CheckCircle, Smartphone, AlertCircle, RefreshCw, Stethoscope } from 'lucide-react';
+import { Loader2, CheckCircle, Smartphone, AlertCircle, RefreshCw, Stethoscope, Bug } from 'lucide-react';
 import { useWhatsAppConnect } from '@/hooks/useWhatsAppConnect';
 import { useWhapiRecovery } from '@/hooks/useWhapiRecovery';
 import { useWhapiDiagnostics } from '@/hooks/useWhapiDiagnostics';
@@ -17,13 +17,30 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [diagnosticsResult, setDiagnosticsResult] = useState<any>(null);
+  const [debugMode, setDebugMode] = useState(false);
+  
   const { connectWhatsApp, checkStatus, isConnecting } = useWhatsAppConnect();
   const { runRecovery, forceNewInstance, isLoading: isRecovering } = useWhapiRecovery();
   const { runDiagnostics, isRunning: isDiagnosing } = useWhapiDiagnostics();
 
+  // Add comprehensive logging
+  useEffect(() => {
+    console.log('🔄 WhatsAppConnector state:', {
+      userId,
+      qrCode: !!qrCode,
+      polling,
+      error,
+      isConnecting,
+      isRecovering,
+      isDiagnosing,
+      debugMode
+    });
+  }, [userId, qrCode, polling, error, isConnecting, isRecovering, isDiagnosing, debugMode]);
+
   const handleConnect = async () => {
     try {
       setError(null);
+      setDiagnosticsResult(null);
       console.log('🔄 Starting WhatsApp connection...');
       
       const result = await connectWhatsApp.mutateAsync();
@@ -45,16 +62,18 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
       }
     } catch (error) {
       console.error('❌ Connection failed:', error);
-      setError('שגיאה בחיבור. נסה את מצב השחזור.');
+      setError(`שגיאה בחיבור: ${error.message || 'שגיאה לא ידועה'}`);
     }
   };
 
   const handleRecovery = async () => {
     try {
       setError(null);
+      setDiagnosticsResult(null);
       console.log('🚑 Starting recovery...');
       
       const result = await runRecovery.mutateAsync(false);
+      console.log('🔧 Recovery result:', result);
       
       if (result.success) {
         if (result.qr_code) {
@@ -73,16 +92,18 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
       }
     } catch (error) {
       console.error('❌ Recovery failed:', error);
-      setError('שחזור נכשל. נסה ליצור instance חדש.');
+      setError(`שחזור נכשל: ${error.message || 'שגיאה לא ידועה'}`);
     }
   };
 
   const handleForceNew = async () => {
     try {
       setError(null);
+      setDiagnosticsResult(null);
       console.log('🆕 Creating new instance...');
       
       const result = await forceNewInstance.mutateAsync();
+      console.log('🏗️ Force new result:', result);
       
       if (result.success && result.qr_code) {
         setQrCode(result.qr_code);
@@ -92,7 +113,7 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
       }
     } catch (error) {
       console.error('❌ Force new failed:', error);
-      setError('יצירת instance חדש נכשלה');
+      setError(`יצירת instance חדש נכשלה: ${error.message || 'שגיאה לא ידועה'}`);
     }
   };
 
@@ -102,20 +123,23 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
       console.log('🔬 Running diagnostics...');
       
       const result = await runDiagnostics.mutateAsync();
+      console.log('📋 Diagnostics result:', result);
       setDiagnosticsResult(result);
       
       // Auto-apply simple fixes based on diagnostics
-      if (result.recommendations.some((r: string) => r.includes('need new instance'))) {
+      if (result.recommendations.some((r: string) => r.includes('need new instance') || r.includes('Channel not found'))) {
         setError('נדרש instance חדש. לחץ על "יצור חדש"');
-      } else if (result.recommendations.some((r: string) => r.includes('QR code is available'))) {
+      } else if (result.recommendations.some((r: string) => r.includes('QR code is available') || r.includes('ready for QR scan'))) {
         setError('קוד QR זמין. נסה להתחבר שוב.');
       } else if (result.recommendations.some((r: string) => r.includes('already authenticated'))) {
         onConnected();
+      } else if (result.recommendations.length === 0) {
+        setError('הכל נראה תקין. נסה להתחבר שוב.');
       }
       
     } catch (error) {
       console.error('❌ Diagnostics failed:', error);
-      setError('בדיקה נכשלה');
+      setError(`בדיקה נכשלה: ${error.message || 'שגיאה לא ידועה'}`);
     }
   };
 
@@ -191,6 +215,11 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
                     <li key={idx} className="text-gray-700">{rec}</li>
                   ))}
                 </ul>
+                {debugMode && (
+                  <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
+                    <pre>{JSON.stringify(diagnosticsResult, null, 2)}</pre>
+                  </div>
+                )}
               </div>
             )}
             
@@ -237,6 +266,15 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
               >
                 {isDiagnosing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Stethoscope className="h-4 w-4 mr-1" />}
                 בדיקה
+              </Button>
+              <Button
+                onClick={() => setDebugMode(!debugMode)}
+                variant="outline"
+                className="border-gray-600 text-gray-600 hover:bg-gray-50"
+                size="sm"
+              >
+                <Bug className="h-4 w-4" />
+                {debugMode ? 'הסתר' : 'דיבוג'}
               </Button>
             </div>
           </div>
@@ -322,6 +360,14 @@ const WhatsAppConnector = ({ userId, onConnected }: WhatsAppConnectorProps) => {
               disabled={isConnecting || isRecovering || isDiagnosing}
             >
               {isDiagnosing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stethoscope className="h-4 w-4" />}
+            </Button>
+            <Button
+              onClick={() => setDebugMode(!debugMode)}
+              variant="outline"
+              className="border-gray-600 text-gray-600 hover:bg-gray-50"
+              disabled={isConnecting || isRecovering}
+            >
+              <Bug className="h-4 w-4" />
             </Button>
           </div>
         </div>

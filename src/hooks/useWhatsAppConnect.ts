@@ -15,21 +15,27 @@ export const useWhatsAppConnect = () => {
       
       console.log('🔄 Starting WhatsApp connection for user:', user.id);
       
-      const { data, error } = await supabase.functions.invoke('whapi-unified-connect', {
-        body: { userId: user.id }
-      });
-      
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw error;
+      try {
+        const { data, error } = await supabase.functions.invoke('whapi-unified-connect', {
+          body: { userId: user.id }
+        });
+        
+        if (error) {
+          console.error('🚨 Supabase function error:', error);
+          throw error;
+        }
+        
+        if (!data) {
+          console.error('🚨 No data returned from unified connect');
+          throw new Error('No data returned from function');
+        }
+        
+        console.log('✅ Connection flow result:', data);
+        return data;
+      } catch (err) {
+        console.error('🚨 Connect call failed:', err);
+        throw err;
       }
-      if (data?.error) {
-        console.error('Function returned error:', data.error);
-        throw new Error(data.error);
-      }
-      
-      console.log('✅ Connection flow result:', data);
-      return data;
     },
     onSuccess: (data) => {
       console.log('WhatsApp connection successful:', data);
@@ -76,14 +82,24 @@ export const useWhatsAppConnect = () => {
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      const { data, error } = await supabase.functions.invoke('whapi-check-status', {
-        body: { userId: user.id }
-      });
+      console.log('🔍 Checking WhatsApp status for user:', user.id);
       
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      
-      return data;
+      try {
+        const { data, error } = await supabase.functions.invoke('whapi-check-status', {
+          body: { userId: user.id }
+        });
+        
+        if (error) {
+          console.error('🚨 Status check error:', error);
+          throw error;
+        }
+        
+        console.log('📊 Status check result:', data);
+        return data;
+      } catch (err) {
+        console.error('🚨 Status check call failed:', err);
+        throw err;
+      }
     },
     onSuccess: (data) => {
       console.log('Status check result:', data);

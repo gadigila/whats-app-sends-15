@@ -21,25 +21,35 @@ export const useWhapiRecovery = () => {
     mutationFn: async (forceNew: boolean = false): Promise<RecoveryResult> => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('🚑 Running WHAPI auto recovery...');
+      console.log('🚑 Running WHAPI auto recovery for user:', user.id, 'forceNew:', forceNew);
       
-      const { data, error } = await supabase.functions.invoke('whapi-auto-recovery', {
-        body: { 
-          userId: user.id, 
-          forceNewInstance: forceNew 
+      try {
+        const { data, error } = await supabase.functions.invoke('whapi-auto-recovery', {
+          body: { 
+            userId: user.id, 
+            forceNewInstance: forceNew 
+          }
+        });
+
+        if (error) {
+          console.error('🚨 Recovery function error:', error);
+          throw error;
         }
-      });
 
-      if (error) {
-        console.error('Recovery error:', error);
-        throw error;
+        if (!data) {
+          console.error('🚨 No data returned from recovery function');
+          throw new Error('No data returned from function');
+        }
+
+        console.log('🔧 Recovery result:', data);
+        return data;
+      } catch (err) {
+        console.error('🚨 Recovery call failed:', err);
+        throw err;
       }
-
-      console.log('Recovery result:', data);
-      return data;
     },
     onSuccess: (data) => {
-      console.log('Recovery completed:', data.recovery_steps);
+      console.log('✅ Recovery completed:', data.recovery_steps);
       
       if (data.qr_code) {
         toast({
@@ -59,7 +69,7 @@ export const useWhapiRecovery = () => {
       }
     },
     onError: (error: any) => {
-      console.error('Recovery failed:', error);
+      console.error('❌ Recovery failed:', error);
       toast({
         title: "Recovery Failed",
         description: "Please try again or contact support",
