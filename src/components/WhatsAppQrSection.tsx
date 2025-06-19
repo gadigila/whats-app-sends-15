@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, AlertCircle, RefreshCw, Sync } from 'lucide-react';
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -149,7 +148,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
             נסה שוב
           </Button>
           <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline">
-            {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sync className="h-4 w-4 mr-2" />}
+            {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             סנכרן סטטוס
           </Button>
         </div>
@@ -166,7 +165,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           הערוץ מתחבר לשירות WHAPI. זה עשוי לקחת כ-60 שניות...
         </div>
         <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline" size="sm">
-          {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sync className="h-4 w-4 mr-2" />}
+          {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           בדוק סטטוס
         </Button>
       </div>
@@ -220,7 +219,7 @@ const WhatsAppQrSection = ({ userId, onConnected, onMissingInstance }: WhatsAppQ
           רענן QR Code
         </Button>
         <Button onClick={handleManualSync} disabled={manualStatusSync.isPending} variant="outline">
-          {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sync className="h-4 w-4 mr-2" />}
+          {manualStatusSync.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           סנכרן סטטוס
         </Button>
       </div>
