@@ -2,23 +2,36 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { MessageCircle } from 'lucide-react';
+import { useState } from 'react';
 
 interface WhatsAppInitialViewProps {
   onConnect: () => void;
 }
 
 const WhatsAppInitialView = ({ onConnect }: WhatsAppInitialViewProps) => {
+  const [isConnecting, setIsConnecting] = useState(false);
+  
   console.log('🎯 WhatsAppInitialView rendered - should show connect button');
   
-  const handleConnectClick = () => {
+  const handleConnectClick = async () => {
+    if (isConnecting) {
+      console.log('⚠️ Connection already in progress, ignoring click');
+      return;
+    }
+    
     console.log('🚀 Connect button clicked in WhatsAppInitialView!');
-    console.log('📋 onConnect function available:', typeof onConnect);
+    
+    setIsConnecting(true);
     
     try {
-      onConnect();
-      console.log('✅ onConnect function called successfully');
+      await onConnect();
     } catch (error) {
-      console.error('❌ Error calling onConnect:', error);
+      console.error('❌ Error in onConnect:', error);
+    } finally {
+      // Reset after a delay to prevent rapid clicks
+      setTimeout(() => {
+        setIsConnecting(false);
+      }, 3000);
     }
   };
   
@@ -36,10 +49,11 @@ const WhatsAppInitialView = ({ onConnect }: WhatsAppInitialViewProps) => {
         </p>
         <Button
           onClick={handleConnectClick}
+          disabled={isConnecting}
           size="lg"
-          className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold"
+          className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          התחבר לוואטסאפ
+          {isConnecting ? "מתחבר..." : "התחבר לוואטסאפ"}
         </Button>
       </CardContent>
     </Card>

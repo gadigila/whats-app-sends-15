@@ -95,18 +95,70 @@ Deno.serve(async (req) => {
       lastUpdated: profile?.updated_at
     })
 
-    // If user already has a valid instance, return it
+    // If user has existing instance, verify it actually exists in WHAPI
     if (profile?.instance_id && profile?.whapi_token && profile?.instance_status !== 'disconnected') {
-      console.log('✅ User already has existing instance:', profile.instance_id, 'Status:', profile.instance_status)
-      return new Response(
-        JSON.stringify({
-          success: true,
-          channel_id: profile.instance_id,
-          message: 'Using existing instance',
-          channel_ready: profile.instance_status === 'unauthorized' || profile.instance_status === 'connected'
-        }),
-        { status: 200, headers: corsHeaders }
-      )
+      console.log('🔍 Verifying existing instance:', profile.instance_id)
+      
+      try {
+        const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        console.log('📊 Existing instance status check:', statusResponse.status)
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          console.log('📊 Existing instance status:', statusData)
+          
+          if (statusData.status && statusData.status !== 'error') {
+            console.log('✅ Existing instance is valid, returning it')
+            return new Response(
+              JSON.stringify({
+                success: true,
+                channel_id: profile.instance_id,
+                message: 'Using existing valid instance',
+                channel_ready: statusData.status === 'unauthorized' || statusData.status === 'connected' || statusData.status === 'qr'
+              }),
+              { status: 200, headers: corsHeaders }
+            )
+          }
+        }
+        
+        console.log('⚠️ Existing instance is invalid or not found, will clean up and create new one')
+        
+        // Clean up invalid instance from database
+        await supabase
+          .from('profiles')
+          .update({
+            instance_id: null,
+            whapi_token: null,
+            instance_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+          
+        console.log('🧹 Cleaned up invalid instance from database')
+        
+      } catch (verifyError) {
+        console.log('⚠️ Failed to verify existing instance:', verifyError.message)
+        
+        // Clean up unverifiable instance
+        await supabase
+          .from('profiles')
+          .update({
+            instance_id: null,
+            whapi_token: null,
+            instance_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+          
+        console.log('🧹 Cleaned up unverifiable instance from database')
+      }
     }
 
     console.log('🏗️ Creating new channel...')
@@ -122,7 +174,6 @@ Deno.serve(async (req) => {
     }
 
     console.log('📤 Creating channel with payload:', createChannelPayload)
-    console.log('🔑 Using partner token:', whapiPartnerToken.substring(0, 10) + '...')
 
     let createChannelResponse;
     try {
@@ -136,7 +187,6 @@ Deno.serve(async (req) => {
       });
       
       console.log('📥 Channel creation response status:', createChannelResponse.status)
-      console.log('📥 Channel creation response headers:', Object.fromEntries(createChannelResponse.headers.entries()))
       
     } catch (fetchError) {
       console.error('❌ Network error calling WHAPI:', fetchError)
@@ -154,11 +204,9 @@ Deno.serve(async (req) => {
       console.error('❌ Channel creation failed:', {
         status: createChannelResponse.status,
         statusText: createChannelResponse.statusText,
-        error: errorText,
-        payload: createChannelPayload
+        error: errorText
       })
       
-      // Don't save anything to DB if channel creation failed
       return new Response(
         JSON.stringify({ 
           error: 'Failed to create channel with WHAPI', 
@@ -172,7 +220,7 @@ Deno.serve(async (req) => {
     let channelData;
     try {
       channelData = await createChannelResponse.json()
-      console.log('✅ Channel created successfully (raw response):', channelData)
+      console.log('✅ Channel created successfully:', channelData)
     } catch (jsonError) {
       console.error('❌ Failed to parse WHAPI response as JSON:', jsonError)
       const responseText = await createChannelResponse.text()
@@ -190,7 +238,6 @@ Deno.serve(async (req) => {
     const finalChannelId = channelData?.id || channelId
     const channelToken = channelData?.token
 
-    // Don't save to DB if we don't have essential data
     if (!channelToken || !finalChannelId) {
       console.error('❌ No token or id received from WHAPI:', channelData)
       return new Response(
@@ -204,8 +251,7 @@ Deno.serve(async (req) => {
 
     console.log('🎯 Channel creation successful:', {
       channelId: finalChannelId,
-      hasToken: !!channelToken,
-      tokenPrefix: channelToken.substring(0, 10) + '...'
+      hasToken: !!channelToken
     })
 
     // Setup webhook
@@ -232,9 +278,7 @@ Deno.serve(async (req) => {
       })
 
       console.log('🔗 Webhook setup response:', webhookResponse.status)
-      if (webhookResponse.ok) {
-        console.log('✅ Webhook setup successful')
-      } else {
+      if (!webhookResponse.ok) {
         const webhookError = await webhookResponse.text()
         console.error('⚠️ Webhook setup failed:', webhookError)
       }
@@ -272,7 +316,7 @@ Deno.serve(async (req) => {
 
     console.log('✅ Database updated successfully')
 
-    // Wait a bit for channel to initialize
+    // Wait for channel initialization
     console.log('⏳ Waiting for channel initialization...')
     await new Promise(resolve => setTimeout(resolve, 3000))
     
@@ -319,8 +363,7 @@ Deno.serve(async (req) => {
 
     console.log('🎯 Function completed successfully:', {
       channelId: finalChannelId,
-      channelReady,
-      trialExpiresAt
+      channelReady
     })
 
     return new Response(
