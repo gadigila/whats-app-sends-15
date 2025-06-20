@@ -8,6 +8,8 @@ interface WhatsAppInitialViewProps {
 }
 
 const WhatsAppInitialView = ({ onConnect }: WhatsAppInitialViewProps) => {
+  console.log('🎯 WhatsAppInitialView rendered - should show connect button');
+  
   return (
     <Card>
       <CardContent className="p-8 text-center">
@@ -21,7 +23,10 @@ const WhatsAppInitialView = ({ onConnect }: WhatsAppInitialViewProps) => {
           נתחיל ביצירת חיבור בטוח בינך לבין וואטסאפ
         </p>
         <Button
-          onClick={onConnect}
+          onClick={() => {
+            console.log('🚀 Connect button clicked!');
+            onConnect();
+          }}
           size="lg"
           className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold"
         >
