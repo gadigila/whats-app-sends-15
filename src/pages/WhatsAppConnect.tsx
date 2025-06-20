@@ -24,8 +24,8 @@ const WhatsAppConnect = () => {
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const { validateUserChannel, syncChannelStatus, cleanupStuckChannel, isValidating, isSyncing, isCleaning } = useWhapiValidation();
-  const { fixWebhook, validateWebhook, isFixing, isValidating } = useWhapiWebhook();
+  const { validateUserChannel, syncChannelStatus, cleanupStuckChannel, isValidating: isChannelValidating, isSyncing, isCleaning } = useWhapiValidation();
+  const { fixWebhook, validateWebhook, isFixing, isValidating: isWebhookValidating } = useWhapiWebhook();
   const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
   const [selectedMethod, setSelectedMethod] = useState<'qr' | 'phone' | null>(null);
   const [pollingAttempts, setPollingAttempts] = useState(0);
@@ -553,12 +553,12 @@ const WhatsAppConnect = () => {
           <div className="flex flex-wrap gap-3">
             <Button
               onClick={handleValidateChannel}
-              disabled={isValidating}
+              disabled={isChannelValidating}
               variant="outline"
               size="sm"
               className="border-blue-300 text-blue-700 hover:bg-blue-100"
             >
-              {isValidating ? (
+              {isChannelValidating ? (
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <CheckCircle className="h-4 w-4 mr-2" />
@@ -583,12 +583,12 @@ const WhatsAppConnect = () => {
             
             <Button
               onClick={handleValidateWebhook}
-              disabled={isValidating}
+              disabled={isWebhookValidating}
               variant="outline"
               size="sm"
               className="border-purple-300 text-purple-700 hover:bg-purple-100"
             >
-              {isValidating ? (
+              {isWebhookValidating ? (
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Webhook className="h-4 w-4 mr-2" />
