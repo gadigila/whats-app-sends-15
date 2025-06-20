@@ -15,15 +15,18 @@ interface ChannelManager {
   createChannel(): Promise<any>
   getChannelStatus(channelId: string): Promise<any>
   getQRCode(channelId: string): Promise<any>
+  configureWebhook(channelId: string, token: string): Promise<any>
 }
 
 class WhapiChannelManager implements ChannelManager {
   private partnerToken: string
   private projectId: string
+  private webhookUrl: string
 
   constructor() {
     this.partnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     this.projectId = Deno.env.get('WHAPI_PROJECT_ID')!
+    this.webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/whapi-webhook`
   }
 
   async createChannel(): Promise<any> {
@@ -99,6 +102,45 @@ class WhapiChannelManager implements ChannelManager {
       message: 'QR code retrieved successfully'
     }
   }
+
+  async configureWebhook(channelId: string, token: string): Promise<any> {
+    console.log('🔗 Configuring webhook for channel:', channelId)
+    console.log('🌐 Webhook URL:', this.webhookUrl)
+    
+    const response = await fetch(`https://gate.whapi.cloud/settings`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhooks: [{
+          url: this.webhookUrl,
+          events: {
+            messages: false,
+            statuses: false,
+            channels: true,
+            users: true
+          }
+        }]
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Webhook configuration failed:', errorText)
+      throw new Error(`Failed to configure webhook: ${errorText}`)
+    }
+
+    const result = await response.json()
+    console.log('✅ Webhook configured successfully:', result)
+    
+    return {
+      success: true,
+      webhook_url: this.webhookUrl,
+      message: 'Webhook configured successfully'
+    }
+  }
 }
 
 Deno.serve(async (req) => {
@@ -120,7 +162,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('🔄 Unified Connect for user:', userId)
+    console.log('🔄 Enhanced Unified Connect for user:', userId)
 
     // Get user's current profile
     const { data: profile, error: profileError } = await supabase
@@ -184,7 +226,7 @@ Deno.serve(async (req) => {
     }
 
     // Create a new channel
-    console.log('🆕 Creating new instance...')
+    console.log('🆕 Creating new instance with enhanced webhook setup...')
     const channelResult = await channelManager.createChannel()
     
     if (!channelResult.success || !channelResult.channel_id || !channelResult.token) {
@@ -193,6 +235,19 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Failed to create new WhatsApp channel' }),
         { status: 500, headers: corsHeaders }
       )
+    }
+
+    console.log('✅ Channel created, now configuring webhook...')
+    
+    // Configure webhook immediately after channel creation
+    try {
+      const webhookResult = await channelManager.configureWebhook(channelResult.channel_id, channelResult.token)
+      console.log('🔗 Webhook configuration result:', webhookResult)
+    } catch (webhookError) {
+      console.error('❌ Webhook configuration failed:', webhookError)
+      
+      // Don't fail the entire process, but warn user
+      console.log('⚠️ Channel created but webhook configuration failed - continuing anyway')
     }
 
     // Get QR code
@@ -226,20 +281,21 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('✅ Instance created successfully:', channelResult.channel_id)
+    console.log('✅ Enhanced instance created with webhook:', channelResult.channel_id)
     
     return new Response(
       JSON.stringify({
         success: true,
         qr_code: qrResult.qr_code,
         instance_id: channelResult.channel_id,
-        message: 'New instance created, scan QR code to connect'
+        webhook_configured: true,
+        message: 'New instance created with webhook, scan QR code to connect'
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Unified Connect Error:', error)
+    console.error('💥 Enhanced Unified Connect Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }

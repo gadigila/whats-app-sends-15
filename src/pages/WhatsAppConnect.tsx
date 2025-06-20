@@ -14,8 +14,10 @@ import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhapiValidation } from '@/hooks/useWhapiValidation';
+import { useWhapiWebhook } from '@/hooks/useWhapiWebhook';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Webhook, Settings } from 'lucide-react';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
@@ -23,6 +25,7 @@ const WhatsAppConnect = () => {
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
   const { validateUserChannel, syncChannelStatus, cleanupStuckChannel, isValidating, isSyncing, isCleaning } = useWhapiValidation();
+  const { fixWebhook, validateWebhook, isFixing, isValidating } = useWhapiWebhook();
   const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
   const [selectedMethod, setSelectedMethod] = useState<'qr' | 'phone' | null>(null);
   const [pollingAttempts, setPollingAttempts] = useState(0);
@@ -419,7 +422,7 @@ const WhatsAppConnect = () => {
     setSelectedMethod(null);
   };
 
-  // Enhanced validation functions
+  // Enhanced validation functions with webhook support
   const handleValidateChannel = async () => {
     try {
       await validateUserChannel.mutateAsync();
@@ -452,6 +455,24 @@ const WhatsAppConnect = () => {
       setChannelCreationTime(0);
     } catch (error) {
       console.error('❌ Cleanup failed:', error);
+    }
+  };
+
+  // New webhook handlers
+  const handleFixWebhook = async () => {
+    try {
+      await fixWebhook.mutateAsync();
+      await refetchProfile();
+    } catch (error) {
+      console.error('❌ Webhook fix failed:', error);
+    }
+  };
+
+  const handleValidateWebhook = async () => {
+    try {
+      await validateWebhook.mutateAsync();
+    } catch (error) {
+      console.error('❌ Webhook validation failed:', error);
     }
   };
 
@@ -520,11 +541,11 @@ const WhatsAppConnect = () => {
           </p>
         </div>
         
-        {/* Enhanced Validation & Troubleshooting Section */}
+        {/* Enhanced Validation & Troubleshooting Section with Webhook Support */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
             <CheckCircle className="h-5 w-5" />
-            כלי אבחון ותיקון
+            כלי אבחון ותיקון מתקדמים
           </h3>
           <p className="text-blue-700 text-sm mb-4">
             אם אתה נתקע או רואה בעיות בחיבור, השתמש בכלים האלה לאבחון ותיקון:
@@ -561,6 +582,36 @@ const WhatsAppConnect = () => {
             </Button>
             
             <Button
+              onClick={handleValidateWebhook}
+              disabled={isValidating}
+              variant="outline"
+              size="sm"
+              className="border-purple-300 text-purple-700 hover:bg-purple-100"
+            >
+              {isValidating ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Webhook className="h-4 w-4 mr-2" />
+              )}
+              בדוק Webhook
+            </Button>
+            
+            <Button
+              onClick={handleFixWebhook}
+              disabled={isFixing}
+              variant="outline"
+              size="sm"
+              className="border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+            >
+              {isFixing ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Settings className="h-4 w-4 mr-2" />
+              )}
+              תקן Webhook
+            </Button>
+            
+            <Button
               onClick={handleCleanupStuck}
               disabled={isCleaning}
               variant="outline"
@@ -590,6 +641,8 @@ const WhatsAppConnect = () => {
           <p className="text-xs text-blue-600 mt-3">
             💡 "בדוק ערוץ" - בודק אם הערוץ שלך קיים ב-WHAPI ומנקה אם לא<br/>
             💡 "סנכרן סטטוס" - מעדכן את הסטטוס האמיתי מ-WHAPI<br/>
+            💡 "בדוק Webhook" - בודק אם ה-Webhook מוגדר נכון ב-WHAPI<br/>
+            💡 "תקן Webhook" - מגדיר את ה-Webhook לערוץ קיים<br/>
             💡 "נקה ערוץ תקוע" - מנקה ערוצים עם סטטוס timeout/initializing/error<br/>
             💡 "אפס והתחל מחדש" - מנקה הכל ומאפשר התחלה מחדש
           </p>
