@@ -8,15 +8,15 @@ export const useWhatsAppConnect = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Unified connection flow - handles everything automatically
+  // Get QR code for existing channel
   const connectWhatsApp = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('🔄 Starting WhatsApp connection for user:', user.id);
+      console.log('🔄 Getting QR code for existing channel:', user.id);
       
       try {
-        const { data, error } = await supabase.functions.invoke('whapi-unified-connect', {
+        const { data, error } = await supabase.functions.invoke('whapi-get-qr', {
           body: { userId: user.id }
         });
         
@@ -26,19 +26,19 @@ export const useWhatsAppConnect = () => {
         }
         
         if (!data) {
-          console.error('🚨 No data returned from unified connect');
+          console.error('🚨 No data returned from get QR');
           throw new Error('No data returned from function');
         }
         
-        console.log('✅ Connection flow result:', data);
+        console.log('✅ QR code result:', data);
         return data;
       } catch (err) {
-        console.error('🚨 Connect call failed:', err);
+        console.error('🚨 QR code call failed:', err);
         throw err;
       }
     },
     onSuccess: (data) => {
-      console.log('WhatsApp connection successful:', data);
+      console.log('QR code retrieved successfully:', data);
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       
@@ -49,19 +49,19 @@ export const useWhatsAppConnect = () => {
         });
       } else if (data.qr_code) {
         toast({
-          title: "מוכן לחיבור",
-          description: "סרוק את קוד ה-QR כדי להתחבר",
+          title: "קוד QR מוכן",
+          description: "סרוק את הקוד כדי להתחבר",
         });
       }
     },
     onError: (error: any) => {
-      console.error('Failed to connect WhatsApp:', error);
+      console.error('Failed to get QR code:', error);
       
       let errorMessage = "נסה שוב מאוחר יותר";
       
       if (error.message) {
-        if (error.message.includes('Failed to create')) {
-          errorMessage = "שגיאה ביצירת חיבור חדש";
+        if (error.message.includes('No WhatsApp instance')) {
+          errorMessage = "לא נמצא חיבור וואטסאפ. צור חיבור חדש תחילה";
         } else if (error.message.includes('Failed to get QR')) {
           errorMessage = "שגיאה בקבלת קוד QR";
         } else {
@@ -70,7 +70,7 @@ export const useWhatsAppConnect = () => {
       }
       
       toast({
-        title: "שגיאה בחיבור לוואטסאפ",
+        title: "שגיאה בקבלת קוד QR",
         description: errorMessage,
         variant: "destructive",
       });
