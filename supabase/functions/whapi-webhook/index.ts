@@ -4,6 +4,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
 }
 
 Deno.serve(async (req) => {
@@ -21,7 +22,7 @@ Deno.serve(async (req) => {
 
     // IMPROVED: Better webhook data parsing
     const { event, data, type } = webhookData
-    const webhookType = event || type // Some webhooks use 'type' instead of 'event'
+    const webhookType = event || type
 
     console.log('🔍 Webhook details:', {
       event: event,
@@ -66,41 +67,50 @@ Deno.serve(async (req) => {
           // IMPROVED: Map WHAPI status to our internal status
           let newStatus = data.status
           
-          if (data.status === 'unauthorized' || data.status === 'qr') {
+          // FIXED: Better status mapping
+          if (data.status === 'unauthorized' || data.status === 'qr' || data.status === 'active') {
             newStatus = 'unauthorized'
             console.log('🎯 Channel is now ready for QR generation!')
           } else if (data.status === 'ready' || data.status === 'launched') {
-            newStatus = 'unauthorized' // Ready for authentication
+            newStatus = 'unauthorized'
             console.log('📱 Channel is ready for authentication')
           } else if (data.status === 'authenticated' || data.status === 'connected') {
             newStatus = 'connected'
             console.log('🎉 WhatsApp session is now connected!')
-          } else if (data.status === 'active') {
-            // Active status usually means channel is running but not authenticated
-            newStatus = 'unauthorized'
-            console.log('🔄 Channel is active but needs authentication')
+          } else if (data.status === 'initializing') {
+            // Don't change status if it's initializing, wait for next update
+            console.log('⏳ Channel is still initializing...')
+            return new Response(
+              JSON.stringify({ success: true, message: 'Channel initializing' }),
+              { status: 200, headers: corsHeaders }
+            )
           } else {
-            console.log('📝 Keeping status as received:', data.status)
+            console.log('📝 Mapping unknown status to unauthorized:', data.status)
+            newStatus = 'unauthorized'
           }
 
-          // Update the profile status
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({
-              instance_status: newStatus,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', profile.id)
+          // Only update if status actually changed
+          if (newStatus !== profile.instance_status) {
+            const { error: updateError } = await supabase
+              .from('profiles')
+              .update({
+                instance_status: newStatus,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', profile.id)
 
-          if (updateError) {
-            console.error('❌ Error updating profile status:', updateError)
+            if (updateError) {
+              console.error('❌ Error updating profile status:', updateError)
+            } else {
+              console.log('✅ Profile status updated successfully:', {
+                userId: profile.id,
+                oldStatus: profile.instance_status,
+                newStatus: newStatus,
+                webhookStatus: data.status
+              })
+            }
           } else {
-            console.log('✅ Profile status updated successfully:', {
-              userId: profile.id,
-              oldStatus: profile.instance_status,
-              newStatus: newStatus,
-              webhookStatus: data.status
-            })
+            console.log('ℹ️ Status unchanged, no update needed')
           }
         } else {
           console.log('⚠️ No profile found for channel ID:', data.id)

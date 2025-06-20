@@ -3,16 +3,15 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import WhatsAppConnector from '@/components/WhatsAppConnector';
+import PhoneAuthConnector from '@/components/PhoneAuthConnector';
 import WhatsAppInstructions from '@/components/WhatsAppInstructions';
 import WhatsAppLoadingState from '@/components/WhatsAppLoadingState';
 import WhatsAppConnectedView from '@/components/WhatsAppConnectedView';
-import WhatsAppManualTester from '@/components/WhatsAppManualTester';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { Button } from '@/components/ui/button';
-import { Bug } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
@@ -20,7 +19,6 @@ const WhatsAppConnect = () => {
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   console.log('🔄 WhatsAppConnect render:', {
     user: user?.email,
@@ -30,8 +28,7 @@ const WhatsAppConnect = () => {
       instance_status: profile.instance_status,
       has_token: !!profile.whapi_token
     } : null,
-    connectionStatus,
-    showDebugPanel
+    connectionStatus
   });
 
   // Update connection status based on profile
@@ -115,34 +112,32 @@ const WhatsAppConnect = () => {
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">חבר את הוואטסאפ שלך</h1>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDebugPanel(!showDebugPanel)}
-              className="border-gray-300"
-            >
-              <Bug className="h-4 w-4" />
-              {showDebugPanel ? 'הסתר דיבוג' : 'דיבוג'}
-            </Button>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">חבר את הוואטסאפ שלך</h1>
           <p className="text-gray-600">
             חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות לקבוצות
           </p>
         </div>
         
         {user?.id && (
-          <WhatsAppConnector 
-            userId={user.id} 
-            onConnected={handleConnected}
-          />
-        )}
-        
-        {showDebugPanel && (
-          <div className="mt-6">
-            <WhatsAppManualTester />
-          </div>
+          <Tabs defaultValue="qr" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="qr">קוד QR</TabsTrigger>
+              <TabsTrigger value="phone">מספר טלפון</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="qr" className="space-y-4">
+              <WhatsAppConnector 
+                userId={user.id} 
+                onConnected={handleConnected}
+              />
+            </TabsContent>
+            
+            <TabsContent value="phone" className="space-y-4">
+              <PhoneAuthConnector 
+                onConnected={handleConnected}
+              />
+            </TabsContent>
+          </Tabs>
         )}
         
         <WhatsAppInstructions />

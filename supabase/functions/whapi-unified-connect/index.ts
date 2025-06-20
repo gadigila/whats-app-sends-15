@@ -1,224 +1,18 @@
+
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { ChannelManager } from './channel-manager.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
 }
 
 interface ConnectRequest {
   userId: string
 }
 
-// Helper function to wait/delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-async function checkWhapiStatus(token: string, channelManager: ChannelManager, channelId: string) {
-  try {
-    console.log(`🔍 Checking WHAPI status for channel: ${channelId}`)
-    
-    // IMPROVED: First check if channel is ready via Manager API
-    const channelInfo = await channelManager.getChannelInfo(channelId)
-    
-    if (!channelInfo.success) {
-      console.error(`❌ Channel not found in Manager API: ${channelInfo.error}`)
-      return { success: false, status: 'not_found', error: channelInfo.error }
-    }
-    
-    if (channelInfo.status !== 'LAUNCHED' && channelInfo.status !== 'READY' && channelInfo.status !== 'AUTHORIZED') {
-      console.log(`⏳ Channel not ready yet, status: ${channelInfo.status}`)
-      return { success: true, status: 'initializing', channelStatus: channelInfo.status }
-    }
-    
-    // Now try Gate API
-    console.log(`🔍 Channel is ready, checking Gate API...`)
-    
-    // FIXED: Use correct endpoint /me instead of /health or /status
-    const response = await fetch(`https://gate.whapi.cloud/me`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    console.log(`📊 WHAPI me response: ${response.status}`)
-    
-    if (response.ok) {
-      const data = await response.json()
-      console.log(`✅ WHAPI me data:`, data)
-      // If we get user data back, we're authenticated
-      return { success: true, status: 'authenticated', data }
-    } else if (response.status === 401) {
-      // 401 means not authenticated yet - need QR scan
-      console.log(`📱 Not authenticated yet - need QR scan`)
-      return { success: true, status: 'unauthorized' }
-    }
-    
-    const errorText = await response.text()
-    console.error(`❌ WHAPI me error: ${response.status} - ${errorText}`)
-    return { success: false, status: response.status, error: errorText }
-  } catch (error) {
-    console.error(`💥 WHAPI me network error:`, error)
-    return { success: false, error: error.message }
-  }
-}
-
-async function getQrCode(token: string, channelManager: ChannelManager, channelId: string, retryCount = 0) {
-  const maxRetries = 3
-  
-  try {
-    console.log(`📱 Getting QR code (attempt ${retryCount + 1}/${maxRetries + 1})`)
-    
-    // IMPROVED: Check channel readiness first
-    const channelInfo = await channelManager.getChannelInfo(channelId)
-    
-    if (!channelInfo.success || (channelInfo.status !== 'LAUNCHED' && channelInfo.status !== 'READY' && channelInfo.status !== 'AUTHORIZED')) {
-      console.log(`⏳ Channel not ready for QR, status: ${channelInfo.status || 'unknown'}`)
-      return { success: false, error: 'Channel not ready for QR code', needsWait: true }
-    }
-    
-    // FIXED: Use correct endpoint /screenshot instead of /qr
-    const qrResponse = await fetch(`https://gate.whapi.cloud/screenshot`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json'
-      }
-    })
-    
-    console.log(`📱 QR response status: ${qrResponse.status}`)
-    
-    if (qrResponse.ok) {
-      const qrData = await qrResponse.json()
-      console.log(`✅ QR data received:`, Object.keys(qrData))
-      console.log(`🔍 Full QR response:`, qrData)
-      
-      // FIXED: WHAPI /screenshot returns QR in 'image' field
-      let qrCode = null
-      
-      if (qrData.image) {
-        qrCode = qrData.image
-        console.log(`🎯 QR code found in 'image' field (WHAPI screenshot format)`)
-      } else if (qrData.qr) {
-        qrCode = qrData.qr
-        console.log(`🎯 QR code found in 'qr' field (legacy format)`)
-      } else if (qrData.qrCode) {
-        qrCode = qrData.qrCode
-        console.log(`🎯 QR code found in 'qrCode' field (legacy format)`)
-      }
-      
-      if (qrCode) {
-        // Ensure proper base64 formatting
-        if (!qrCode.startsWith('data:image/')) {
-          qrCode = `data:image/png;base64,${qrCode}`
-        }
-        
-        console.log(`🎯 QR code found and formatted, length: ${qrCode.length}`)
-        return { success: true, qr_code: qrCode }
-      }
-      
-      console.log(`⚠️ No QR code found in response fields:`, Object.keys(qrData))
-      return { success: false, error: 'QR code not found in response', details: qrData }
-    }
-    
-    const errorText = await qrResponse.text()
-    console.error(`❌ QR request failed: ${qrResponse.status} - ${errorText}`)
-    
-    // Retry logic for server errors
-    if ((qrResponse.status >= 500 || qrResponse.status === 429) && retryCount < maxRetries) {
-      const delayMs = 2000 * Math.pow(2, retryCount)
-      console.log(`⏳ Retrying QR request in ${delayMs}ms...`)
-      await delay(delayMs)
-      return getQrCode(token, channelManager, channelId, retryCount + 1)
-    }
-    
-    return { success: false, error: `QR request failed: ${qrResponse.status}`, details: errorText }
-  } catch (error) {
-    console.error(`💥 QR request network error:`, error)
-    
-    if (retryCount < maxRetries) {
-      const delayMs = 2000 * Math.pow(2, retryCount)
-      console.log(`⏳ Retrying QR request after error in ${delayMs}ms...`)
-      await delay(delayMs)
-      return getQrCode(token, channelManager, channelId, retryCount + 1)
-    }
-    
-    return { success: false, error: error.message }
-  }
-}
-
-async function createNewInstance(whapiPartnerToken: string, whapiProjectId: string, userId: string, supabaseUrl: string) {
-  console.log('🏗️ Creating new WHAPI instance...')
-  
-  const createResponse = await fetch('https://manager.whapi.cloud/channels', {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${whapiPartnerToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: `reecher_user_${userId.substring(0, 8)}`,
-      projectId: whapiProjectId
-    })
-  })
-  
-  console.log(`🏗️ Create response status: ${createResponse.status}`)
-  
-  if (!createResponse.ok) {
-    const errorText = await createResponse.text()
-    console.error(`❌ Failed to create instance: ${errorText}`)
-    throw new Error(`Failed to create instance: ${errorText}`)
-  }
-  
-  const channelData = await createResponse.json()
-  console.log(`✅ Channel created:`, Object.keys(channelData))
-  
-  if (!channelData.id || !channelData.token) {
-    console.error(`❌ Invalid channel data:`, channelData)
-    throw new Error('Invalid channel data received')
-  }
-  
-  // FIXED: Setup webhook with correct format
-  const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
-  console.log(`🔗 Setting up webhook: ${webhookUrl}`)
-  
-  try {
-    const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${channelData.token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        webhooks: [{
-          url: webhookUrl,
-          events: [
-            {"type": "users", "method": "post"},
-            {"type": "channel", "method": "post"}
-          ],
-          callback_persist: true
-        }]
-      })
-    })
-    
-    if (webhookResponse.ok) {
-      console.log('✅ Webhook setup successful')
-    } else {
-      const webhookError = await webhookResponse.text()
-      console.log('⚠️ Webhook setup failed:', webhookError)
-    }
-  } catch (webhookError) {
-    console.log('⚠️ Webhook setup error, but continuing...', webhookError.message)
-  }
-  
-  return {
-    instanceId: channelData.id,
-    token: channelData.token
-  }
-}
-
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -227,31 +21,20 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
-    const whapiProjectId = Deno.env.get('WHAPI_PROJECT_ID')!
-    
-    console.log(`🔧 Environment check - WHAPI Project ID: ${whapiProjectId ? 'Set' : 'Missing'}`)
-    console.log(`🔧 Environment check - WHAPI Partner Token: ${whapiPartnerToken ? 'Set' : 'Missing'}`)
-    
-    if (!whapiPartnerToken || !whapiProjectId) {
-      return new Response(JSON.stringify({ 
-        error: 'WHAPI configuration missing',
-        details: 'Partner token or project ID not configured'
-      }), { status: 500, headers: corsHeaders })
-    }
-    
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    const channelManager = new ChannelManager(whapiPartnerToken)
+
     const { userId }: ConnectRequest = await req.json()
 
     if (!userId) {
-      console.error('❌ Missing user ID in request')
-      return new Response(JSON.stringify({ error: 'User ID is required' }), 
-        { status: 400, headers: corsHeaders })
+      return new Response(
+        JSON.stringify({ error: 'User ID is required' }),
+        { status: 400, headers: corsHeaders }
+      )
     }
 
-    console.log('🚀 Starting unified connection flow for user:', userId)
+    console.log('🔄 Unified Connect for user:', userId)
 
-    // Get user's current profile
+    // Check if user already has a working instance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status')
@@ -259,190 +42,100 @@ Deno.serve(async (req) => {
       .single()
 
     if (profileError) {
-      console.error('❌ Error fetching profile:', profileError)
-      return new Response(JSON.stringify({ error: 'Profile not found' }), 
-        { status: 404, headers: corsHeaders })
+      console.error('❌ Profile fetch error:', profileError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch profile' }),
+        { status: 500, headers: corsHeaders }
+      )
     }
 
-    console.log('👤 User profile:', {
-      hasInstanceId: !!profile?.instance_id,
-      hasToken: !!profile?.whapi_token,
-      status: profile?.instance_status
-    })
+    // If user has a connected instance, return success
+    if (profile?.instance_status === 'connected' && profile?.instance_id && profile?.whapi_token) {
+      console.log('✅ User already connected:', profile.instance_id)
+      return new Response(
+        JSON.stringify({
+          success: true,
+          already_connected: true,
+          instance_id: profile.instance_id,
+          message: 'Already connected to WhatsApp'
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
 
-    let instanceId = profile?.instance_id
-    let token = profile?.whapi_token
-    let needsNewInstance = false
-
-    // Check if we have a valid existing instance
-    if (instanceId && token) {
-      console.log('🔍 Checking existing instance status...')
-      const statusCheck = await checkWhapiStatus(token, channelManager, instanceId)
+    // If user has an instance but it's not connected, try to get QR
+    if (profile?.instance_id && profile?.whapi_token) {
+      console.log('🔍 Checking existing instance:', profile.instance_id)
       
-      if (statusCheck.success) {
-        console.log(`📊 Current instance status: ${statusCheck.status}`)
-        
-        // Map WHAPI status properly
-        if (statusCheck.status === 'authenticated') {
-          // Already connected!
-          console.log('🎉 Instance already authenticated!')
+      try {
+        const qrResponse = await fetch(`https://gate.whapi.cloud/screenshot`, {
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Accept': 'image/png'
+          }
+        })
+
+        if (qrResponse.ok) {
+          const qrBlob = await qrResponse.blob()
+          const qrArrayBuffer = await qrBlob.arrayBuffer()
+          const qrBase64 = btoa(String.fromCharCode(...new Uint8Array(qrArrayBuffer)))
           
+          // Update status to unauthorized (ready for QR)
           await supabase
             .from('profiles')
-            .update({ instance_status: 'connected', updated_at: new Date().toISOString() })
-            .eq('id', userId)
-          
-          return new Response(JSON.stringify({
-            success: true,
-            already_connected: true,
-            message: 'WhatsApp already connected',
-            instance_id: instanceId
-          }), { status: 200, headers: corsHeaders })
-          
-        } else if (statusCheck.status === 'unauthorized') {
-          // Ready for QR - this is good!
-          console.log('✅ Existing instance ready for QR')
-          
-          // Update status in database
-          await supabase
-            .from('profiles')
-            .update({ 
+            .update({
               instance_status: 'unauthorized',
-              updated_at: new Date().toISOString() 
+              updated_at: new Date().toISOString()
             })
             .eq('id', userId)
-            
-        } else if (statusCheck.status === 'initializing') {
-          // Channel is still initializing - wait for it
-          console.log('⏳ Channel is initializing, waiting...')
-          
-          const isReady = await channelManager.waitForChannelReady(instanceId)
-          
-          if (!isReady) {
-            console.error('❌ Channel failed to become ready')
-            needsNewInstance = true
-          } else {
-            console.log('✅ Channel is now ready')
-            await supabase
-              .from('profiles')
-              .update({ 
-                instance_status: 'unauthorized',
-                updated_at: new Date().toISOString() 
-              })
-              .eq('id', userId)
-          }
-        } else {
-          console.log(`⚠️ Instance status not suitable: ${statusCheck.status}`)
-          needsNewInstance = true
-        }
-      } else {
-        console.log('❌ Instance status check failed, need new instance')
-        needsNewInstance = true
-      }
-    } else {
-      console.log('🆕 No existing instance found')
-      needsNewInstance = true
-    }
 
-    // Create new instance if needed
-    if (needsNewInstance) {
-      console.log('🆕 Creating new instance...')
-      try {
-        const newInstance = await createNewInstance(whapiPartnerToken, whapiProjectId, userId, supabaseUrl)
-        instanceId = newInstance.instanceId
-        token = newInstance.token
-        
-        console.log(`✅ New instance created: ${instanceId}`)
-        
-        // Save to database
-        const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-        
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            instance_id: instanceId,
-            whapi_token: token,
-            instance_status: 'initializing',
-            payment_plan: 'trial',
-            trial_expires_at: trialExpiresAt,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId)
-        
-        if (updateError) {
-          console.error('❌ Failed to update profile:', updateError)
-          throw new Error('Failed to save instance data')
+          console.log('✅ QR code generated for existing instance')
+          return new Response(
+            JSON.stringify({
+              success: true,
+              qr_code: `data:image/png;base64,${qrBase64}`,
+              instance_id: profile.instance_id,
+              message: 'QR code ready for scanning'
+            }),
+            { status: 200, headers: corsHeaders }
+          )
         }
-        
-        console.log('✅ New instance saved to database')
-        
-        // Wait for instance to be ready
-        console.log('⏳ Waiting for new instance to be ready...')
-        const isReady = await channelManager.waitForChannelReady(instanceId!)
-        
-        if (!isReady) {
-          console.error('❌ New instance failed to become ready')
-          return new Response(JSON.stringify({ 
-            error: 'Instance failed to initialize',
-            details: 'Channel did not become ready within expected time'
-          }), { status: 500, headers: corsHeaders })
-        }
-        
-        // Update status to ready for QR
-        await supabase
-          .from('profiles')
-          .update({ 
-            instance_status: 'unauthorized',
-            updated_at: new Date().toISOString() 
-          })
-          .eq('id', userId)
-        
       } catch (error) {
-        console.error('❌ Failed to create instance:', error)
-        return new Response(JSON.stringify({ 
-          error: 'Failed to create WhatsApp instance',
-          details: error.message 
-        }), { status: 500, headers: corsHeaders })
+        console.log('⚠️ Existing instance not working, will create new one:', error.message)
       }
     }
 
-    // Get QR code
-    console.log('📱 Getting QR code...')
-    const qrResult = await getQrCode(token!, channelManager, instanceId!)
+    // Create new instance
+    console.log('🆕 Creating new instance...')
     
-    if (!qrResult.success) {
-      console.error('❌ Failed to get QR code:', qrResult.error)
-      
-      if (qrResult.needsWait) {
-        return new Response(JSON.stringify({ 
-          error: 'Channel still initializing',
-          details: qrResult.error,
-          retry_after: 10
-        }), { status: 400, headers: corsHeaders })
-      }
-      
-      return new Response(JSON.stringify({ 
-        error: 'Failed to get QR code',
-        details: qrResult.error,
-        qr_debug: qrResult.details
-      }), { status: 400, headers: corsHeaders })
+    const { data: createResult, error: createError } = await supabase.functions.invoke('whapi-partner-login', {
+      body: { userId }
+    })
+
+    if (createError || !createResult?.success) {
+      console.error('❌ Failed to create instance:', createError || createResult)
+      return new Response(
+        JSON.stringify({ error: 'Failed to create new instance' }),
+        { status: 500, headers: corsHeaders }
+      )
     }
 
-    console.log('✅ Connection flow completed successfully')
-
-    return new Response(JSON.stringify({
-      success: true,
-      qr_code: qrResult.qr_code,
-      instance_id: instanceId,
-      message: 'Ready to scan QR code. Scan with WhatsApp mobile app.',
-      instructions: 'Open WhatsApp on your phone > Settings > Linked Devices > Link a Device > Scan this QR code'
-    }), { status: 200, headers: corsHeaders })
+    console.log('✅ New instance created successfully')
+    return new Response(
+      JSON.stringify({
+        success: true,
+        instance_id: createResult.channel_id,
+        message: 'New instance created, initializing...',
+        retry_after: 5000
+      }),
+      { status: 200, headers: corsHeaders }
+    )
 
   } catch (error) {
-    console.error('💥 Unified connect error:', error)
-    return new Response(JSON.stringify({ 
-      error: 'Connection failed', 
-      details: error.message 
-    }), { status: 500, headers: corsHeaders })
+    console.error('💥 Unified Connect Error:', error)
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      { status: 500, headers: corsHeaders }
+    )
   }
 })
