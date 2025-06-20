@@ -9,13 +9,13 @@ import { usePhoneAuth } from '@/hooks/usePhoneAuth';
 
 interface PhoneAuthConnectorProps {
   onConnected: () => void;
+  onConnecting?: () => void;
 }
 
-const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
+const PhoneAuthConnector = ({ onConnected, onConnecting }: PhoneAuthConnectorProps) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
-  const [receivedCode, setReceivedCode] = useState('');
   const { authenticateWithPhone, isAuthenticating } = usePhoneAuth();
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
@@ -26,15 +26,13 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
     }
 
     try {
+      onConnecting?.();
       const result = await authenticateWithPhone.mutateAsync({ phoneNumber });
       
       if (result.success && !result.code_required) {
         onConnected();
       } else if (result.code_required) {
         setShowCodeInput(true);
-        if (result.code) {
-          setReceivedCode(result.code);
-        }
       }
     } catch (error) {
       console.error('Phone authentication failed:', error);
@@ -85,7 +83,7 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
                 dir="ltr"
               />
               <p className="text-sm text-gray-500 mt-1">
-                הזן את מספר הטלפון הרשום בوואטסאפ שלך
+                הזן את מספר הטלפון הרשום בוואטסאפ שלך
               </p>
             </div>
             <Button 
@@ -98,7 +96,7 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
               ) : (
                 <Phone className="h-4 w-4 mr-2" />
               )}
-              שלח קוד אימות
+              התחבר עם מספר טלפון
             </Button>
           </form>
         ) : (
@@ -117,11 +115,6 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
               <p className="text-sm text-gray-500 mt-1">
                 הזן את הקוד שנשלח לטלפון {phoneNumber}
               </p>
-              {receivedCode && (
-                <p className="text-sm text-blue-600 mt-1">
-                  קוד לפיתוח: {receivedCode}
-                </p>
-              )}
             </div>
             <div className="flex gap-2">
               <Button 
@@ -140,7 +133,6 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
                 onClick={() => {
                   setShowCodeInput(false);
                   setVerificationCode('');
-                  setReceivedCode('');
                 }}
                 disabled={isAuthenticating}
               >

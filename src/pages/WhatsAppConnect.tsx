@@ -18,7 +18,7 @@ const WhatsAppConnect = () => {
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'channel_created' | 'connecting' | 'connected'>('disconnected');
 
   console.log('🔄 WhatsAppConnect render:', {
     user: user?.email,
@@ -36,13 +36,25 @@ const WhatsAppConnect = () => {
     if (profile) {
       if (profile.instance_status === 'connected') {
         setConnectionStatus('connected');
-      } else if (profile.instance_status === 'unauthorized' && profile.instance_id && profile.whapi_token) {
-        setConnectionStatus('connecting');
+      } else if (profile.instance_id && profile.whapi_token) {
+        // Channel exists, show connection options
+        setConnectionStatus('channel_created');
       } else {
         setConnectionStatus('disconnected');
       }
     }
   }, [profile]);
+
+  const handleChannelCreated = () => {
+    console.log('🎉 Channel created successfully');
+    setConnectionStatus('channel_created');
+    refetchProfile();
+  };
+
+  const handleConnecting = () => {
+    console.log('🔄 Starting connection process');
+    setConnectionStatus('connecting');
+  };
 
   const handleConnected = async () => {
     console.log('🎉 WhatsApp connected successfully');
@@ -107,7 +119,7 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Main connection flow (disconnected or connecting)
+  // Main connection flow
   return (
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
@@ -119,25 +131,40 @@ const WhatsAppConnect = () => {
         </div>
         
         {user?.id && (
-          <Tabs defaultValue="qr" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="qr">קוד QR</TabsTrigger>
-              <TabsTrigger value="phone">מספר טלפון</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="qr" className="space-y-4">
+          <>
+            {connectionStatus === 'disconnected' && (
               <WhatsAppConnector 
                 userId={user.id} 
-                onConnected={handleConnected}
+                onChannelCreated={handleChannelCreated}
+                mode="create-channel"
               />
-            </TabsContent>
+            )}
             
-            <TabsContent value="phone" className="space-y-4">
-              <PhoneAuthConnector 
-                onConnected={handleConnected}
-              />
-            </TabsContent>
-          </Tabs>
+            {(connectionStatus === 'channel_created' || connectionStatus === 'connecting') && (
+              <Tabs defaultValue="qr" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="qr">קוד QR</TabsTrigger>
+                  <TabsTrigger value="phone">מספר טלפון</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="qr" className="space-y-4">
+                  <WhatsAppConnector 
+                    userId={user.id} 
+                    onConnected={handleConnected}
+                    onConnecting={handleConnecting}
+                    mode="qr-connect"
+                  />
+                </TabsContent>
+                
+                <TabsContent value="phone" className="space-y-4">
+                  <PhoneAuthConnector 
+                    onConnected={handleConnected}
+                    onConnecting={handleConnecting}
+                  />
+                </TabsContent>
+              </Tabs>
+            )}
+          </>
         )}
         
         <WhatsAppInstructions />
