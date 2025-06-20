@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import WhatsAppConnector from '@/components/WhatsAppConnector';
 import PhoneAuthConnector from '@/components/PhoneAuthConnector';
