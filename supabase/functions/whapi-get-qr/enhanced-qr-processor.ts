@@ -1,205 +1,222 @@
 
-interface QRResult {
-  success: boolean;
-  qr_code?: string;
-  already_connected?: boolean;
-  message: string;
-  status?: string;
-  retry_after?: number;
-}
-
 export class EnhancedQRProcessor {
   private token: string;
-  private maxRetries: number = 5;
-  private baseDelayMs: number = 2000;
+  private maxRetries: number = 5; // Increased retries
+  private baseDelay: number = 2000; // 2 seconds base delay
+  private maxDelay: number = 10000; // 10 seconds max delay
 
   constructor(token: string) {
     this.token = token;
   }
 
-  async getQRWithRetry(): Promise<QRResult> {
-    console.log('🔄 Starting enhanced QR retrieval process...');
-    
-    // First, check current status
-    const statusResult = await this.checkChannelStatus();
-    if (!statusResult.success) {
-      return statusResult;
-    }
-
-    // If already connected, return immediately
-    if (statusResult.already_connected) {
-      return statusResult;
-    }
-
-    // If channel is still initializing, wait and retry
-    if (statusResult.status === 'initializing') {
-      console.log('⏳ Channel is still initializing, implementing retry logic...');
-      return await this.retryQRGeneration();
-    }
-
-    // If ready for QR, get it immediately
-    if (statusResult.status === 'unauthorized' || statusResult.status === 'qr') {
-      return await this.fetchQRCode();
-    }
-
-    return {
-      success: false,
-      message: `Channel status ${statusResult.status} is not ready for QR generation`
-    };
-  }
-
-  private async checkChannelStatus(): Promise<QRResult> {
-    try {
-      console.log('📊 Checking channel status...');
-      
-      const statusResponse = await fetch('https://gate.whapi.cloud/status', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!statusResponse.ok) {
-        console.error('❌ Status check failed:', statusResponse.status);
-        
-        if (statusResponse.status === 404) {
-          return {
-            success: false,
-            message: 'Channel not found - may still be initializing',
-            status: 'initializing',
-            retry_after: 3000
-          };
-        }
-        
-        return {
-          success: false,
-          message: 'Failed to check channel status'
-        };
-      }
-
-      const statusData = await statusResponse.json();
-      console.log('📊 Channel status:', statusData);
-
-      // Check if already connected
-      if (statusData.status === 'connected' || statusData.status === 'authenticated') {
-        console.log('✅ Channel is already connected');
-        return {
-          success: true,
-          already_connected: true,
-          message: 'WhatsApp is already connected',
-          status: statusData.status
-        };
-      }
-
-      return {
-        success: true,
-        message: 'Status check successful',
-        status: statusData.status
-      };
-
-    } catch (error) {
-      console.error('❌ Error checking status:', error);
-      return {
-        success: false,
-        message: 'Network error checking channel status'
-      };
-    }
-  }
-
-  private async retryQRGeneration(): Promise<QRResult> {
-    console.log('🔄 Starting QR generation retry loop...');
+  async getQRWithRetry(): Promise<{
+    success: boolean;
+    qr_code?: string;
+    already_connected?: boolean;
+    message?: string;
+    status?: string;
+    retry_after?: number;
+  }> {
+    console.log('🔄 Enhanced QR processor starting with improved retry logic...');
     
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
-      console.log(`📱 QR generation attempt ${attempt}/${this.maxRetries}...`);
+      console.log(`🎯 QR attempt ${attempt}/${this.maxRetries}`);
       
-      // Progressive delay: 2s, 3s, 4s, 5s, 6s
-      const delayMs = this.baseDelayMs + (attempt * 1000);
-      console.log(`⏳ Waiting ${delayMs}ms before attempt...`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-      
-      // Check status again
-      const statusResult = await this.checkChannelStatus();
-      
-      if (statusResult.already_connected) {
-        return statusResult;
+      try {
+        // First, check channel health
+        const healthResult = await this.checkChannelHealth();
+        console.log('📊 Health check result:', healthResult);
+        
+        if (healthResult.already_connected) {
+          return {
+            success: true,
+            already_connected: true,
+            message: 'WhatsApp is already connected',
+            status: 'connected'
+          };
+        }
+        
+        if (healthResult.status === 'initializing') {
+          console.log('⏳ Channel still initializing, will retry...');
+          const retryDelay = Math.min(this.baseDelay * Math.pow(1.5, attempt - 1), this.maxDelay);
+          
+          if (attempt < this.maxRetries) {
+            return {
+              success: false,
+              message: `Channel is still initializing. Retrying in ${Math.round(retryDelay / 1000)} seconds...`,
+              status: 'initializing',
+              retry_after: retryDelay
+            };
+          }
+        }
+        
+        // Try to get QR code
+        const qrResult = await this.getQRCode();
+        if (qrResult.success) {
+          return qrResult;
+        }
+        
+        // If not successful, wait before next attempt
+        if (attempt < this.maxRetries) {
+          const delay = Math.min(this.baseDelay * Math.pow(1.5, attempt - 1), this.maxDelay);
+          console.log(`⏳ Waiting ${delay}ms before next attempt...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+      } catch (error) {
+        console.error(`❌ QR attempt ${attempt} failed:`, error);
+        
+        if (attempt === this.maxRetries) {
+          return {
+            success: false,
+            message: `Failed to get QR code after ${this.maxRetries} attempts: ${error.message}`,
+            status: 'error'
+          };
+        }
+        
+        // Exponential backoff for errors
+        const delay = Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
+        console.log(`⏳ Error backoff: waiting ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-      
-      if (statusResult.status === 'unauthorized' || statusResult.status === 'qr') {
-        console.log('🎉 Channel is now ready for QR!');
-        return await this.fetchQRCode();
-      }
-      
-      if (statusResult.status === 'error' || statusResult.status === 'failed') {
-        return {
-          success: false,
-          message: 'Channel failed to initialize properly'
-        };
-      }
-      
-      console.log(`⏳ Channel still in ${statusResult.status} state, retrying...`);
     }
     
     return {
       success: false,
-      message: 'Channel initialization timeout - please try refreshing or creating a new connection',
-      retry_after: 10000
+      message: `Channel may still be initializing. Max retries (${this.maxRetries}) reached.`,
+      status: 'timeout'
     };
   }
 
-  private async fetchQRCode(): Promise<QRResult> {
+  private async checkChannelHealth(): Promise<{
+    already_connected: boolean;
+    status: string;
+  }> {
     try {
-      console.log('📱 Fetching QR code...');
+      console.log('🏥 Checking channel health...');
       
-      const qrResponse = await fetch('https://gate.whapi.cloud/screen', {
+      // Check health endpoint
+      const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.token}`,
           'Content-Type': 'application/json'
         }
       });
+      
+      console.log('📊 Health response status:', healthResponse.status);
+      
+      if (healthResponse.ok) {
+        const healthData = await healthResponse.json();
+        console.log('📊 Health data:', healthData);
+        
+        // Check if already connected via /me endpoint as fallback
+        try {
+          const meResponse = await fetch(`https://gate.whapi.cloud/me`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${this.token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (meResponse.ok) {
+            const meData = await meResponse.json();
+            console.log('👤 Me data:', meData);
+            
+            if (meData.phone) {
+              return {
+                already_connected: true,
+                status: 'connected'
+              };
+            }
+          }
+        } catch (meError) {
+          console.log('⚠️ /me check failed:', meError.message);
+        }
+        
+        return {
+          already_connected: false,
+          status: healthData.status || 'unknown'
+        };
+      }
+      
+      return {
+        already_connected: false,
+        status: 'initializing'
+      };
+      
+    } catch (error) {
+      console.error('❌ Health check failed:', error);
+      return {
+        already_connected: false,
+        status: 'error'
+      };
+    }
+  }
 
+  private async getQRCode(): Promise<{
+    success: boolean;
+    qr_code?: string;
+    message?: string;
+    status?: string;
+  }> {
+    try {
+      console.log('📱 Attempting to get QR code...');
+      
+      const qrResponse = await fetch(`https://gate.whapi.cloud/qr`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('📱 QR response status:', qrResponse.status);
+      
       if (!qrResponse.ok) {
         const errorText = await qrResponse.text();
-        console.error('❌ QR fetch failed:', errorText);
+        console.error('❌ QR request failed:', errorText);
         
-        if (qrResponse.status === 404) {
-          return {
-            success: false,
-            message: 'QR code not available yet - channel may still be initializing',
-            retry_after: 3000
-          };
+        // Parse error for better handling
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { message: errorText };
         }
         
         return {
           success: false,
-          message: `Failed to get QR code: ${errorText}`
+          message: errorData.message || `QR request failed with status ${qrResponse.status}`,
+          status: 'error'
         };
       }
-
-      const qrData = await qrResponse.json();
-      console.log('📱 QR data received:', { hasQR: !!(qrData?.qr || qrData?.qr_code) });
-
-      const qrCode = qrData?.qr || qrData?.qr_code;
       
-      if (!qrCode) {
+      const qrData = await qrResponse.json();
+      console.log('📱 QR data received:', { hasQR: !!qrData.qr });
+      
+      if (qrData.qr) {
         return {
-          success: false,
-          message: 'QR code not available in response'
+          success: true,
+          qr_code: qrData.qr,
+          message: 'QR code generated successfully',
+          status: 'qr_ready'
         };
       }
-
-      return {
-        success: true,
-        qr_code: qrCode,
-        message: 'QR code retrieved successfully'
-      };
-
-    } catch (error) {
-      console.error('❌ Error fetching QR:', error);
+      
       return {
         success: false,
-        message: 'Network error fetching QR code'
+        message: 'No QR code in response',
+        status: 'no_qr'
+      };
+      
+    } catch (error) {
+      console.error('❌ QR code generation failed:', error);
+      return {
+        success: false,
+        message: `QR generation error: ${error.message}`,
+        status: 'error'
       };
     }
   }

@@ -25,6 +25,7 @@ const WhatsAppConnect = () => {
   const [pollingAttempts, setPollingAttempts] = useState(0);
   const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
   const [isCreatingChannel, setIsCreatingChannel] = useState(false);
+  const [channelCreationTime, setChannelCreationTime] = useState(0);
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
@@ -69,7 +70,6 @@ const WhatsAppConnect = () => {
         console.log('✅ Profile shows connected status');
         setConnectionStep('connected');
       } else if (profile.instance_id && profile.whapi_token) {
-        // Enhanced status handling
         if (profile.instance_status === 'unauthorized') {
           console.log('🔑 Channel ready for connection');
           setConnectionStep('choose_method');
@@ -78,7 +78,7 @@ const WhatsAppConnect = () => {
           setConnectionStep('creating_channel');
         } else {
           console.log('🔍 Channel exists but status unclear, checking...');
-          setConnectionStep('choose_method'); // Let the QR component handle the status checking
+          setConnectionStep('choose_method');
         }
       } else {
         console.log('🎯 No valid channel - showing initial view');
@@ -94,13 +94,19 @@ const WhatsAppConnect = () => {
     }
   }, [profile, profileLoading, profileError, userInitiatedConnection, isAuthReady]);
 
-  // Enhanced polling for channel initialization
+  // Enhanced polling for channel initialization with extended timeout
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
-    const maxPollingAttempts = 15; // Reduced from 20 for faster feedback
+    let timeInterval: NodeJS.Timeout;
+    const maxPollingAttempts = 30; // Extended to 90 seconds
     
     if (connectionStep === 'creating_channel' && profile?.instance_id && profile?.whapi_token && pollingAttempts < maxPollingAttempts) {
-      console.log('🔄 Starting enhanced status polling, attempt:', pollingAttempts + 1);
+      console.log('🔄 Starting enhanced status polling with extended timeout, attempt:', pollingAttempts + 1);
+      
+      // Start time counter
+      timeInterval = setInterval(() => {
+        setChannelCreationTime(prev => prev + 1);
+      }, 1000);
       
       pollInterval = setInterval(async () => {
         try {
@@ -125,6 +131,8 @@ const WhatsAppConnect = () => {
               console.log('🎉 Channel is now ready for connection!');
               setConnectionStep('choose_method');
               clearInterval(pollInterval);
+              clearInterval(timeInterval);
+              setChannelCreationTime(0);
               
               toast({
                 title: "ערוץ מוכן!",
@@ -136,6 +144,8 @@ const WhatsAppConnect = () => {
               console.log('🎉 Channel is already connected!');
               setConnectionStep('connected');
               clearInterval(pollInterval);
+              clearInterval(timeInterval);
+              setChannelCreationTime(0);
               return;
             }
           }
@@ -144,23 +154,25 @@ const WhatsAppConnect = () => {
         }
         
         setPollingAttempts(prev => prev + 1);
-      }, 3000); // 3 second intervals
+      }, 3000);
       
       // Enhanced timeout handling
       setTimeout(() => {
         if (pollInterval) {
           clearInterval(pollInterval);
-          console.log('⏰ Enhanced polling timeout reached');
+          clearInterval(timeInterval);
+          console.log('⏰ Enhanced polling timeout reached after 90 seconds');
           
           if (pollingAttempts >= maxPollingAttempts) {
             toast({
               title: "יצירת הערוץ לוקחת זמן רב מהצפוי",
-              description: "תוכל לנסות לרענן או ליצור ערוץ חדש",
+              description: "תוכל להמשיך ולנסות לקבל קוד QR, או ליצור ערוץ חדש",
               variant: "destructive",
             });
             
-            // Auto-transition to method selection anyway - let QR component handle retries
+            // Auto-transition to method selection anyway
             setConnectionStep('choose_method');
+            setChannelCreationTime(0);
           }
         }
       }, maxPollingAttempts * 3000);
@@ -170,6 +182,9 @@ const WhatsAppConnect = () => {
       if (pollInterval) {
         console.log('🛑 Stopping enhanced status polling');
         clearInterval(pollInterval);
+      }
+      if (timeInterval) {
+        clearInterval(timeInterval);
       }
     };
   }, [connectionStep, profile?.instance_id, profile?.whapi_token, pollingAttempts, user?.id, refetchProfile]);
@@ -197,6 +212,7 @@ const WhatsAppConnect = () => {
     setUserInitiatedConnection(true);
     setConnectionStep('creating_channel');
     setPollingAttempts(0);
+    setChannelCreationTime(0);
     
     try {
       console.log('🔄 Calling enhanced whapi-partner-login function...');
@@ -236,6 +252,7 @@ const WhatsAppConnect = () => {
       if (data.existing_instance) {
         console.log('🔄 Using existing instance');
         setConnectionStep('choose_method');
+        setChannelCreationTime(0);
         
         toast({
           title: "ערוץ קיים נמצא!",
@@ -244,6 +261,7 @@ const WhatsAppConnect = () => {
       } else if (data.channel_ready) {
         console.log('🎯 New channel is immediately ready!');
         setConnectionStep('choose_method');
+        setChannelCreationTime(0);
         
         toast({
           title: "ערוץ נוצר ומוכן!",
@@ -254,8 +272,18 @@ const WhatsAppConnect = () => {
         
         toast({
           title: "יוצר ערוץ...",
-          description: "זה עשוי לקחת עד דקה",
+          description: data.timeout_reached ? 
+            "הערוץ נוצר אך עדיין מתכונן. תוכל להמשיך ולנסות לקבל QR" :
+            "זה עשוי לקחת עד דקה וחצי",
         });
+        
+        // If timeout was reached during creation, offer to continue anyway
+        if (data.timeout_reached) {
+          setTimeout(() => {
+            setConnectionStep('choose_method');
+            setChannelCreationTime(0);
+          }, 3000);
+        }
       }
       
     } catch (error) {
@@ -264,6 +292,7 @@ const WhatsAppConnect = () => {
       setConnectionStep('initial');
       setPollingAttempts(0);
       setUserInitiatedConnection(false);
+      setChannelCreationTime(0);
       
       toast({
         title: "שגיאה ביצירת ערוץ",
@@ -273,6 +302,17 @@ const WhatsAppConnect = () => {
     } finally {
       setIsCreatingChannel(false);
     }
+  };
+
+  const handleContinueAnyway = () => {
+    console.log('👤 User chose to continue anyway');
+    setConnectionStep('choose_method');
+    setChannelCreationTime(0);
+    
+    toast({
+      title: "ממשיך בכל מקרה",
+      description: "תוכל לנסות לקבל קוד QR גם אם הערוץ עדיין מתכונן",
+    });
   };
 
   const handleResetAndStart = async () => {
@@ -298,6 +338,7 @@ const WhatsAppConnect = () => {
       setPollingAttempts(0);
       setUserInitiatedConnection(false);
       setIsCreatingChannel(false);
+      setChannelCreationTime(0);
       
       // Refresh profile
       await refetchProfile();
@@ -352,6 +393,7 @@ const WhatsAppConnect = () => {
       setSelectedMethod(null);
       setPollingAttempts(0);
       setUserInitiatedConnection(false);
+      setChannelCreationTime(0);
     } catch (error) {
       console.error('❌ Disconnect failed:', error);
     }
@@ -415,6 +457,7 @@ const WhatsAppConnect = () => {
             setSelectedMethod(null);
             setPollingAttempts(0);
             setUserInitiatedConnection(false);
+            setChannelCreationTime(0);
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
           }
@@ -443,7 +486,45 @@ const WhatsAppConnect = () => {
           <div className="text-center">
             <Button
               variant="outline"
-              onClick={handleResetAndStart}
+              onClick={async () => {
+                if (!user?.id) return;
+                
+                try {
+                  console.log('🧹 Resetting user profile and starting fresh...');
+                  
+                  await supabase
+                    .from('profiles')
+                    .update({
+                      instance_id: null,
+                      whapi_token: null,
+                      instance_status: 'disconnected',
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', user.id);
+                  
+                  setConnectionStep('initial');
+                  setSelectedMethod(null);
+                  setPollingAttempts(0);
+                  setUserInitiatedConnection(false);
+                  setIsCreatingChannel(false);
+                  setChannelCreationTime(0);
+                  
+                  await refetchProfile();
+                  
+                  toast({
+                    title: "איפוס הושלם",
+                    description: "כעת תוכל להתחיל מחדש",
+                  });
+                  
+                } catch (error) {
+                  console.error('❌ Reset failed:', error);
+                  toast({
+                    title: "שגיאה באיפוס",
+                    description: "נסה שוב מאוחר יותר",
+                    variant: "destructive",
+                  });
+                }
+              }}
               className="text-red-600 border-red-300 hover:bg-red-50"
             >
               🧹 אפס הכל והתחל מחדש
@@ -458,14 +539,21 @@ const WhatsAppConnect = () => {
           />
         )}
         
-        {/* Step 2: Creating Channel - Loading State with Polling */}
+        {/* Step 2: Creating Channel - Enhanced Loading State with Continue Option */}
         {connectionStep === 'creating_channel' && (
-          <WhatsAppCreatingChannel />
+          <WhatsAppCreatingChannel 
+            onContinueAnyway={handleContinueAnyway}
+            timeElapsed={channelCreationTime}
+          />
         )}
         
         {/* Step 3: Choose Connection Method */}
         {connectionStep === 'choose_method' && (
-          <WhatsAppMethodSelection onMethodSelect={handleMethodSelect} />
+          <WhatsAppMethodSelection onMethodSelect={(method: 'qr' | 'phone') => {
+            console.log('📱 Method selected:', method);
+            setSelectedMethod(method);
+            setConnectionStep('connecting');
+          }} />
         )}
         
         {/* Step 4: Connecting with Selected Method */}
