@@ -63,8 +63,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Use enhanced QR processor
-    console.log('🔄 Using enhanced QR processor...')
+    // Use enhanced QR processor with token validation
+    console.log('🔄 Using enhanced QR processor with validation...')
     const qrProcessor = new EnhancedQRProcessor(profile.whapi_token)
     const qrResult = await qrProcessor.getQRWithRetry()
     
@@ -73,14 +73,49 @@ Deno.serve(async (req) => {
       hasQR: !!qrResult.qr_code,
       alreadyConnected: qrResult.already_connected,
       status: qrResult.status,
-      retryAfter: qrResult.retry_after
+      tokenInvalid: qrResult.token_invalid
     })
+
+    // Handle token invalidation - auto-cleanup
+    if (qrResult.token_invalid) {
+      console.log('🧹 Token is invalid, cleaning up user profile...')
+      
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            instance_id: null,
+            whapi_token: null,
+            instance_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+        
+        console.log('✅ Successfully cleaned up invalid token')
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Token invalid - cleaned up',
+            message: 'הטוקן לא תקין, נוקה מהמערכת. צור ערוץ חדש',
+            token_cleaned: true,
+            requires_new_channel: true
+          }),
+          { status: 400, headers: corsHeaders }
+        )
+      } catch (cleanupError) {
+        console.error('❌ Failed to cleanup invalid token:', cleanupError)
+      }
+    }
 
     // Update database status based on result
     if (qrResult.already_connected) {
       await dbService.updateChannelStatus(userId, 'connected')
     } else if (qrResult.status && qrResult.status !== profile.instance_status) {
-      await dbService.updateChannelStatus(userId, qrResult.status)
+      // Only update if we have a meaningful status
+      if (!['error', 'timeout', 'unknown'].includes(qrResult.status)) {
+        await dbService.updateChannelStatus(userId, qrResult.status)
+      }
     }
 
     const response: GetQRResponse = {

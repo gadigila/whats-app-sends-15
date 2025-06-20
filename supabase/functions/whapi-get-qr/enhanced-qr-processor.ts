@@ -1,9 +1,9 @@
 
 export class EnhancedQRProcessor {
   private token: string;
-  private maxRetries: number = 5; // Increased retries
-  private baseDelay: number = 2000; // 2 seconds base delay
-  private maxDelay: number = 10000; // 10 seconds max delay
+  private maxRetries: number = 3; // Reduced retries for faster failure detection
+  private baseDelay: number = 2000;
+  private maxDelay: number = 8000;
 
   constructor(token: string) {
     this.token = token;
@@ -16,14 +16,27 @@ export class EnhancedQRProcessor {
     message?: string;
     status?: string;
     retry_after?: number;
+    token_invalid?: boolean;
   }> {
-    console.log('🔄 Enhanced QR processor starting with improved retry logic...');
+    console.log('🔄 Enhanced QR processor with token validation...');
+    
+    // First, validate the token by checking channel health
+    const tokenValidation = await this.validateToken();
+    if (!tokenValidation.valid) {
+      console.log('❌ Token validation failed:', tokenValidation.reason);
+      return {
+        success: false,
+        message: `טוקן לא תקין: ${tokenValidation.reason}`,
+        status: 'token_invalid',
+        token_invalid: true
+      };
+    }
     
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       console.log(`🎯 QR attempt ${attempt}/${this.maxRetries}`);
       
       try {
-        // First, check channel health
+        // Check channel health first
         const healthResult = await this.checkChannelHealth();
         console.log('📊 Health check result:', healthResult);
         
@@ -37,15 +50,16 @@ export class EnhancedQRProcessor {
         }
         
         if (healthResult.status === 'initializing') {
-          console.log('⏳ Channel still initializing, will retry...');
-          const retryDelay = Math.min(this.baseDelay * Math.pow(1.5, attempt - 1), this.maxDelay);
-          
+          console.log('⏳ Channel still initializing...');
           if (attempt < this.maxRetries) {
+            const retryDelay = Math.min(this.baseDelay * attempt, this.maxDelay);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            continue;
+          } else {
             return {
               success: false,
-              message: `Channel is still initializing. Retrying in ${Math.round(retryDelay / 1000)} seconds...`,
-              status: 'initializing',
-              retry_after: retryDelay
+              message: 'הערוץ לא מוכן. נסה ליצור ערוץ חדש',
+              status: 'timeout'
             };
           }
         }
@@ -56,9 +70,19 @@ export class EnhancedQRProcessor {
           return qrResult;
         }
         
-        // If not successful, wait before next attempt
+        // If QR failed due to token issues, mark as invalid
+        if (qrResult.status === 'token_error') {
+          return {
+            success: false,
+            message: 'הטוקן לא תקין. יוצר ערוץ חדש...',
+            status: 'token_invalid',
+            token_invalid: true
+          };
+        }
+        
+        // Wait before next attempt
         if (attempt < this.maxRetries) {
-          const delay = Math.min(this.baseDelay * Math.pow(1.5, attempt - 1), this.maxDelay);
+          const delay = Math.min(this.baseDelay * attempt, this.maxDelay);
           console.log(`⏳ Waiting ${delay}ms before next attempt...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
@@ -69,23 +93,74 @@ export class EnhancedQRProcessor {
         if (attempt === this.maxRetries) {
           return {
             success: false,
-            message: `Failed to get QR code after ${this.maxRetries} attempts: ${error.message}`,
+            message: `נכשל אחרי ${this.maxRetries} ניסיונות: ${error.message}`,
             status: 'error'
           };
         }
         
-        // Exponential backoff for errors
-        const delay = Math.min(this.baseDelay * Math.pow(2, attempt - 1), this.maxDelay);
-        console.log(`⏳ Error backoff: waiting ${delay}ms...`);
+        const delay = Math.min(this.baseDelay * attempt, this.maxDelay);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
     
     return {
       success: false,
-      message: `Channel may still be initializing. Max retries (${this.maxRetries}) reached.`,
+      message: `הערוץ לא מגיב. נסה ליצור ערוץ חדש`,
       status: 'timeout'
     };
+  }
+
+  private async validateToken(): Promise<{
+    valid: boolean;
+    reason?: string;
+  }> {
+    try {
+      console.log('🔑 Validating token...');
+      
+      // Try to call the health endpoint
+      const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('🔑 Token validation response status:', healthResponse.status);
+      
+      if (healthResponse.status === 401 || healthResponse.status === 403) {
+        return {
+          valid: false,
+          reason: 'Unauthorized - token is invalid or expired'
+        };
+      }
+      
+      if (healthResponse.status === 404) {
+        return {
+          valid: false,
+          reason: 'Channel not found - may have been deleted'
+        };
+      }
+      
+      if (!healthResponse.ok) {
+        const errorText = await healthResponse.text();
+        console.log('🔑 Token validation error:', errorText);
+        return {
+          valid: false,
+          reason: `HTTP ${healthResponse.status}: ${errorText}`
+        };
+      }
+      
+      console.log('✅ Token is valid');
+      return { valid: true };
+      
+    } catch (error) {
+      console.error('❌ Token validation failed:', error);
+      return {
+        valid: false,
+        reason: `Network error: ${error.message}`
+      };
+    }
   }
 
   private async checkChannelHealth(): Promise<{
@@ -95,7 +170,6 @@ export class EnhancedQRProcessor {
     try {
       console.log('🏥 Checking channel health...');
       
-      // Check health endpoint
       const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
         method: 'GET',
         headers: {
@@ -135,15 +209,39 @@ export class EnhancedQRProcessor {
           console.log('⚠️ /me check failed:', meError.message);
         }
         
+        // Map WHAPI status to our status
+        const whapiStatus = healthData.status?.text || healthData.status;
+        let mappedStatus = 'unknown';
+        
+        if (typeof whapiStatus === 'string') {
+          switch (whapiStatus.toLowerCase()) {
+            case 'qr':
+            case 'ready':
+            case 'unauthorized':
+              mappedStatus = 'ready_for_qr';
+              break;
+            case 'connected':
+            case 'authenticated':
+              mappedStatus = 'connected';
+              break;
+            case 'initializing':
+            case 'starting':
+              mappedStatus = 'initializing';
+              break;
+            default:
+              mappedStatus = whapiStatus.toLowerCase();
+          }
+        }
+        
         return {
           already_connected: false,
-          status: healthData.status || 'unknown'
+          status: mappedStatus
         };
       }
       
       return {
         already_connected: false,
-        status: 'initializing'
+        status: 'error'
       };
       
     } catch (error) {
@@ -174,11 +272,18 @@ export class EnhancedQRProcessor {
       
       console.log('📱 QR response status:', qrResponse.status);
       
+      if (qrResponse.status === 401 || qrResponse.status === 403) {
+        return {
+          success: false,
+          message: 'Token is invalid or expired',
+          status: 'token_error'
+        };
+      }
+      
       if (!qrResponse.ok) {
         const errorText = await qrResponse.text();
         console.error('❌ QR request failed:', errorText);
         
-        // Parse error for better handling
         let errorData;
         try {
           errorData = JSON.parse(errorText);
@@ -186,10 +291,19 @@ export class EnhancedQRProcessor {
           errorData = { message: errorText };
         }
         
+        // Check if it's a token-related error
+        if (errorText.includes('unauthorized') || errorText.includes('forbidden')) {
+          return {
+            success: false,
+            message: 'Token authorization failed',
+            status: 'token_error'
+          };
+        }
+        
         return {
           success: false,
           message: errorData.message || `QR request failed with status ${qrResponse.status}`,
-          status: 'error'
+          status: 'qr_error'
         };
       }
       

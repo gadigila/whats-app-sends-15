@@ -8,12 +8,12 @@ export const useWhatsAppConnect = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Enhanced QR code retrieval with retry support
+  // Enhanced QR code retrieval with automatic cleanup
   const connectWhatsApp = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('🔄 Getting QR code with enhanced retry logic:', user.id);
+      console.log('🔄 Getting QR code with automatic cleanup:', user.id);
       
       try {
         const { data, error } = await supabase.functions.invoke('whapi-get-qr', {
@@ -42,7 +42,13 @@ export const useWhatsAppConnect = () => {
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
       
-      if (data.already_connected) {
+      if (data.token_cleaned) {
+        toast({
+          title: "טוקן נוקה",
+          description: "הטוקן הישן היה לא תקין ונוקה. צור ערוץ חדש",
+          variant: "destructive",
+        });
+      } else if (data.already_connected) {
         toast({
           title: "כבר מחובר!",
           description: "הוואטסאפ שלך כבר מחובר ומוכן לשימוש",
@@ -71,6 +77,10 @@ export const useWhatsAppConnect = () => {
           errorMessage = "הערוץ עדיין מתכונן. נסה שוב בעוד כמה שניות";
         } else if (error.message.includes('timeout')) {
           errorMessage = "פג הזמן הקצוב. נסה ליצור חיבור חדש";
+        } else if (error.message.includes('Token invalid')) {
+          errorMessage = "הטוקן לא תקין. צור חיבור חדש";
+          queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+          queryClient.invalidateQueries({ queryKey: ['userProfile'] });
         } else {
           errorMessage = error.message;
         }

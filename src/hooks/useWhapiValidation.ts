@@ -113,6 +113,42 @@ export const useWhapiValidation = () => {
     }
   });
 
+  // Clean up stuck channels for current user
+  const cleanupStuckChannel = useMutation({
+    mutationFn: async () => {
+      if (!user?.id) throw new Error('No user ID');
+      
+      console.log('🧹 Cleaning up stuck channel for user:', user.id);
+      
+      const { data, error } = await supabase.functions.invoke('whapi-validate-and-cleanup', {
+        body: { 
+          userId: user.id,
+          action: 'cleanup_stuck'
+        }
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onSuccess: (data) => {
+      console.log('🧹 Cleanup result:', data);
+      toast({
+        title: "ניקוי הושלם",
+        description: data.message || "הערוץ התקוע נוקה בהצלחה",
+      });
+    },
+    onError: (error: any) => {
+      console.error('❌ Cleanup failed:', error);
+      toast({
+        title: "שגיאה בניקוי",
+        description: error.message || "נסה שוב מאוחר יותר",
+        variant: "destructive",
+      });
+    }
+  });
+
   // Global cleanup function (admin only)
   const cleanupAllChannels = useMutation({
     mutationFn: async () => {
@@ -149,9 +185,10 @@ export const useWhapiValidation = () => {
   return {
     validateUserChannel,
     syncChannelStatus,
+    cleanupStuckChannel,
     cleanupAllChannels,
     isValidating: validateUserChannel.isPending,
     isSyncing: syncChannelStatus.isPending,
-    isCleaning: cleanupAllChannels.isPending
+    isCleaning: cleanupStuckChannel.isPending || cleanupAllChannels.isPending
   };
 };

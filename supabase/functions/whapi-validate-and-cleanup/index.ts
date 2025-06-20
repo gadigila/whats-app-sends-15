@@ -8,7 +8,7 @@ const corsHeaders = {
 
 interface ValidateRequest {
   userId?: string
-  action: 'validate_user' | 'cleanup_all' | 'sync_status'
+  action: 'validate_user' | 'cleanup_all' | 'sync_status' | 'cleanup_stuck'
 }
 
 Deno.serve(async (req) => {
@@ -192,6 +192,61 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Clean up stuck channels for a specific user
+    const cleanupStuckChannel = async (userId: string) => {
+      console.log('🧹 Cleaning up stuck channel for user:', userId)
+      
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('instance_id, whapi_token, instance_status')
+        .eq('id', userId)
+        .single()
+      
+      if (profileError || !profile) {
+        return { error: 'User profile not found' }
+      }
+
+      // Check if channel is in a stuck state
+      const stuckStates = ['timeout', 'initializing', 'error', 'failed']
+      
+      if (profile.instance_status && stuckStates.includes(profile.instance_status)) {
+        console.log('🧹 Found stuck channel, cleaning up...', {
+          status: profile.instance_status,
+          instanceId: profile.instance_id
+        })
+        
+        try {
+          // Clean up the stuck channel
+          const { error: cleanupError } = await supabase
+            .from('profiles')
+            .update({
+              instance_id: null,
+              whapi_token: null,
+              instance_status: 'disconnected',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+          
+          if (cleanupError) {
+            return { error: `Failed to cleanup: ${cleanupError.message}` }
+          }
+          
+          return { 
+            cleaned: true, 
+            message: `ערוץ עם סטטוס ${profile.instance_status} נוקה בהצלחה`,
+            oldStatus: profile.instance_status
+          }
+        } catch (error) {
+          return { error: `Cleanup failed: ${error.message}` }
+        }
+      } else {
+        return { 
+          message: `הערוץ במצב תקין (${profile.instance_status})`,
+          status: profile.instance_status 
+        }
+      }
+    }
+
     // Execute based on action
     switch (action) {
       case 'validate_user':
@@ -230,6 +285,24 @@ Deno.serve(async (req) => {
         const syncResult = await syncUserStatus(userId)
         return new Response(
           JSON.stringify({ success: true, result: syncResult }),
+          { status: 200, headers: corsHeaders }
+        )
+      
+      case 'cleanup_stuck':
+        if (!userId) {
+          return new Response(
+            JSON.stringify({ error: 'User ID required for cleanup_stuck action' }),
+            { status: 400, headers: corsHeaders }
+          )
+        }
+        
+        const stuckCleanupResult = await cleanupStuckChannel(userId)
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            result: stuckCleanupResult,
+            message: stuckCleanupResult.message || 'Cleanup completed'
+          }),
           { status: 200, headers: corsHeaders }
         )
       

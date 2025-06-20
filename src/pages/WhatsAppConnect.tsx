@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,7 +22,7 @@ const WhatsAppConnect = () => {
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const { validateUserChannel, syncChannelStatus, isValidating, isSyncing } = useWhapiValidation();
+  const { validateUserChannel, syncChannelStatus, cleanupStuckChannel, isValidating, isSyncing, isCleaning } = useWhapiValidation();
   const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
   const [selectedMethod, setSelectedMethod] = useState<'qr' | 'phone' | null>(null);
   const [pollingAttempts, setPollingAttempts] = useState(0);
@@ -439,6 +438,23 @@ const WhatsAppConnect = () => {
     }
   };
 
+  const handleCleanupStuck = async () => {
+    try {
+      await cleanupStuckChannel.mutateAsync();
+      await refetchProfile();
+      
+      // Reset connection step to initial after cleanup
+      setConnectionStep('initial');
+      setSelectedMethod(null);
+      setPollingAttempts(0);
+      setUserInitiatedConnection(false);
+      setIsCreatingChannel(false);
+      setChannelCreationTime(0);
+    } catch (error) {
+      console.error('❌ Cleanup failed:', error);
+    }
+  };
+
   // Show loading only when auth is not ready or profile is loading
   if (!isAuthReady || (profileLoading && !profileError)) {
     console.log('⏳ Still loading...', { isAuthReady, profileLoading, hasProfileError: !!profileError });
@@ -544,12 +560,27 @@ const WhatsAppConnect = () => {
               סנכרן סטטוס
             </Button>
             
+            <Button
+              onClick={handleCleanupStuck}
+              disabled={isCleaning}
+              variant="outline"
+              size="sm"
+              className="border-orange-300 text-orange-700 hover:bg-orange-100"
+            >
+              {isCleaning ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 mr-2" />
+              )}
+              נקה ערוץ תקוע
+            </Button>
+            
             {profile?.instance_id && (
               <Button
                 onClick={handleResetAndStart}
                 variant="outline"
                 size="sm"
-                className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                className="border-red-300 text-red-700 hover:bg-red-100"
               >
                 <AlertTriangle className="h-4 w-4 mr-2" />
                 אפס והתחל מחדש
@@ -559,6 +590,7 @@ const WhatsAppConnect = () => {
           <p className="text-xs text-blue-600 mt-3">
             💡 "בדוק ערוץ" - בודק אם הערוץ שלך קיים ב-WHAPI ומנקה אם לא<br/>
             💡 "סנכרן סטטוס" - מעדכן את הסטטוס האמיתי מ-WHAPI<br/>
+            💡 "נקה ערוץ תקוע" - מנקה ערוצים עם סטטוס timeout/initializing/error<br/>
             💡 "אפס והתחל מחדש" - מנקה הכל ומאפשר התחלה מחדש
           </p>
         </div>
@@ -568,45 +600,7 @@ const WhatsAppConnect = () => {
           <div className="text-center">
             <Button
               variant="outline"
-              onClick={async () => {
-                if (!user?.id) return;
-                
-                try {
-                  console.log('🧹 Resetting user profile and starting fresh...');
-                  
-                  await supabase
-                    .from('profiles')
-                    .update({
-                      instance_id: null,
-                      whapi_token: null,
-                      instance_status: 'disconnected',
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', user.id);
-                  
-                  setConnectionStep('initial');
-                  setSelectedMethod(null);
-                  setPollingAttempts(0);
-                  setUserInitiatedConnection(false);
-                  setIsCreatingChannel(false);
-                  setChannelCreationTime(0);
-                  
-                  await refetchProfile();
-                  
-                  toast({
-                    title: "איפוס הושלם",
-                    description: "כעת תוכל להתחיל מחדש",
-                  });
-                  
-                } catch (error) {
-                  console.error('❌ Reset failed:', error);
-                  toast({
-                    title: "שגיאה באיפוס",
-                    description: "נסה שוב מאוחר יותר",
-                    variant: "destructive",
-                  });
-                }
-              }}
+              onClick={handleResetAndStart}
               className="text-red-600 border-red-300 hover:bg-red-50"
             >
               🧹 אפס הכל והתחל מחדש
