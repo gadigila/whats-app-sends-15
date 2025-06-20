@@ -3,19 +3,17 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
-import WhatsAppConnector from '@/components/WhatsAppConnector';
-import PhoneAuthConnector from '@/components/PhoneAuthConnector';
 import WhatsAppInstructions from '@/components/WhatsAppInstructions';
 import WhatsAppLoadingState from '@/components/WhatsAppLoadingState';
 import WhatsAppConnectedView from '@/components/WhatsAppConnectedView';
+import WhatsAppInitialView from '@/components/WhatsAppInitialView';
+import WhatsAppCreatingChannel from '@/components/WhatsAppCreatingChannel';
+import WhatsAppMethodSelection from '@/components/WhatsAppMethodSelection';
+import WhatsAppConnectingView from '@/components/WhatsAppConnectingView';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Smartphone, CheckCircle, MessageCircle } from 'lucide-react';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
@@ -184,123 +182,27 @@ const WhatsAppConnect = () => {
           <>
             {/* Step 1: Initial - Main Connect Button */}
             {connectionStep === 'initial' && (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
-                    <MessageCircle className="h-12 w-12 text-green-600" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                    מוכן להתחבר לוואטסאפ?
-                  </h3>
-                  <p className="text-gray-600 mb-6">
-                    נתחיל ביצירת חיבור בטוח בינך לבין וואטסאפ
-                  </p>
-                  <Button
-                    onClick={handleCreateChannel}
-                    size="lg"
-                    className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold"
-                  >
-                    התחבר לוואטסאפ
-                  </Button>
-                </CardContent>
-              </Card>
+              <WhatsAppInitialView onConnect={handleCreateChannel} />
             )}
             
             {/* Step 2: Creating Channel - Loading State */}
             {connectionStep === 'creating_channel' && (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="space-y-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-                    <h3 className="text-lg font-semibold">מכין את החיבור...</h3>
-                    <p className="text-gray-600 text-sm">
-                      יוצר ערוץ בטוח לחיבור הוואטסאפ שלך
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+              <WhatsAppCreatingChannel />
             )}
             
             {/* Step 3: Choose Connection Method */}
             {connectionStep === 'choose_method' && (
-              <>
-                <Card className="mb-4">
-                  <CardContent className="p-6 text-center">
-                    <div className="flex items-center justify-center gap-2 text-green-600 mb-2">
-                      <CheckCircle className="h-5 w-5" />
-                      <span className="font-semibold">ערוץ נוצר בהצלחה!</span>
-                    </div>
-                    <p className="text-gray-600 text-sm">
-                      איך תרצה לחבר את הוואטסאפ שלך?
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* QR Code Option */}
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleMethodSelect('qr')}>
-                    <CardContent className="p-6 text-center">
-                      <div className="p-4 bg-blue-50 rounded-full w-fit mx-auto mb-4">
-                        <Smartphone className="h-8 w-8 text-blue-600" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">קוד QR</h3>
-                      <p className="text-gray-600 text-sm mb-4">
-                        סרוק קוד QR עם הוואטסאפ שלך
-                      </p>
-                      <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                        בחר QR
-                      </Button>
-                    </CardContent>
-                  </Card>
-                  
-                  {/* Phone Number Option */}
-                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleMethodSelect('phone')}>
-                    <CardContent className="p-6 text-center">
-                      <div className="p-4 bg-orange-50 rounded-full w-fit mx-auto mb-4">
-                        <MessageCircle className="h-8 w-8 text-orange-600" />
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">מספר וואטסאפ</h3>
-                      <p className="text-gray-600 text-sm mb-4">
-                        התחבר עם מספר הטלפון שלך
-                      </p>
-                      <Button className="w-full bg-orange-600 hover:bg-orange-700">
-                        בחר מספר
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
-              </>
+              <WhatsAppMethodSelection onMethodSelect={handleMethodSelect} />
             )}
             
             {/* Step 4: Connecting with Selected Method */}
-            {connectionStep === 'connecting' && selectedMethod && (
-              <div className="space-y-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <Button
-                      variant="outline"
-                      onClick={handleBackToMethodSelection}
-                      className="mb-4"
-                    >
-                      ← חזור לבחירת שיטה
-                    </Button>
-                  </CardContent>
-                </Card>
-                
-                {selectedMethod === 'qr' && (
-                  <WhatsAppConnector 
-                    userId={user.id} 
-                    onConnected={handleConnected}
-                    mode="qr-connect"
-                  />
-                )}
-                
-                {selectedMethod === 'phone' && (
-                  <PhoneAuthConnector 
-                    onConnected={handleConnected}
-                  />
-                )}
-              </div>
+            {connectionStep === 'connecting' && selectedMethod && user.id && (
+              <WhatsAppConnectingView
+                selectedMethod={selectedMethod}
+                userId={user.id}
+                onConnected={handleConnected}
+                onBackToMethodSelection={handleBackToMethodSelection}
+              />
             )}
           </>
         )}
