@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,13 +14,16 @@ import { toast } from '@/hooks/use-toast';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useWhapiValidation } from '@/hooks/useWhapiValidation';
 import { Button } from '@/components/ui/button';
+import { RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
+  const { validateUserChannel, syncChannelStatus, isValidating, isSyncing } = useWhapiValidation();
   const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
   const [selectedMethod, setSelectedMethod] = useState<'qr' | 'phone' | null>(null);
   const [pollingAttempts, setPollingAttempts] = useState(0);
@@ -416,6 +420,25 @@ const WhatsAppConnect = () => {
     setSelectedMethod(null);
   };
 
+  // Enhanced validation functions
+  const handleValidateChannel = async () => {
+    try {
+      await validateUserChannel.mutateAsync();
+      await refetchProfile();
+    } catch (error) {
+      console.error('❌ Validation failed:', error);
+    }
+  };
+
+  const handleSyncStatus = async () => {
+    try {
+      await syncChannelStatus.mutateAsync();
+      await refetchProfile();
+    } catch (error) {
+      console.error('❌ Sync failed:', error);
+    }
+  };
+
   // Show loading only when auth is not ready or profile is loading
   if (!isAuthReady || (profileLoading && !profileError)) {
     console.log('⏳ Still loading...', { isAuthReady, profileLoading, hasProfileError: !!profileError });
@@ -478,6 +501,65 @@ const WhatsAppConnect = () => {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">חבר את הוואטסאפ שלך</h1>
           <p className="text-gray-600">
             חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות לקבוצות
+          </p>
+        </div>
+        
+        {/* Enhanced Validation & Troubleshooting Section */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
+            <CheckCircle className="h-5 w-5" />
+            כלי אבחון ותיקון
+          </h3>
+          <p className="text-blue-700 text-sm mb-4">
+            אם אתה נתקע או רואה בעיות בחיבור, השתמש בכלים האלה לאבחון ותיקון:
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={handleValidateChannel}
+              disabled={isValidating}
+              variant="outline"
+              size="sm"
+              className="border-blue-300 text-blue-700 hover:bg-blue-100"
+            >
+              {isValidating ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-2" />
+              )}
+              בדוק ערוץ
+            </Button>
+            
+            <Button
+              onClick={handleSyncStatus}
+              disabled={isSyncing}
+              variant="outline"
+              size="sm"
+              className="border-green-300 text-green-700 hover:bg-green-100"
+            >
+              {isSyncing ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              סנכרן סטטוס
+            </Button>
+            
+            {profile?.instance_id && (
+              <Button
+                onClick={handleResetAndStart}
+                variant="outline"
+                size="sm"
+                className="border-orange-300 text-orange-700 hover:bg-orange-100"
+              >
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                אפס והתחל מחדש
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-blue-600 mt-3">
+            💡 "בדוק ערוץ" - בודק אם הערוץ שלך קיים ב-WHAPI ומנקה אם לא<br/>
+            💡 "סנכרן סטטוס" - מעדכן את הסטטוס האמיתי מ-WHAPI<br/>
+            💡 "אפס והתחל מחדש" - מנקה הכל ומאפשר התחלה מחדש
           </p>
         </div>
         

@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-interface ManualSyncRequest {
+interface StatusSyncRequest {
   userId: string
 }
 
@@ -18,227 +18,319 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
+    
+    console.log('🔄 Enhanced Manual Status Sync Started')
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Enhanced request parsing and validation
-    let userId: string;
-    try {
-      const requestBody = await req.json()
-      userId = requestBody?.userId
-      console.log('🔄 Manual status sync requested:', { 
-        userId, 
-        hasUserId: !!userId,
-        requestBody 
-      })
-    } catch (parseError) {
-      console.error('❌ Failed to parse request body:', parseError)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid request body', 
-          details: parseError.message 
-        }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
+    const { userId }: StatusSyncRequest = await req.json()
 
     if (!userId) {
-      console.error('❌ Missing userId in request')
       return new Response(
-        JSON.stringify({ 
-          error: 'User ID is required',
-          received: { userId }
-        }),
+        JSON.stringify({ error: 'User ID is required' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    // Get user's current profile
-    console.log('🔍 Fetching user profile for:', userId)
+    console.log('👤 Enhanced sync for user:', userId)
+
+    // Get user's current instance
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, whapi_token, instance_status, updated_at')
+      .select('instance_id, whapi_token, instance_status')
       .eq('id', userId)
       .single()
 
     if (profileError) {
-      console.error('❌ Error fetching user profile:', profileError)
+      console.error('❌ Profile fetch error:', profileError)
       return new Response(
-        JSON.stringify({ 
-          error: 'User profile not found', 
-          details: profileError.message,
-          userId 
-        }),
-        { status: 404, headers: corsHeaders }
+        JSON.stringify({ error: 'Failed to fetch user profile' }),
+        { status: 400, headers: corsHeaders }
       )
     }
 
-    if (!profile) {
-      console.error('❌ No profile data returned for user:', userId)
+    if (!profile?.instance_id || !profile?.whapi_token) {
+      console.log('⚠️ No instance found for user')
       return new Response(
         JSON.stringify({ 
-          error: 'User profile not found',
-          userId 
+          error: 'No WhatsApp instance found for user',
+          currentStatus: profile?.instance_status || 'disconnected'
         }),
-        { status: 404, headers: corsHeaders }
+        { status: 400, headers: corsHeaders }
       )
     }
 
-    console.log('👤 Current profile status:', {
+    console.log('📊 Current profile state:', {
       instanceId: profile.instance_id,
       currentStatus: profile.instance_status,
-      hasToken: !!profile.whapi_token,
-      lastUpdated: profile.updated_at
+      hasToken: !!profile.whapi_token
     })
 
-    if (!profile.instance_id || !profile.whapi_token) {
-      console.log('⚠️ No instance or token found for user')
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'No WhatsApp instance found',
-          requiresNewInstance: true,
-          profileData: {
-            hasInstanceId: !!profile.instance_id,
-            hasToken: !!profile.whapi_token,
-            status: profile.instance_status
-          }
-        }),
-        { status: 200, headers: corsHeaders }
-      )
-    }
-
-    // Check actual WHAPI status
+    // Enhanced validation: First check if channel exists in WHAPI
     try {
-      console.log('🔍 Checking WHAPI status directly...')
-      console.log('🔑 Using token:', profile.whapi_token.substring(0, 10) + '...')
+      console.log('🔍 Validating channel exists in WHAPI...')
       
-      const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
-        method: 'GET',
+      const channelsResponse = await fetch('https://manager.whapi.cloud/channels', {
         headers: {
-          'Authorization': `Bearer ${profile.whapi_token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${whapiPartnerToken}`
         }
       })
-
-      console.log('📡 WHAPI status response:', {
-        status: statusResponse.status,
-        statusText: statusResponse.statusText,
-        ok: statusResponse.ok
-      })
-
-      if (!statusResponse.ok) {
-        const errorText = await statusResponse.text()
-        console.error('❌ WHAPI status check failed:', {
-          status: statusResponse.status,
-          statusText: statusResponse.statusText,
-          errorText
-        })
+      
+      if (channelsResponse.ok) {
+        const channels = await channelsResponse.json()
+        const channelExists = channels.find((ch: any) => ch.id === profile.instance_id)
         
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Failed to check WHAPI status',
-            details: `Status: ${statusResponse.status}, Error: ${errorText}`,
-            whapiError: true
-          }),
-          { status: 200, headers: corsHeaders }
-        )
-      }
-
-      const whapiStatus = await statusResponse.json()
-      console.log('📊 Current WHAPI status:', whapiStatus)
-
-      // Map WHAPI status to our internal status
-      let newStatus = profile.instance_status // Default to current
-      let statusChanged = false
-
-      if (whapiStatus.status === 'unauthorized' || whapiStatus.status === 'qr') {
-        newStatus = 'unauthorized'
-        statusChanged = newStatus !== profile.instance_status
-        console.log('✅ Channel ready for QR generation')
-      } else if (whapiStatus.status === 'active' || whapiStatus.status === 'ready' || whapiStatus.status === 'launched') {
-        newStatus = 'unauthorized'
-        statusChanged = newStatus !== profile.instance_status
-        console.log('📱 Channel ready for authentication')
-      } else if (whapiStatus.status === 'authenticated' || whapiStatus.status === 'connected') {
-        newStatus = 'connected'
-        statusChanged = newStatus !== profile.instance_status
-        console.log('🎉 WhatsApp session connected')
-      } else if (whapiStatus.status === 'initializing') {
-        newStatus = 'initializing'
-        statusChanged = newStatus !== profile.instance_status
-        console.log('⏳ Channel still initializing')
-      } else if (whapiStatus.status === 'disconnected' || whapiStatus.status === 'error') {
-        newStatus = 'disconnected'
-        statusChanged = newStatus !== profile.instance_status
-        console.log('❌ Channel disconnected or error')
-      }
-
-      // Update database if status changed
-      if (statusChanged) {
-        console.log('🔄 Updating database status:', {
-          oldStatus: profile.instance_status,
-          newStatus: newStatus,
-          whapiStatus: whapiStatus.status
-        })
-
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            instance_status: newStatus,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId)
-
-        if (updateError) {
-          console.error('❌ Error updating profile status:', updateError)
+        if (!channelExists) {
+          console.log('🧹 Channel not found in WHAPI, cleaning from database')
+          
+          // Clean from database
+          await supabase
+            .from('profiles')
+            .update({
+              instance_id: null,
+              whapi_token: null,
+              instance_status: 'disconnected',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+          
           return new Response(
             JSON.stringify({
-              success: false,
-              error: 'Failed to update profile status',
-              details: updateError.message
+              success: true,
+              action: 'cleaned',
+              message: 'Channel not found in WHAPI and removed from database',
+              oldStatus: profile.instance_status,
+              newStatus: 'disconnected'
             }),
-            { status: 500, headers: corsHeaders }
+            { status: 200, headers: corsHeaders }
           )
         }
-
-        console.log('✅ Profile status updated successfully')
+        
+        console.log('✅ Channel exists in WHAPI, checking health...')
       } else {
-        console.log('ℹ️ Status unchanged, no database update needed')
+        console.log('⚠️ Could not verify channel existence in WHAPI')
       }
+    } catch (validationError) {
+      console.error('⚠️ WHAPI validation failed:', validationError)
+      // Continue with health check even if validation fails
+    }
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          oldStatus: profile.instance_status,
-          newStatus: newStatus,
-          whapiStatus: whapiStatus.status,
-          statusChanged: statusChanged,
-          message: statusChanged ? 'Status updated successfully' : 'Status unchanged',
-          whapiResponse: whapiStatus
-        }),
-        { status: 200, headers: corsHeaders }
-      )
+    // Enhanced health check with multiple attempts
+    let healthCheckAttempts = 0
+    const maxHealthCheckAttempts = 3
+    let healthData = null
+    
+    while (healthCheckAttempts < maxHealthCheckAttempts && !healthData) {
+      healthCheckAttempts++
+      console.log(`📊 Enhanced health check attempt ${healthCheckAttempts}/${maxHealthCheckAttempts}`)
+      
+      try {
+        const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        console.log('📊 Health response status:', healthResponse.status)
+        
+        if (healthResponse.ok) {
+          healthData = await healthResponse.json()
+          console.log('📊 Enhanced health data:', healthData)
+          break
+        } else if (healthResponse.status === 401) {
+          console.log('🔐 Health check: Unauthorized - token might be invalid')
+          
+          return new Response(
+            JSON.stringify({
+              success: true,
+              action: 'token_invalid',
+              message: 'Channel token is invalid',
+              currentStatus: profile.instance_status,
+              recommendation: 'Create new channel'
+            }),
+            { status: 200, headers: corsHeaders }
+          )
+        } else if (healthResponse.status === 404) {
+          console.log('❌ Health check: Channel not found')
+          
+          // Clean from database
+          await supabase
+            .from('profiles')
+            .update({
+              instance_id: null,
+              whapi_token: null,
+              instance_status: 'disconnected',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+          
+          return new Response(
+            JSON.stringify({
+              success: true,
+              action: 'cleaned',
+              message: 'Channel not found and removed from database',
+              oldStatus: profile.instance_status,
+              newStatus: 'disconnected'
+            }),
+            { status: 200, headers: corsHeaders }
+          )
+        } else {
+          const errorText = await healthResponse.text()
+          console.log(`⚠️ Health check attempt ${healthCheckAttempts} failed:`, healthResponse.status, errorText)
+          
+          if (healthCheckAttempts < maxHealthCheckAttempts) {
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 2000))
+          }
+        }
+      } catch (healthError) {
+        console.error(`❌ Health check attempt ${healthCheckAttempts} error:`, healthError)
+        
+        if (healthCheckAttempts < maxHealthCheckAttempts) {
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
+      }
+    }
 
-    } catch (whapiError) {
-      console.error('❌ Error calling WHAPI:', whapiError)
+    if (!healthData) {
+      console.log('❌ All health check attempts failed')
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Failed to communicate with WHAPI',
-          details: whapiError.message,
-          whapiError: true
+          error: 'Failed to get channel health after multiple attempts',
+          currentStatus: profile.instance_status,
+          attempts: healthCheckAttempts
+        }),
+        { status: 500, headers: corsHeaders }
+      )
+    }
+
+    // Enhanced status mapping
+    console.log('🎯 Enhanced status mapping for health data:', healthData)
+    
+    let newStatus = profile.instance_status
+    let statusChanged = false
+    
+    // Comprehensive status mapping
+    switch (healthData.status?.toLowerCase()) {
+      case 'unauthorized':
+      case 'qr':
+      case 'ready':
+      case 'active':
+      case 'launched':
+        if (profile.instance_status !== 'unauthorized') {
+          newStatus = 'unauthorized'
+          statusChanged = true
+          console.log('✅ Channel ready for connection! Status: unauthorized')
+        }
+        break
+        
+      case 'authenticated':
+      case 'connected':
+      case 'online':
+        if (profile.instance_status !== 'connected') {
+          newStatus = 'connected'
+          statusChanged = true
+          console.log('🎉 WhatsApp is connected! Status: connected')
+        }
+        break
+        
+      case 'initializing':
+      case 'creating':
+      case 'starting':
+        if (profile.instance_status !== 'initializing') {
+          newStatus = 'initializing'
+          statusChanged = true
+          console.log('⏳ Channel still initializing... Status: initializing')
+        }
+        break
+        
+      case 'disconnected':
+      case 'error':
+      case 'failed':
+      case 'offline':
+        if (profile.instance_status !== 'disconnected') {
+          newStatus = 'disconnected'
+          statusChanged = true
+          console.log('❌ Channel disconnected/failed! Status: disconnected')
+        }
+        break
+        
+      default:
+        console.log('⚠️ Unknown health status:', healthData.status)
+        // For unknown statuses, don't change anything but report it
+        break
+    }
+
+    // Update database if status changed
+    if (statusChanged) {
+      console.log('🔄 Enhanced status update:', {
+        userId: userId,
+        oldStatus: profile.instance_status,
+        newStatus: newStatus,
+        healthStatus: healthData.status
+      })
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          instance_status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      if (updateError) {
+        console.error('❌ Enhanced status update failed:', updateError)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Failed to update status in database',
+            details: updateError.message
+          }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+      
+      console.log('✅ Enhanced status updated successfully')
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          action: 'updated',
+          message: 'Status synchronized successfully',
+          oldStatus: profile.instance_status,
+          newStatus: newStatus,
+          healthStatus: healthData.status,
+          healthData: healthData
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    } else {
+      console.log('ℹ️ Enhanced status already current')
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          action: 'no_change',
+          message: 'Status is already current',
+          currentStatus: profile.instance_status,
+          healthStatus: healthData.status,
+          healthData: healthData
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
   } catch (error) {
-    console.error('💥 Manual sync error:', error)
+    console.error('💥 Enhanced Manual Status Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
-        details: error.message 
+        details: error.message,
+        timestamp: new Date().toISOString()
       }),
       { status: 500, headers: corsHeaders }
     )
