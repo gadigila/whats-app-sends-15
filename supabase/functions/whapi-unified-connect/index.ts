@@ -1,5 +1,6 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
+import { ChannelManager } from './channel-manager.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,9 +14,25 @@ interface ConnectRequest {
 // Helper function to wait/delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-async function checkWhapiStatus(token: string) {
+async function checkWhapiStatus(token: string, channelManager: ChannelManager, channelId: string) {
   try {
-    console.log(`🔍 Checking WHAPI status...`)
+    console.log(`🔍 Checking WHAPI status for channel: ${channelId}`)
+    
+    // IMPROVED: First check if channel is ready via Manager API
+    const channelInfo = await channelManager.getChannelInfo(channelId)
+    
+    if (!channelInfo.success) {
+      console.error(`❌ Channel not found in Manager API: ${channelInfo.error}`)
+      return { success: false, status: 'not_found', error: channelInfo.error }
+    }
+    
+    if (channelInfo.status !== 'LAUNCHED' && channelInfo.status !== 'READY' && channelInfo.status !== 'AUTHORIZED') {
+      console.log(`⏳ Channel not ready yet, status: ${channelInfo.status}`)
+      return { success: true, status: 'initializing', channelStatus: channelInfo.status }
+    }
+    
+    // Now try Gate API
+    console.log(`🔍 Channel is ready, checking Gate API...`)
     
     // FIXED: Use correct endpoint /me instead of /health or /status
     const response = await fetch(`https://gate.whapi.cloud/me`, {
@@ -48,11 +65,19 @@ async function checkWhapiStatus(token: string) {
   }
 }
 
-async function getQrCode(token: string, retryCount = 0) {
+async function getQrCode(token: string, channelManager: ChannelManager, channelId: string, retryCount = 0) {
   const maxRetries = 3
   
   try {
     console.log(`📱 Getting QR code (attempt ${retryCount + 1}/${maxRetries + 1})`)
+    
+    // IMPROVED: Check channel readiness first
+    const channelInfo = await channelManager.getChannelInfo(channelId)
+    
+    if (!channelInfo.success || (channelInfo.status !== 'LAUNCHED' && channelInfo.status !== 'READY' && channelInfo.status !== 'AUTHORIZED')) {
+      console.log(`⏳ Channel not ready for QR, status: ${channelInfo.status || 'unknown'}`)
+      return { success: false, error: 'Channel not ready for QR code', needsWait: true }
+    }
     
     // FIXED: Use correct endpoint /screenshot instead of /qr
     const qrResponse = await fetch(`https://gate.whapi.cloud/screenshot`, {
@@ -106,7 +131,7 @@ async function getQrCode(token: string, retryCount = 0) {
       const delayMs = 2000 * Math.pow(2, retryCount)
       console.log(`⏳ Retrying QR request in ${delayMs}ms...`)
       await delay(delayMs)
-      return getQrCode(token, retryCount + 1)
+      return getQrCode(token, channelManager, channelId, retryCount + 1)
     }
     
     return { success: false, error: `QR request failed: ${qrResponse.status}`, details: errorText }
@@ -117,7 +142,7 @@ async function getQrCode(token: string, retryCount = 0) {
       const delayMs = 2000 * Math.pow(2, retryCount)
       console.log(`⏳ Retrying QR request after error in ${delayMs}ms...`)
       await delay(delayMs)
-      return getQrCode(token, retryCount + 1)
+      return getQrCode(token, channelManager, channelId, retryCount + 1)
     }
     
     return { success: false, error: error.message }
@@ -212,6 +237,7 @@ Deno.serve(async (req) => {
     }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const channelManager = new ChannelManager(whapiPartnerToken)
     const { userId }: ConnectRequest = await req.json()
 
     if (!userId) {
@@ -248,7 +274,7 @@ Deno.serve(async (req) => {
     // Check if we have a valid existing instance
     if (instanceId && token) {
       console.log('🔍 Checking existing instance status...')
-      const statusCheck = await checkWhapiStatus(token)
+      const statusCheck = await checkWhapiStatus(token, channelManager, instanceId)
       
       if (statusCheck.success) {
         console.log(`📊 Current instance status: ${statusCheck.status}`)
@@ -283,8 +309,27 @@ Deno.serve(async (req) => {
             })
             .eq('id', userId)
             
+        } else if (statusCheck.status === 'initializing') {
+          // Channel is still initializing - wait for it
+          console.log('⏳ Channel is initializing, waiting...')
+          
+          const isReady = await channelManager.waitForChannelReady(instanceId)
+          
+          if (!isReady) {
+            console.error('❌ Channel failed to become ready')
+            needsNewInstance = true
+          } else {
+            console.log('✅ Channel is now ready')
+            await supabase
+              .from('profiles')
+              .update({ 
+                instance_status: 'unauthorized',
+                updated_at: new Date().toISOString() 
+              })
+              .eq('id', userId)
+          }
         } else {
-          console.log(`⚠️ Instance status not suitable for QR: ${statusCheck.status}`)
+          console.log(`⚠️ Instance status not suitable: ${statusCheck.status}`)
           needsNewInstance = true
         }
       } else {
@@ -328,9 +373,17 @@ Deno.serve(async (req) => {
         
         console.log('✅ New instance saved to database')
         
-        // Wait for instance to initialize
-        console.log('⏳ Waiting for instance to initialize...')
-        await delay(5000) // Wait 5 seconds for initialization
+        // Wait for instance to be ready
+        console.log('⏳ Waiting for new instance to be ready...')
+        const isReady = await channelManager.waitForChannelReady(instanceId!)
+        
+        if (!isReady) {
+          console.error('❌ New instance failed to become ready')
+          return new Response(JSON.stringify({ 
+            error: 'Instance failed to initialize',
+            details: 'Channel did not become ready within expected time'
+          }), { status: 500, headers: corsHeaders })
+        }
         
         // Update status to ready for QR
         await supabase
@@ -352,10 +405,19 @@ Deno.serve(async (req) => {
 
     // Get QR code
     console.log('📱 Getting QR code...')
-    const qrResult = await getQrCode(token!)
+    const qrResult = await getQrCode(token!, channelManager, instanceId!)
     
     if (!qrResult.success) {
       console.error('❌ Failed to get QR code:', qrResult.error)
+      
+      if (qrResult.needsWait) {
+        return new Response(JSON.stringify({ 
+          error: 'Channel still initializing',
+          details: qrResult.error,
+          retry_after: 10
+        }), { status: 400, headers: corsHeaders })
+      }
+      
       return new Response(JSON.stringify({ 
         error: 'Failed to get QR code',
         details: qrResult.error,
