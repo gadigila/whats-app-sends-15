@@ -9,6 +9,7 @@ interface PhoneAuthResult {
   code_required?: boolean;
   message: string;
   phone?: string;
+  code?: string;
   error?: string;
 }
 
@@ -17,16 +18,17 @@ export const usePhoneAuth = () => {
   const queryClient = useQueryClient();
 
   const authenticateWithPhone = useMutation({
-    mutationFn: async (phoneNumber: string): Promise<PhoneAuthResult> => {
+    mutationFn: async ({ phoneNumber, verificationCode }: { phoneNumber: string, verificationCode?: string }): Promise<PhoneAuthResult> => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('📱 Starting phone authentication for:', phoneNumber);
+      console.log('📱 Starting phone authentication for:', phoneNumber, verificationCode ? 'with code' : 'without code');
       
       try {
         const { data, error } = await supabase.functions.invoke('whapi-phone-auth', {
           body: { 
             userId: user.id, 
-            phoneNumber: phoneNumber 
+            phoneNumber: phoneNumber,
+            verificationCode: verificationCode
           }
         });
         
@@ -69,6 +71,8 @@ export const usePhoneAuth = () => {
           errorMessage = "לא נמצא חיבור וואטסאפ. צור חיבור חדש תחילה";
         } else if (error.message.includes('Phone authentication failed')) {
           errorMessage = "מספר הטלפון שגוי או לא רשום בוואטסאפ";
+        } else if (error.message.includes('Code verification failed')) {
+          errorMessage = "קוד האימות שגוי. נסה שוב";
         } else {
           errorMessage = error.message;
         }

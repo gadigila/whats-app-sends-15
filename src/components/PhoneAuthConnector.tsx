@@ -15,6 +15,7 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+  const [receivedCode, setReceivedCode] = useState('');
   const { authenticateWithPhone, isAuthenticating } = usePhoneAuth();
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
@@ -25,12 +26,15 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
     }
 
     try {
-      const result = await authenticateWithPhone.mutateAsync(phoneNumber);
+      const result = await authenticateWithPhone.mutateAsync({ phoneNumber });
       
       if (result.success && !result.code_required) {
         onConnected();
       } else if (result.code_required) {
         setShowCodeInput(true);
+        if (result.code) {
+          setReceivedCode(result.code);
+        }
       }
     } catch (error) {
       console.error('Phone authentication failed:', error);
@@ -39,8 +43,23 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
 
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement code verification
-    console.log('Code verification not implemented yet:', verificationCode);
+    
+    if (!verificationCode.trim()) {
+      return;
+    }
+
+    try {
+      const result = await authenticateWithPhone.mutateAsync({ 
+        phoneNumber, 
+        verificationCode 
+      });
+      
+      if (result.success) {
+        onConnected();
+      }
+    } catch (error) {
+      console.error('Code verification failed:', error);
+    }
   };
 
   return (
@@ -66,7 +85,7 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
                 dir="ltr"
               />
               <p className="text-sm text-gray-500 mt-1">
-                הזן את מספר הטלפון הרשום בוואטסאפ שלך
+                הזן את מספר הטלפון הרשום בوואטסאפ שלך
               </p>
             </div>
             <Button 
@@ -79,7 +98,7 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
               ) : (
                 <Phone className="h-4 w-4 mr-2" />
               )}
-              התחבר דרך טלפון
+              שלח קוד אימות
             </Button>
           </form>
         ) : (
@@ -89,28 +108,41 @@ const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
               <Input
                 id="code"
                 type="text"
-                placeholder="123456"
+                placeholder="הזן את הקוד שקיבלת"
                 value={verificationCode}
                 onChange={(e) => setVerificationCode(e.target.value)}
-                className="text-center"
-                maxLength={6}
+                className="text-center font-mono text-lg"
+                maxLength={10}
               />
               <p className="text-sm text-gray-500 mt-1">
                 הזן את הקוד שנשלח לטלפון {phoneNumber}
               </p>
+              {receivedCode && (
+                <p className="text-sm text-blue-600 mt-1">
+                  קוד לפיתוח: {receivedCode}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button 
                 type="submit" 
                 className="flex-1"
-                disabled={!verificationCode.trim()}
+                disabled={isAuthenticating || !verificationCode.trim()}
               >
+                {isAuthenticating ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
                 אמת קוד
               </Button>
               <Button 
                 type="button" 
                 variant="outline"
-                onClick={() => setShowCodeInput(false)}
+                onClick={() => {
+                  setShowCodeInput(false);
+                  setVerificationCode('');
+                  setReceivedCode('');
+                }}
+                disabled={isAuthenticating}
               >
                 חזור
               </Button>
