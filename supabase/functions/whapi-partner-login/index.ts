@@ -1,3 +1,4 @@
+
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -7,6 +8,54 @@ const corsHeaders = {
 
 interface CreateChannelRequest {
   userId: string
+}
+
+// Helper function to wait/delay
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+// Helper function to check WHAPI status with retries
+async function checkWhapiStatus(channelToken: string, maxAttempts = 10): Promise<{ status: string; ready: boolean }> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      console.log(`🔍 Status check attempt ${attempt + 1}/${maxAttempts}`)
+      
+      const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${channelToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      if (statusResponse.ok) {
+        const whapiStatus = await statusResponse.json()
+        console.log('📊 WHAPI status:', whapiStatus)
+        
+        if (whapiStatus.status === 'qr' || whapiStatus.status === 'unauthorized' || whapiStatus.status === 'active') {
+          console.log('✅ Channel is ready for QR generation!')
+          return { status: whapiStatus.status, ready: true }
+        } else if (whapiStatus.status === 'ready' || whapiStatus.status === 'launched') {
+          console.log('📱 Channel is ready for authentication')
+          return { status: whapiStatus.status, ready: true }
+        } else {
+          console.log(`⏳ Channel status: ${whapiStatus.status}, waiting...`)
+        }
+      } else {
+        console.log(`⚠️ Status check failed: ${statusResponse.status}`)
+      }
+    } catch (error) {
+      console.log(`❌ Status check error on attempt ${attempt + 1}:`, error.message)
+    }
+    
+    // Wait before next attempt (exponential backoff)
+    if (attempt < maxAttempts - 1) {
+      const waitTime = Math.min(2000 * Math.pow(1.5, attempt), 10000) // Max 10 seconds
+      console.log(`⏳ Waiting ${waitTime}ms before next attempt...`)
+      await delay(waitTime)
+    }
+  }
+  
+  return { status: 'unknown', ready: false }
 }
 
 Deno.serve(async (req) => {
@@ -169,7 +218,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // FIXED: Setup webhook with correct format
+    // Setup webhook
     console.log('🔗 Setting up webhook for channel:', channelId)
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
     
@@ -206,23 +255,16 @@ Deno.serve(async (req) => {
           error: webhookError,
           url: webhookUrl
         })
-        // Don't fail the entire process, but log the issue
       }
     } catch (webhookError) {
       console.error('⚠️ Webhook setup error:', webhookError)
-      // Continue anyway - webhook failure shouldn't block channel creation
     }
 
-    // Save channel data to user profile - Set status to 'initializing'
+    // Save initial channel data with 'initializing' status
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
-    console.log('💾 Saving channel data to database with INITIALIZING status...', {
-      userId,
-      channelId,
-      hasToken: !!channelToken
-    })
+    console.log('💾 Saving channel data to database with INITIALIZING status...')
 
-    // Use direct database update with explicit error handling
     const { error: updateError, data: updateData } = await supabase
       .from('profiles')
       .update({
@@ -239,7 +281,7 @@ Deno.serve(async (req) => {
     if (updateError) {
       console.error('❌ Database update failed:', updateError)
       
-      // Cleanup the created channel since we couldn't save it
+      // Cleanup the created channel
       try {
         console.log('🗑️ Attempting to cleanup channel from WHAPI due to DB error...')
         const deleteResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
@@ -267,13 +309,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Verify the data was actually saved
-    console.log('🔍 Verifying database update...', updateData)
-    
     if (!updateData || updateData.length === 0) {
       console.error('❌ Database update verification failed: No rows affected')
       
-      // Try to cleanup the channel
       try {
         await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
           method: 'DELETE',
@@ -293,62 +331,80 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('✅ Database update verified successfully:', {
-      savedInstanceId: updateData[0].instance_id,
-      savedStatus: updateData[0].instance_status,
-      hasToken: !!updateData[0].whapi_token
-    })
+    console.log('✅ Database update verified successfully')
 
-    // IMPROVEMENT: Try to sync status immediately after creation
-    console.log('🔄 Attempting immediate status sync...')
+    // NEW: Active status checking with intelligent polling
+    console.log('🔄 Starting active status polling...')
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds for channel to initialize
+      // Initial delay to let the channel initialize
+      await delay(3000)
       
-      const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${channelToken}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      const statusResult = await checkWhapiStatus(channelToken, 10)
       
-      if (statusResponse.ok) {
-        const whapiStatus = await statusResponse.json()
-        console.log('📊 Initial WHAPI status:', whapiStatus)
+      if (statusResult.ready) {
+        console.log('🎯 Channel is ready! Updating database status to unauthorized')
         
-        if (whapiStatus.status === 'qr' || whapiStatus.status === 'unauthorized') {
-          console.log('🎯 Channel already ready for QR! Updating status...')
+        const { error: statusUpdateError } = await supabase
+          .from('profiles')
+          .update({
+            instance_status: 'unauthorized',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
           
-          await supabase
-            .from('profiles')
-            .update({
-              instance_status: 'unauthorized',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId)
-            
-          console.log('✅ Status immediately updated to unauthorized')
+        if (statusUpdateError) {
+          console.error('❌ Error updating channel status:', statusUpdateError)
+        } else {
+          console.log('✅ Successfully updated status to unauthorized')
         }
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            channel_id: channelId,
+            project_id: whapiProjectId,
+            trial_expires_at: trialExpiresAt,
+            channel_ready: true,
+            message: 'Channel created and ready for QR generation',
+            webhook_url: webhookUrl
+          }),
+          { status: 200, headers: corsHeaders }
+        )
+      } else {
+        console.log('⏳ Channel not ready yet, will rely on webhook for status updates')
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            channel_id: channelId,
+            project_id: whapiProjectId,
+            trial_expires_at: trialExpiresAt,
+            channel_ready: false,
+            initialization_time: 60000,
+            webhook_url: webhookUrl,
+            message: 'Channel created. Waiting for initialization to complete via webhook.'
+          }),
+          { status: 200, headers: corsHeaders }
+        )
       }
     } catch (statusError) {
-      console.log('⚠️ Initial status sync failed, will rely on webhook:', statusError.message)
+      console.log('⚠️ Status polling failed, will rely on webhook:', statusError.message)
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          channel_id: channelId,
+          project_id: whapiProjectId,
+          trial_expires_at: trialExpiresAt,
+          channel_ready: false,
+          initialization_time: 60000,
+          webhook_url: webhookUrl,
+          message: 'Channel created. Status will be updated via webhook.'
+        }),
+        { status: 200, headers: corsHeaders }
+      )
     }
-
-    console.log('✅ New channel creation completed successfully')
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        channel_id: channelId,
-        project_id: whapiProjectId,
-        trial_expires_at: trialExpiresAt,
-        channel_ready: false,
-        initialization_time: 60000,
-        webhook_url: webhookUrl,
-        message: 'New channel created. Status will be updated via webhook or manual sync.'
-      }),
-      { status: 200, headers: corsHeaders }
-    )
 
   } catch (error) {
     console.error('💥 Channel Creation Error:', error)

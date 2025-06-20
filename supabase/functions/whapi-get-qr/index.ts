@@ -12,9 +12,40 @@ const corsHeaders = {
 // Helper function to wait/delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+// Helper function to check actual WHAPI status
+async function checkActualWhapiStatus(channelToken: string): Promise<{ status: string; ready: boolean }> {
+  try {
+    console.log('🔍 Checking actual WHAPI status...')
+    
+    const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${channelToken}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (statusResponse.ok) {
+      const whapiStatus = await statusResponse.json()
+      console.log('📊 Actual WHAPI status:', whapiStatus)
+      
+      const readyStatuses = ['qr', 'unauthorized', 'active', 'ready', 'launched']
+      const isReady = readyStatuses.includes(whapiStatus.status)
+      
+      return { status: whapiStatus.status, ready: isReady }
+    } else {
+      console.error('❌ Failed to check WHAPI status:', statusResponse.status)
+      return { status: 'unknown', ready: false }
+    }
+  } catch (error) {
+    console.error('❌ Error checking WHAPI status:', error)
+    return { status: 'error', ready: false }
+  }
+}
+
 async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProcessor, instanceId: string, channelToken: string, retryCount = 0): Promise<any> {
   const maxRetries = 3
-  const baseDelay = 2000 // 2 seconds between retries
+  const baseDelay = 2000
   
   try {
     console.log(`🔄 QR retrieval attempt ${retryCount + 1}/${maxRetries + 1}`)
@@ -23,7 +54,6 @@ async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProce
       throw new Error('Channel token is required for QR generation')
     }
 
-    // Use correct WHAPI QR endpoint
     const qrResponse = await whapiClient.getQrCode(instanceId, channelToken)
     console.log('📥 WHAPI QR response status:', qrResponse.status)
 
@@ -42,9 +72,8 @@ async function attemptQrRetrieval(whapiClient: WhapiClient, qrProcessor: QrProce
       
       const errorResult = qrProcessor.createErrorResponse(qrResponse.status, errorText, instanceId)
       
-      // If it's retryable and we haven't exhausted retries
       if (errorResult.retryable && retryCount < maxRetries) {
-        const delayMs = baseDelay * Math.pow(2, retryCount) // Exponential backoff
+        const delayMs = baseDelay * Math.pow(2, retryCount)
         console.log(`⏳ Retrying in ${delayMs}ms...`)
         await delay(delayMs)
         return attemptQrRetrieval(whapiClient, qrProcessor, instanceId, channelToken, retryCount + 1)
@@ -115,7 +144,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // ENHANCED: Check if instance is in the correct state for QR generation
+    // IMPROVED: Smart status checking for 'initializing' and other states
     if (profile.instance_status !== 'unauthorized') {
       console.log('⚠️ Instance not ready for QR generation:', {
         currentStatus: profile.instance_status,
@@ -123,60 +152,29 @@ Deno.serve(async (req) => {
         instanceId: profile.instance_id
       })
       
-      if (profile.instance_status === 'initializing') {
-        // Try to check WHAPI status directly first
-        console.log('🔍 Checking WHAPI status for initializing instance...')
-        try {
-          const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${profile.whapi_token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-          
-          if (statusResponse.ok) {
-            const whapiStatus = await statusResponse.json()
-            console.log('📊 Direct WHAPI status check:', whapiStatus)
+      // For initializing or other non-ready states, check actual WHAPI status
+      if (profile.instance_status === 'initializing' || profile.instance_status === 'disconnected') {
+        console.log('🔍 Checking actual WHAPI status for non-ready instance...')
+        
+        const actualStatus = await checkActualWhapiStatus(profile.whapi_token)
+        
+        if (actualStatus.ready) {
+          console.log('✅ WHAPI shows channel is ready! Updating database status...')
+          await dbService.updateChannelStatus(userId, 'unauthorized')
+          // Continue with QR generation
+        } else {
+          const statusMessage = profile.instance_status === 'initializing' 
+            ? 'Instance still initializing. Please wait for setup to complete.'
+            : `Instance status: ${profile.instance_status}. WHAPI status: ${actualStatus.status}`;
             
-            if (whapiStatus.status === 'qr' || whapiStatus.status === 'unauthorized') {
-              console.log('✅ WHAPI shows QR ready, updating database status...')
-              await dbService.updateChannelStatus(userId, 'unauthorized')
-              // Continue with QR generation
-            } else {
-              return new Response(
-                JSON.stringify({
-                  success: false,
-                  error: 'Instance still initializing',
-                  message: `WHAPI status: ${whapiStatus.status}. Please wait for webhook to confirm unauthorized status`,
-                  requiresNewInstance: false,
-                  retryable: true
-                }),
-                { status: 400, headers: corsHeaders }
-              )
-            }
-          } else {
-            console.log('⚠️ Could not check WHAPI status directly')
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: 'Instance still initializing',
-                message: 'Please wait for webhook to confirm unauthorized status',
-                requiresNewInstance: false,
-                retryable: true
-              }),
-              { status: 400, headers: corsHeaders }
-            )
-          }
-        } catch (statusError) {
-          console.error('❌ Error checking WHAPI status:', statusError)
           return new Response(
             JSON.stringify({
               success: false,
-              error: 'Instance still initializing',
-              message: 'Cannot verify WHAPI status. Please wait for webhook',
-              requiresNewInstance: false,
-              retryable: true
+              error: 'Instance not ready for QR generation',
+              message: statusMessage,
+              requiresNewInstance: profile.instance_status === 'disconnected',
+              retryable: profile.instance_status === 'initializing',
+              actualWhapiStatus: actualStatus.status
             }),
             { status: 400, headers: corsHeaders }
           )
@@ -184,13 +182,12 @@ Deno.serve(async (req) => {
       } else if (profile.instance_status === 'connected') {
         return new Response(
           JSON.stringify({
-            success: false,
-            error: 'Instance already connected',
-            message: 'QR code not needed - instance is already authenticated',
-            requiresNewInstance: false,
-            retryable: false
+            success: true,
+            already_connected: true,
+            message: 'WhatsApp is already connected',
+            qr_code: null
           }),
-          { status: 400, headers: corsHeaders }
+          { status: 200, headers: corsHeaders }
         )
       } else {
         return new Response(
@@ -211,7 +208,7 @@ Deno.serve(async (req) => {
       status: profile.instance_status
     })
 
-    // Attempt QR retrieval using correct WHAPI endpoint
+    // Attempt QR retrieval
     const result = await attemptQrRetrieval(whapiClient, qrProcessor, profile.instance_id, profile.whapi_token)
     
     // Handle 404 errors (channel not found) by cleaning up database
