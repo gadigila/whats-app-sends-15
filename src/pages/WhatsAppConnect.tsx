@@ -22,7 +22,7 @@ const WhatsAppConnect = () => {
   const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
   const [selectedMethod, setSelectedMethod] = useState<'qr' | 'phone' | null>(null);
   const [pollingAttempts, setPollingAttempts] = useState(0);
-  const [isCreatingChannel, setIsCreatingChannel] = useState(false);
+  const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
 
   console.log('🔄 WhatsAppConnect render:', {
     user: user?.email,
@@ -33,17 +33,18 @@ const WhatsAppConnect = () => {
       has_token: !!profile.whapi_token
     } : null,
     connectionStep,
-    isCreatingChannel,
+    userInitiatedConnection,
     pollingAttempts
   });
 
-  // Update connection step based on profile - but only if not currently creating
+  // Update connection step based on profile - but only after user initiates connection
   useEffect(() => {
-    if (profile && !isCreatingChannel) {
+    if (profile && profileLoading === false) {
       console.log('📊 Evaluating profile for connection step:', {
         instance_status: profile.instance_status,
         has_instance_id: !!profile.instance_id,
-        has_token: !!profile.whapi_token
+        has_token: !!profile.whapi_token,
+        userInitiatedConnection
       });
       
       if (profile.instance_status === 'connected') {
@@ -52,12 +53,13 @@ const WhatsAppConnect = () => {
       } else if (profile.instance_id && profile.whapi_token && profile.instance_status === 'unauthorized') {
         console.log('🔑 Profile has instance and token, ready for connection');
         setConnectionStep('choose_method');
-      } else if (profile.instance_id && profile.whapi_token && profile.instance_status === 'initializing') {
-        console.log('⏳ Profile shows initializing status');
+      } else if (userInitiatedConnection && profile.instance_id && profile.whapi_token && profile.instance_status === 'initializing') {
+        console.log('⏳ Profile shows initializing status after user action');
         setConnectionStep('creating_channel');
       } else {
-        console.log('🎯 No valid instance - showing initial view');
+        console.log('🎯 Starting fresh - showing initial view');
         setConnectionStep('initial');
+        setUserInitiatedConnection(false);
       }
       
       // Reset polling attempts when profile changes
@@ -65,8 +67,9 @@ const WhatsAppConnect = () => {
     } else if (!profile && !profileLoading) {
       console.log('👤 No profile found - showing initial view');
       setConnectionStep('initial');
+      setUserInitiatedConnection(false);
     }
-  }, [profile, isCreatingChannel, profileLoading]);
+  }, [profile, profileLoading, userInitiatedConnection]);
 
   // Intelligent polling when channel is being created
   useEffect(() => {
@@ -144,7 +147,7 @@ const WhatsAppConnect = () => {
     }
     
     console.log('🚀 User clicked create channel button');
-    setIsCreatingChannel(true);
+    setUserInitiatedConnection(true);
     setConnectionStep('creating_channel');
     setPollingAttempts(0);
     
@@ -195,14 +198,13 @@ const WhatsAppConnect = () => {
       console.error('❌ Channel creation failed:', error);
       setConnectionStep('initial');
       setPollingAttempts(0);
+      setUserInitiatedConnection(false);
       
       toast({
         title: "שגיאה ביצירת ערוץ",
         description: error.message || "נסה שוב מאוחר יותר",
         variant: "destructive",
       });
-    } finally {
-      setIsCreatingChannel(false);
     }
   };
 
@@ -242,7 +244,7 @@ const WhatsAppConnect = () => {
       setConnectionStep('initial');
       setSelectedMethod(null);
       setPollingAttempts(0);
-      setIsCreatingChannel(false);
+      setUserInitiatedConnection(false);
     } catch (error) {
       console.error('❌ Disconnect failed:', error);
     }
@@ -293,7 +295,7 @@ const WhatsAppConnect = () => {
             setConnectionStep('initial');
             setSelectedMethod(null);
             setPollingAttempts(0);
-            setIsCreatingChannel(false);
+            setUserInitiatedConnection(false);
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
           }
@@ -321,16 +323,9 @@ const WhatsAppConnect = () => {
           <>
             {/* Step 1: Initial - Main Connect Button */}
             {connectionStep === 'initial' && (
-              <>
-                <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    🎯 מציג כפתור התחברות - צריך להיות גלוי כאן
-                  </p>
-                </div>
-                <WhatsAppInitialView 
-                  onConnect={handleCreateChannel} 
-                />
-              </>
+              <WhatsAppInitialView 
+                onConnect={handleCreateChannel} 
+              />
             )}
             
             {/* Step 2: Creating Channel - Loading State with Polling */}
