@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Smartphone, AlertCircle } from 'lucide-react';
+import { Loader2, Smartphone, AlertCircle, RefreshCw } from 'lucide-react';
 import { useWhatsAppConnect } from '@/hooks/useWhatsAppConnect';
 
 interface WhatsAppConnectorProps {
@@ -15,6 +15,8 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryAfter, setRetryAfter] = useState<number | null>(null);
+  const [retryTimeout, setRetryTimeout] = useState<NodeJS.Timeout | null>(null);
   
   const { connectWhatsApp, checkStatus, isConnecting } = useWhatsAppConnect();
 
@@ -24,6 +26,7 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
     qrCode: !!qrCode,
     polling,
     error,
+    retryAfter,
     isConnecting
   });
 
@@ -32,13 +35,23 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
     handleStartQR();
   }, []);
 
+  // Cleanup retry timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
+  }, [retryTimeout]);
+
   const handleStartQR = async () => {
     try {
       setError(null);
-      console.log('🔄 Getting QR code...');
+      setRetryAfter(null);
+      console.log('🔄 Getting QR code with enhanced logic...');
       
       const result = await connectWhatsApp.mutateAsync();
-      console.log('📱 QR result:', result);
+      console.log('📱 Enhanced QR result:', result);
       
       if (result.already_connected) {
         console.log('✅ Already connected!');
@@ -50,8 +63,20 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
         console.log('📱 QR code received, starting polling...');
         setQrCode(result.qr_code);
         setPolling(true);
+      } else if (result.retry_after) {
+        console.log('⏳ Channel still initializing, setting up retry...');
+        setError(result.message || 'הערוץ עדיין מתכונן...');
+        setRetryAfter(result.retry_after);
+        
+        // Auto-retry after the specified delay
+        const timeout = setTimeout(() => {
+          console.log('🔄 Auto-retrying QR generation...');
+          handleStartQR();
+        }, result.retry_after);
+        
+        setRetryTimeout(timeout);
       } else {
-        setError('לא ניתן לקבל קוד QR. נסה שוב מאוחר יותר.');
+        setError(result.message || 'לא ניתן לקבל קוד QR כרגע');
       }
     } catch (error) {
       console.error('❌ QR failed:', error);
@@ -59,12 +84,12 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
     }
   };
 
-  // Poll for connection status when QR is displayed
+  // Enhanced polling for connection status
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
     if (polling && qrCode) {
-      console.log('🔄 Starting status polling...');
+      console.log('🔄 Starting enhanced status polling...');
       
       interval = setInterval(async () => {
         try {
@@ -77,6 +102,8 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
             setPolling(false);
             setQrCode(null);
             onConnected?.();
+          } else if (result.status === 'initializing') {
+            console.log('⏳ Still initializing, continuing to poll...');
           }
         } catch (error) {
           console.error('❌ Status check failed:', error);
@@ -108,7 +135,7 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
     );
   }
 
-  // Error state
+  // Error state with retry functionality
   if (error) {
     return (
       <Card>
@@ -117,16 +144,27 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
             <AlertCircle className="h-12 w-12 text-red-600" />
             <h3 className="text-lg font-semibold text-red-800">בעיה בקוד QR</h3>
             <p className="text-red-600 text-sm">{error}</p>
-            <Button
-              onClick={() => {
-                setError(null);
-                handleStartQR();
-              }}
-              variant="outline"
-              className="border-blue-600 text-blue-600 hover:bg-blue-50"
-            >
-              נסה שוב
-            </Button>
+            
+            {retryAfter ? (
+              <div className="flex flex-col items-center space-y-2">
+                <p className="text-sm text-gray-600">
+                  ינסה שוב אוטומטית בעוד {Math.round(retryAfter / 1000)} שניות
+                </p>
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+              </div>
+            ) : (
+              <Button
+                onClick={() => {
+                  setError(null);
+                  handleStartQR();
+                }}
+                variant="outline"
+                className="border-blue-600 text-blue-600 hover:bg-blue-50"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                נסה שוב
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -166,13 +204,23 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
                 מחכה לסריקה...
               </div>
             )}
+            
+            <Button
+              onClick={handleStartQR}
+              variant="outline"
+              size="sm"
+              className="mt-4"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              רענן קוד QR
+            </Button>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  // Fallback - shouldn't normally reach here since we auto-start
+  // Initial state
   return (
     <Card>
       <CardContent className="p-8 text-center">
@@ -185,6 +233,9 @@ const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps
         <p className="text-gray-600 mb-6">
           מכין את קוד ה-QR...
         </p>
+        <Button onClick={handleStartQR} variant="outline">
+          התחל
+        </Button>
       </CardContent>
     </Card>
   );

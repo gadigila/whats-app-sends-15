@@ -55,10 +55,10 @@ const WhatsAppConnect = () => {
     }
   }, [profileError]);
 
-  // Update connection step based on profile - but only after user initiates connection
+  // Enhanced connection step evaluation
   useEffect(() => {
     if (profile && profileLoading === false && isAuthReady) {
-      console.log('📊 Evaluating profile for connection step:', {
+      console.log('📊 Enhanced evaluation of profile for connection step:', {
         instance_status: profile.instance_status,
         has_instance_id: !!profile.instance_id,
         has_token: !!profile.whapi_token,
@@ -68,19 +68,24 @@ const WhatsAppConnect = () => {
       if (profile.instance_status === 'connected') {
         console.log('✅ Profile shows connected status');
         setConnectionStep('connected');
-      } else if (profile.instance_id && profile.whapi_token && profile.instance_status === 'unauthorized') {
-        console.log('🔑 Profile has instance and token, ready for connection');
-        setConnectionStep('choose_method');
-      } else if (userInitiatedConnection && profile.instance_id && profile.whapi_token && profile.instance_status === 'initializing') {
-        console.log('⏳ Profile shows initializing status after user action');
-        setConnectionStep('creating_channel');
+      } else if (profile.instance_id && profile.whapi_token) {
+        // Enhanced status handling
+        if (profile.instance_status === 'unauthorized') {
+          console.log('🔑 Channel ready for connection');
+          setConnectionStep('choose_method');
+        } else if (profile.instance_status === 'initializing' && userInitiatedConnection) {
+          console.log('⏳ Channel still initializing after user action');
+          setConnectionStep('creating_channel');
+        } else {
+          console.log('🔍 Channel exists but status unclear, checking...');
+          setConnectionStep('choose_method'); // Let the QR component handle the status checking
+        }
       } else {
-        console.log('🎯 Starting fresh - showing initial view');
+        console.log('🎯 No valid channel - showing initial view');
         setConnectionStep('initial');
         setUserInitiatedConnection(false);
       }
       
-      // Reset polling attempts when profile changes
       setPollingAttempts(0);
     } else if (!profile && !profileLoading && profileError) {
       console.log('👤 Profile error - showing initial view');
@@ -89,17 +94,17 @@ const WhatsAppConnect = () => {
     }
   }, [profile, profileLoading, profileError, userInitiatedConnection, isAuthReady]);
 
-  // Intelligent polling when channel is being created
+  // Enhanced polling for channel initialization
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
-    const maxPollingAttempts = 20;
+    const maxPollingAttempts = 15; // Reduced from 20 for faster feedback
     
     if (connectionStep === 'creating_channel' && profile?.instance_id && profile?.whapi_token && pollingAttempts < maxPollingAttempts) {
-      console.log('🔄 Starting status polling, attempt:', pollingAttempts + 1);
+      console.log('🔄 Starting enhanced status polling, attempt:', pollingAttempts + 1);
       
       pollInterval = setInterval(async () => {
         try {
-          console.log('📡 Checking channel status via manual sync...');
+          console.log('📡 Enhanced channel status check...');
           
           const { data, error } = await supabase.functions.invoke('whapi-manual-status-sync', {
             body: { userId: user?.id }
@@ -127,26 +132,35 @@ const WhatsAppConnect = () => {
               });
               
               return;
+            } else if (refreshResult.data?.instance_status === 'connected') {
+              console.log('🎉 Channel is already connected!');
+              setConnectionStep('connected');
+              clearInterval(pollInterval);
+              return;
             }
           }
         } catch (error) {
-          console.error('❌ Polling error:', error);
+          console.error('❌ Enhanced polling error:', error);
         }
         
         setPollingAttempts(prev => prev + 1);
-      }, 3000);
+      }, 3000); // 3 second intervals
       
+      // Enhanced timeout handling
       setTimeout(() => {
         if (pollInterval) {
           clearInterval(pollInterval);
-          console.log('⏰ Polling timeout reached');
+          console.log('⏰ Enhanced polling timeout reached');
           
           if (pollingAttempts >= maxPollingAttempts) {
             toast({
               title: "יצירת הערוץ לוקחת זמן רב מהצפוי",
-              description: "נסה לרענן את הדף או ליצור ערוץ חדש",
+              description: "תוכל לנסות לרענן או ליצור ערוץ חדש",
               variant: "destructive",
             });
+            
+            // Auto-transition to method selection anyway - let QR component handle retries
+            setConnectionStep('choose_method');
           }
         }
       }, maxPollingAttempts * 3000);
@@ -154,12 +168,13 @@ const WhatsAppConnect = () => {
     
     return () => {
       if (pollInterval) {
-        console.log('🛑 Stopping status polling');
+        console.log('🛑 Stopping enhanced status polling');
         clearInterval(pollInterval);
       }
     };
   }, [connectionStep, profile?.instance_id, profile?.whapi_token, pollingAttempts, user?.id, refetchProfile]);
 
+  // Enhanced channel creation with better error handling
   const handleCreateChannel = async () => {
     if (!user?.id) {
       console.error('❌ No user ID available');
@@ -171,13 +186,12 @@ const WhatsAppConnect = () => {
       return;
     }
     
-    // Prevent multiple clicks
     if (isCreatingChannel) {
       console.log('⚠️ Channel creation already in progress');
       return;
     }
     
-    console.log('🚀 User clicked create channel button');
+    console.log('🚀 Enhanced channel creation process started');
     
     setIsCreatingChannel(true);
     setUserInitiatedConnection(true);
@@ -185,13 +199,13 @@ const WhatsAppConnect = () => {
     setPollingAttempts(0);
     
     try {
-      console.log('🔄 Calling whapi-partner-login function...');
+      console.log('🔄 Calling enhanced whapi-partner-login function...');
       
       const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
         body: { userId: user.id }
       });
       
-      console.log('📥 Function response received:', {
+      console.log('📥 Enhanced function response received:', {
         hasData: !!data,
         hasError: !!error,
         data: data || null,
@@ -213,14 +227,22 @@ const WhatsAppConnect = () => {
         throw new Error(data.error);
       }
       
-      console.log('✅ Channel creation result:', data);
+      console.log('✅ Enhanced channel creation result:', data);
       
       // Refresh profile to get new channel data
       console.log('🔄 Refreshing profile to get new channel data...');
       const refreshResult = await refetchProfile();
       
-      if (data.channel_ready) {
-        console.log('🎯 Channel is immediately ready!');
+      if (data.existing_instance) {
+        console.log('🔄 Using existing instance');
+        setConnectionStep('choose_method');
+        
+        toast({
+          title: "ערוץ קיים נמצא!",
+          description: "משתמש בחיבור הקיים שלך",
+        });
+      } else if (data.channel_ready) {
+        console.log('🎯 New channel is immediately ready!');
         setConnectionStep('choose_method');
         
         toast({
@@ -232,12 +254,12 @@ const WhatsAppConnect = () => {
         
         toast({
           title: "יוצר ערוץ...",
-          description: "זה עשוי לקחת כמה שניות",
+          description: "זה עשוי לקחת עד דקה",
         });
       }
       
     } catch (error) {
-      console.error('❌ Channel creation failed:', error);
+      console.error('❌ Enhanced channel creation failed:', error);
       
       setConnectionStep('initial');
       setPollingAttempts(0);

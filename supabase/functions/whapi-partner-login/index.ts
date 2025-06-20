@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -95,7 +94,7 @@ Deno.serve(async (req) => {
       lastUpdated: profile?.updated_at
     })
 
-    // If user has existing instance, verify it actually exists in WHAPI
+    // Enhanced validation of existing instance
     if (profile?.instance_id && profile?.whapi_token && profile?.instance_status !== 'disconnected') {
       console.log('🔍 Verifying existing instance:', profile.instance_id)
       
@@ -114,14 +113,16 @@ Deno.serve(async (req) => {
           const statusData = await statusResponse.json()
           console.log('📊 Existing instance status:', statusData)
           
-          if (statusData.status && statusData.status !== 'error') {
+          // Enhanced status validation
+          if (statusData.status && statusData.status !== 'error' && statusData.status !== 'failed') {
             console.log('✅ Existing instance is valid, returning it')
             return new Response(
               JSON.stringify({
                 success: true,
                 channel_id: profile.instance_id,
                 message: 'Using existing valid instance',
-                channel_ready: statusData.status === 'unauthorized' || statusData.status === 'connected' || statusData.status === 'qr'
+                channel_ready: statusData.status === 'unauthorized' || statusData.status === 'connected' || statusData.status === 'qr',
+                existing_instance: true
               }),
               { status: 200, headers: corsHeaders }
             )
@@ -316,54 +317,93 @@ Deno.serve(async (req) => {
 
     console.log('✅ Database updated successfully')
 
-    // Wait for channel initialization
-    console.log('⏳ Waiting for channel initialization...')
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    // ENHANCED: Implement proper polling for channel initialization
+    console.log('⏳ Starting enhanced channel initialization polling...')
     
-    // Check channel status
     let channelReady = false;
-    try {
-      console.log('📊 Checking channel status...')
-      const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${channelToken}`,
-          'Content-Type': 'application/json'
-        }
-      })
+    let pollingAttempts = 0;
+    const maxPollingAttempts = 15; // 15 attempts with 3-second intervals = 45 seconds max
+    
+    while (!channelReady && pollingAttempts < maxPollingAttempts) {
+      pollingAttempts++;
+      console.log(`🔄 Polling attempt ${pollingAttempts}/${maxPollingAttempts}...`)
       
-      console.log('📊 Status check response:', statusResponse.status)
+      // Wait between attempts (progressive delay)
+      const delayMs = Math.min(2000 + (pollingAttempts * 1000), 5000); // 2s, 3s, 4s, 5s, then 5s max
+      await new Promise(resolve => setTimeout(resolve, delayMs));
       
-      if (statusResponse.ok) {
-        const statusData = await statusResponse.json()
-        console.log('📊 Channel status data:', statusData)
+      try {
+        console.log('📊 Checking channel status...')
+        const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${channelToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
         
-        if (statusData.status === 'qr' || statusData.status === 'unauthorized' || statusData.status === 'ready') {
-          channelReady = true
-          console.log('🎉 Channel is ready for connection!')
+        console.log('📊 Status check response:', statusResponse.status)
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          console.log('📊 Channel status data:', statusData)
           
-          // Update status to unauthorized
-          await supabase
-            .from('profiles')
-            .update({
-              instance_status: 'unauthorized',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId)
+          // Enhanced status checking
+          if (statusData.status === 'qr' || statusData.status === 'unauthorized' || statusData.status === 'ready' || statusData.status === 'active') {
+            channelReady = true
+            console.log('🎉 Channel is ready for connection! Status:', statusData.status)
+            
+            // Update status to unauthorized (ready for QR)
+            await supabase
+              .from('profiles')
+              .update({
+                instance_status: 'unauthorized',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', userId)
+              
+            console.log('✅ Updated database status to unauthorized')
+            break;
+          } else if (statusData.status === 'initializing' || statusData.status === 'creating') {
+            console.log('⏳ Channel still initializing, continuing to poll...')
+          } else if (statusData.status === 'error' || statusData.status === 'failed') {
+            console.error('❌ Channel failed to initialize:', statusData)
+            break;
+          } else {
+            console.log('📊 Unknown status, continuing to poll:', statusData.status)
+          }
         } else {
-          console.log('⏳ Channel still initializing, status:', statusData.status)
+          const statusError = await statusResponse.text()
+          console.log('⚠️ Status check failed:', statusError)
+          
+          // If we get 404, the channel might not be ready yet
+          if (statusResponse.status === 404) {
+            console.log('📊 Channel not found yet, likely still initializing...')
+          }
         }
-      } else {
-        const statusError = await statusResponse.text()
-        console.log('⚠️ Status check failed:', statusError)
+      } catch (statusError) {
+        console.log('⚠️ Status check error:', statusError.message)
       }
-    } catch (statusError) {
-      console.log('⚠️ Status check error:', statusError.message)
     }
 
-    console.log('🎯 Function completed successfully:', {
+    // Final status update
+    if (!channelReady) {
+      console.log('⚠️ Channel initialization timeout after', pollingAttempts, 'attempts')
+      
+      // Update status to indicate timeout but keep trying
+      await supabase
+        .from('profiles')
+        .update({
+          instance_status: 'initializing', // Keep as initializing for continued polling
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+    }
+
+    console.log('🎯 Function completed:', {
       channelId: finalChannelId,
-      channelReady
+      channelReady,
+      pollingAttempts
     })
 
     return new Response(
@@ -373,7 +413,8 @@ Deno.serve(async (req) => {
         project_id: whapiProjectId,
         trial_expires_at: trialExpiresAt,
         channel_ready: channelReady,
-        message: channelReady ? 'Channel created and ready' : 'Channel created, initializing...',
+        polling_attempts: pollingAttempts,
+        message: channelReady ? 'Channel created and ready for QR' : 'Channel created, still initializing...',
         webhook_url: webhookUrl
       }),
       { status: 200, headers: corsHeaders }

@@ -8,12 +8,12 @@ export const useWhatsAppConnect = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Get QR code for existing channel
+  // Enhanced QR code retrieval with retry support
   const connectWhatsApp = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('🔄 Getting QR code for existing channel:', user.id);
+      console.log('🔄 Getting QR code with enhanced retry logic:', user.id);
       
       try {
         const { data, error } = await supabase.functions.invoke('whapi-get-qr', {
@@ -30,7 +30,7 @@ export const useWhatsAppConnect = () => {
           throw new Error('No data returned from function');
         }
         
-        console.log('✅ QR code result:', data);
+        console.log('✅ Enhanced QR result:', data);
         return data;
       } catch (err) {
         console.error('🚨 QR code call failed:', err);
@@ -52,6 +52,11 @@ export const useWhatsAppConnect = () => {
           title: "קוד QR מוכן",
           description: "סרוק את הקוד כדי להתחבר",
         });
+      } else if (data.retry_after) {
+        toast({
+          title: "הערוץ עדיין מתכונן",
+          description: `נסה שוב בעוד ${Math.round(data.retry_after / 1000)} שניות`,
+        });
       }
     },
     onError: (error: any) => {
@@ -62,8 +67,10 @@ export const useWhatsAppConnect = () => {
       if (error.message) {
         if (error.message.includes('No WhatsApp instance')) {
           errorMessage = "לא נמצא חיבור וואטסאפ. צור חיבור חדש תחילה";
-        } else if (error.message.includes('Failed to get QR')) {
-          errorMessage = "שגיאה בקבלת קוד QR";
+        } else if (error.message.includes('still be initializing')) {
+          errorMessage = "הערוץ עדיין מתכונן. נסה שוב בעוד כמה שניות";
+        } else if (error.message.includes('timeout')) {
+          errorMessage = "פג הזמן הקצוב. נסה ליצור חיבור חדש";
         } else {
           errorMessage = error.message;
         }
@@ -77,7 +84,7 @@ export const useWhatsAppConnect = () => {
     }
   });
 
-  // Check connection status
+  // Enhanced status checking
   const checkStatus = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
@@ -105,6 +112,19 @@ export const useWhatsAppConnect = () => {
       console.log('Status check result:', data);
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
       queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      
+      // Provide user feedback based on status
+      if (data.status === 'connected') {
+        toast({
+          title: "מחובר בהצלחה!",
+          description: "הוואטסאפ שלך מחובר ומוכן לשימוש",
+        });
+      } else if (data.status === 'initializing') {
+        toast({
+          title: "מכין חיבור",
+          description: "הערוץ עדיין מתכונן, נסה שוב בעוד רגע",
+        });
+      }
     }
   });
 
