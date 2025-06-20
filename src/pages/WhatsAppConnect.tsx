@@ -15,15 +15,15 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Smartphone, CheckCircle } from 'lucide-react';
+import { Smartphone, CheckCircle, MessageCircle } from 'lucide-react';
 
 const WhatsAppConnect = () => {
   const { user } = useAuth();
   const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'channel_ready' | 'connecting' | 'connected'>('disconnected');
-  const [isCreatingChannel, setIsCreatingChannel] = useState(false);
+  const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
+  const [selectedMethod, setSelectedMethod] = useState<'qr' | 'phone' | null>(null);
 
   console.log('🔄 WhatsAppConnect render:', {
     user: user?.email,
@@ -33,19 +33,22 @@ const WhatsAppConnect = () => {
       instance_status: profile.instance_status,
       has_token: !!profile.whapi_token
     } : null,
-    connectionStatus
+    connectionStep
   });
 
-  // Update connection status based on profile
+  // Update connection step based on profile
   useEffect(() => {
     if (profile) {
       if (profile.instance_status === 'connected') {
-        setConnectionStatus('connected');
-      } else if (profile.instance_id && profile.whapi_token) {
+        setConnectionStep('connected');
+      } else if (profile.instance_id && profile.whapi_token && profile.instance_status === 'unauthorized') {
         // Channel exists and ready for connection
-        setConnectionStatus('channel_ready');
+        setConnectionStep('choose_method');
+      } else if (profile.instance_id && profile.whapi_token && profile.instance_status === 'initializing') {
+        // Channel is being created, wait for it to be ready
+        setConnectionStep('creating_channel');
       } else {
-        setConnectionStatus('disconnected');
+        setConnectionStep('initial');
       }
     }
   }, [profile]);
@@ -53,7 +56,7 @@ const WhatsAppConnect = () => {
   const handleCreateChannel = async () => {
     if (!user?.id) return;
     
-    setIsCreatingChannel(true);
+    setConnectionStep('creating_channel');
     
     try {
       console.log('🔄 Creating WhatsApp channel...');
@@ -75,28 +78,31 @@ const WhatsAppConnect = () => {
         description: "כעת תוכל לבחור איך להתחבר לוואטסאפ",
       });
       
-      setConnectionStatus('channel_ready');
+      // Wait a moment for the status to update, then move to next step
+      setTimeout(() => {
+        setConnectionStep('choose_method');
+      }, 1000);
       
     } catch (error) {
       console.error('❌ Channel creation failed:', error);
+      setConnectionStep('initial');
       toast({
         title: "שגיאה ביצירת ערוץ",
         description: error.message || "נסה שוב מאוחר יותר",
         variant: "destructive",
       });
-    } finally {
-      setIsCreatingChannel(false);
     }
   };
 
-  const handleConnecting = () => {
-    console.log('🔄 Starting connection process');
-    setConnectionStatus('connecting');
+  const handleMethodSelect = (method: 'qr' | 'phone') => {
+    console.log('📱 Method selected:', method);
+    setSelectedMethod(method);
+    setConnectionStep('connecting');
   };
 
   const handleConnected = async () => {
     console.log('🎉 WhatsApp connected successfully');
-    setConnectionStatus('connected');
+    setConnectionStep('connected');
     
     // Refresh profile
     await refetchProfile();
@@ -121,7 +127,8 @@ const WhatsAppConnect = () => {
     try {
       await deleteInstance.mutateAsync();
       await refetchProfile();
-      setConnectionStatus('disconnected');
+      setConnectionStep('initial');
+      setSelectedMethod(null);
     } catch (error) {
       console.error('❌ Disconnect failed:', error);
     }
@@ -139,12 +146,17 @@ const WhatsAppConnect = () => {
     window.location.href = '/compose';
   };
 
+  const handleBackToMethodSelection = () => {
+    setConnectionStep('choose_method');
+    setSelectedMethod(null);
+  };
+
   if (profileLoading) {
     return <WhatsAppLoadingState />;
   }
 
   // Connected state
-  if (connectionStatus === 'connected') {
+  if (connectionStep === 'connected') {
     return (
       <WhatsAppConnectedView
         profile={profile}
@@ -170,12 +182,12 @@ const WhatsAppConnect = () => {
         
         {user?.id && (
           <>
-            {/* Step 1: Create Channel */}
-            {connectionStatus === 'disconnected' && (
+            {/* Step 1: Initial - Main Connect Button */}
+            {connectionStep === 'initial' && (
               <Card>
                 <CardContent className="p-8 text-center">
                   <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
-                    <Smartphone className="h-12 w-12 text-green-600" />
+                    <MessageCircle className="h-12 w-12 text-green-600" />
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">
                     מוכן להתחבר לוואטסאפ?
@@ -185,17 +197,32 @@ const WhatsAppConnect = () => {
                   </p>
                   <Button
                     onClick={handleCreateChannel}
-                    className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg"
-                    disabled={isCreatingChannel}
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold"
                   >
-                    {isCreatingChannel ? "יוצר חיבור..." : "אני מוכן להתחבר עכשיו!"}
+                    התחבר לוואטסאפ
                   </Button>
                 </CardContent>
               </Card>
             )}
             
-            {/* Step 2: Channel Ready - Choose Connection Method */}
-            {connectionStatus === 'channel_ready' && (
+            {/* Step 2: Creating Channel - Loading State */}
+            {connectionStep === 'creating_channel' && (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <div className="space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+                    <h3 className="text-lg font-semibold">מכין את החיבור...</h3>
+                    <p className="text-gray-600 text-sm">
+                      יוצר ערוץ בטוח לחיבור הוואטסאפ שלך
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Step 3: Choose Connection Method */}
+            {connectionStep === 'choose_method' && (
               <>
                 <Card className="mb-4">
                   <CardContent className="p-6 text-center">
@@ -204,49 +231,76 @@ const WhatsAppConnect = () => {
                       <span className="font-semibold">ערוץ נוצר בהצלחה!</span>
                     </div>
                     <p className="text-gray-600 text-sm">
-                      כעת בחר איך תרצה להתחבר לוואטסאפ שלך
+                      איך תרצה לחבר את הוואטסאפ שלך?
                     </p>
                   </CardContent>
                 </Card>
                 
-                <Tabs defaultValue="qr" className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="qr">קוד QR</TabsTrigger>
-                    <TabsTrigger value="phone">מספר טלפון</TabsTrigger>
-                  </TabsList>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* QR Code Option */}
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleMethodSelect('qr')}>
+                    <CardContent className="p-6 text-center">
+                      <div className="p-4 bg-blue-50 rounded-full w-fit mx-auto mb-4">
+                        <Smartphone className="h-8 w-8 text-blue-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-2">קוד QR</h3>
+                      <p className="text-gray-600 text-sm mb-4">
+                        סרוק קוד QR עם הוואטסאפ שלך
+                      </p>
+                      <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                        בחר QR
+                      </Button>
+                    </CardContent>
+                  </Card>
                   
-                  <TabsContent value="qr" className="space-y-4">
-                    <WhatsAppConnector 
-                      userId={user.id} 
-                      onConnected={handleConnected}
-                      onConnecting={handleConnecting}
-                      mode="qr-connect"
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="phone" className="space-y-4">
-                    <PhoneAuthConnector 
-                      onConnected={handleConnected}
-                      onConnecting={handleConnecting}
-                    />
-                  </TabsContent>
-                </Tabs>
+                  {/* Phone Number Option */}
+                  <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleMethodSelect('phone')}>
+                    <CardContent className="p-6 text-center">
+                      <div className="p-4 bg-orange-50 rounded-full w-fit mx-auto mb-4">
+                        <MessageCircle className="h-8 w-8 text-orange-600" />
+                      </div>
+                      <h3 className="font-semibold text-gray-900 mb-2">מספר וואטסאפ</h3>
+                      <p className="text-gray-600 text-sm mb-4">
+                        התחבר עם מספר הטלפון שלך
+                      </p>
+                      <Button className="w-full bg-orange-600 hover:bg-orange-700">
+                        בחר מספר
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
               </>
             )}
             
-            {/* Step 3: Connecting State */}
-            {connectionStatus === 'connecting' && (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <div className="space-y-4">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <h3 className="text-lg font-semibold">מתחבר לוואטסאפ...</h3>
-                    <p className="text-gray-600 text-sm">
-                      אנא המתן, התהליך עשוי לקחת כמה רגעים
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Step 4: Connecting with Selected Method */}
+            {connectionStep === 'connecting' && selectedMethod && (
+              <div className="space-y-4">
+                <Card>
+                  <CardContent className="p-4">
+                    <Button
+                      variant="outline"
+                      onClick={handleBackToMethodSelection}
+                      className="mb-4"
+                    >
+                      ← חזור לבחירת שיטה
+                    </Button>
+                  </CardContent>
+                </Card>
+                
+                {selectedMethod === 'qr' && (
+                  <WhatsAppConnector 
+                    userId={user.id} 
+                    onConnected={handleConnected}
+                    mode="qr-connect"
+                  />
+                )}
+                
+                {selectedMethod === 'phone' && (
+                  <PhoneAuthConnector 
+                    onConnected={handleConnected}
+                  />
+                )}
+              </div>
             )}
           </>
         )}

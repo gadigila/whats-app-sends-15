@@ -2,40 +2,48 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Phone } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Loader2, Phone, AlertCircle } from 'lucide-react';
 import { usePhoneAuth } from '@/hooks/usePhoneAuth';
 
 interface PhoneAuthConnectorProps {
-  onConnected: () => void;
-  onConnecting?: () => void;
+  onConnected?: () => void;
 }
 
-const PhoneAuthConnector = ({ onConnected, onConnecting }: PhoneAuthConnectorProps) => {
+const PhoneAuthConnector = ({ onConnected }: PhoneAuthConnectorProps) => {
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [showCodeInput, setShowCodeInput] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+  const [step, setStep] = useState<'phone' | 'code'>('phone');
+  const [error, setError] = useState<string | null>(null);
+  
   const { authenticateWithPhone, isAuthenticating } = usePhoneAuth();
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!phoneNumber.trim()) {
+      setError('אנא הזן מספר טלפון');
       return;
     }
-
+    
     try {
-      onConnecting?.();
-      const result = await authenticateWithPhone.mutateAsync({ phoneNumber });
+      setError(null);
+      console.log('📱 Submitting phone number:', phoneNumber);
+      
+      const result = await authenticateWithPhone.mutateAsync({
+        phoneNumber: phoneNumber.trim()
+      });
       
       if (result.success && !result.code_required) {
-        onConnected();
+        // Connected immediately
+        onConnected?.();
       } else if (result.code_required) {
-        setShowCodeInput(true);
+        // Need verification code
+        setStep('code');
       }
     } catch (error) {
-      console.error('Phone authentication failed:', error);
+      console.error('❌ Phone authentication failed:', error);
+      setError(error.message || 'שגיאה באימות מספר הטלפון');
     }
   };
 
@@ -43,101 +51,156 @@ const PhoneAuthConnector = ({ onConnected, onConnecting }: PhoneAuthConnectorPro
     e.preventDefault();
     
     if (!verificationCode.trim()) {
+      setError('אנא הזן קוד אימות');
       return;
     }
-
+    
     try {
-      const result = await authenticateWithPhone.mutateAsync({ 
-        phoneNumber, 
-        verificationCode 
+      setError(null);
+      console.log('🔢 Submitting verification code');
+      
+      const result = await authenticateWithPhone.mutateAsync({
+        phoneNumber: phoneNumber.trim(),
+        verificationCode: verificationCode.trim()
       });
       
       if (result.success) {
-        onConnected();
+        onConnected?.();
       }
     } catch (error) {
-      console.error('Code verification failed:', error);
+      console.error('❌ Code verification failed:', error);
+      setError(error.message || 'קוד האימות שגוי');
     }
+  };
+
+  const handleBackToPhone = () => {
+    setStep('phone');
+    setVerificationCode('');
+    setError(null);
   };
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Phone className="h-5 w-5" />
-          חיבור דרך מספר טלפון
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!showCodeInput ? (
-          <form onSubmit={handlePhoneSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="phone">מספר טלפון</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="+972-50-123-4567"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="text-right"
-                dir="ltr"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                הזן את מספר הטלפון הרשום בוואטסאפ שלך
+      <CardContent className="p-8">
+        {step === 'phone' ? (
+          <form onSubmit={handlePhoneSubmit} className="space-y-6">
+            <div className="text-center">
+              <div className="p-4 bg-orange-50 rounded-full w-fit mx-auto mb-6">
+                <Phone className="h-12 w-12 text-orange-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                חיבור עם מספר טלפון
+              </h3>
+              <p className="text-gray-600 text-sm">
+                הזן את מספר הוואטסאפ שלך
               </p>
             </div>
-            <Button 
-              type="submit" 
-              className="w-full"
-              disabled={isAuthenticating || !phoneNumber.trim()}
-            >
-              {isAuthenticating ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Phone className="h-4 w-4 mr-2" />
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                  מספר טלפון (עם קידומת מדינה)
+                </label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="972501234567+"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  className="text-left"
+                  dir="ltr"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  לדוגמה: 972501234567+ (ללא רווחים או מקפים)
+                </p>
+              </div>
+              
+              {error && (
+                <div className="flex items-center gap-2 text-red-600 text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  {error}
+                </div>
               )}
-              התחבר עם מספר טלפון
-            </Button>
-          </form>
-        ) : (
-          <form onSubmit={handleCodeSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="code">קוד אימות</Label>
-              <Input
-                id="code"
-                type="text"
-                placeholder="הזן את הקוד שקיבלת"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                className="text-center font-mono text-lg"
-                maxLength={10}
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                הזן את הקוד שנשלח לטלפון {phoneNumber}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                type="submit" 
-                className="flex-1"
-                disabled={isAuthenticating || !verificationCode.trim()}
-              >
-                {isAuthenticating ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                אמת קוד
-              </Button>
-              <Button 
-                type="button" 
-                variant="outline"
-                onClick={() => {
-                  setShowCodeInput(false);
-                  setVerificationCode('');
-                }}
+              
+              <Button
+                type="submit"
+                className="w-full bg-orange-600 hover:bg-orange-700"
                 disabled={isAuthenticating}
               >
-                חזור
+                {isAuthenticating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    שולח קוד אימות...
+                  </>
+                ) : (
+                  'שלח קוד אימות'
+                )}
               </Button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleCodeSubmit} className="space-y-6">
+            <div className="text-center">
+              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
+                <Phone className="h-12 w-12 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                הזן קוד אימות
+              </h3>
+              <p className="text-gray-600 text-sm">
+                נשלח קוד אימות ל-{phoneNumber}
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-2">
+                  קוד אימות
+                </label>
+                <Input
+                  id="code"
+                  type="text"
+                  placeholder="123456"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  className="text-center text-lg font-mono"
+                  maxLength={6}
+                />
+              </div>
+              
+              {error && (
+                <div className="flex items-center gap-2 text-red-600 text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  {error}
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Button
+                  type="submit"
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={isAuthenticating}
+                >
+                  {isAuthenticating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                      מאמת קוד...
+                    </>
+                  ) : (
+                    'אמת קוד'
+                  )}
+                </Button>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleBackToPhone}
+                  className="w-full"
+                  disabled={isAuthenticating}
+                >
+                  חזור למספר טלפון
+                </Button>
+              </div>
             </div>
           </form>
         )}

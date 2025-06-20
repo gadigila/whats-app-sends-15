@@ -8,11 +8,10 @@ import { useWhatsAppConnect } from '@/hooks/useWhatsAppConnect';
 interface WhatsAppConnectorProps {
   userId: string;
   onConnected?: () => void;
-  onConnecting?: () => void;
   mode: 'qr-connect';
 }
 
-const WhatsAppConnector = ({ userId, onConnected, onConnecting, mode }: WhatsAppConnectorProps) => {
+const WhatsAppConnector = ({ userId, onConnected, mode }: WhatsAppConnectorProps) => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,10 +27,14 @@ const WhatsAppConnector = ({ userId, onConnected, onConnecting, mode }: WhatsApp
     isConnecting
   });
 
+  // Auto-start QR when component mounts
+  useEffect(() => {
+    handleStartQR();
+  }, []);
+
   const handleStartQR = async () => {
     try {
       setError(null);
-      onConnecting?.();
       console.log('🔄 Getting QR code...');
       
       const result = await connectWhatsApp.mutateAsync();
@@ -169,7 +172,7 @@ const WhatsAppConnector = ({ userId, onConnected, onConnecting, mode }: WhatsApp
     );
   }
 
-  // Initial QR button
+  // Fallback - shouldn't normally reach here since we auto-start
   return (
     <Card>
       <CardContent className="p-8 text-center">
@@ -180,15 +183,8 @@ const WhatsAppConnector = ({ userId, onConnected, onConnecting, mode }: WhatsApp
           חיבור עם קוד QR
         </h3>
         <p className="text-gray-600 mb-6">
-          קבל קוד QR וסרוק אותו עם הוואטסאפ שלך
+          מכין את קוד ה-QR...
         </p>
-        <Button
-          onClick={handleStartQR}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
-          disabled={isConnecting}
-        >
-          קבל קוד QR
-        </Button>
       </CardContent>
     </Card>
   );
