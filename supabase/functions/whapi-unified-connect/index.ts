@@ -17,8 +17,8 @@ async function checkWhapiStatus(token: string) {
   try {
     console.log(`🔍 Checking WHAPI status...`)
     
-    // FIX: Use correct endpoint and method for status check
-    const response = await fetch(`https://gate.whapi.cloud/health`, {
+    // FIXED: Use correct endpoint /me instead of /health or /status
+    const response = await fetch(`https://gate.whapi.cloud/me`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -26,19 +26,24 @@ async function checkWhapiStatus(token: string) {
       }
     })
     
-    console.log(`📊 WHAPI status response: ${response.status}`)
+    console.log(`📊 WHAPI me response: ${response.status}`)
     
     if (response.ok) {
       const data = await response.json()
-      console.log(`✅ WHAPI status data:`, data)
-      return { success: true, status: data.status || data.state, data }
+      console.log(`✅ WHAPI me data:`, data)
+      // If we get user data back, we're authenticated
+      return { success: true, status: 'authenticated', data }
+    } else if (response.status === 401) {
+      // 401 means not authenticated yet - need QR scan
+      console.log(`📱 Not authenticated yet - need QR scan`)
+      return { success: true, status: 'unauthorized' }
     }
     
     const errorText = await response.text()
-    console.error(`❌ WHAPI status error: ${response.status} - ${errorText}`)
+    console.error(`❌ WHAPI me error: ${response.status} - ${errorText}`)
     return { success: false, status: response.status, error: errorText }
   } catch (error) {
-    console.error(`💥 WHAPI status network error:`, error)
+    console.error(`💥 WHAPI me network error:`, error)
     return { success: false, error: error.message }
   }
 }
@@ -49,8 +54,8 @@ async function getQrCode(token: string, retryCount = 0) {
   try {
     console.log(`📱 Getting QR code (attempt ${retryCount + 1}/${maxRetries + 1})`)
     
-    // FIX: Use correct endpoint for QR code
-    const qrResponse = await fetch(`https://gate.whapi.cloud/qr`, {
+    // FIXED: Use correct endpoint /screenshot instead of /qr
+    const qrResponse = await fetch(`https://gate.whapi.cloud/screenshot`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -65,24 +70,18 @@ async function getQrCode(token: string, retryCount = 0) {
       console.log(`✅ QR data received:`, Object.keys(qrData))
       console.log(`🔍 Full QR response:`, qrData)
       
-      // Enhanced QR code extraction
+      // FIXED: WHAPI /screenshot returns QR in 'image' field
       let qrCode = null
       
-      // Try different possible QR code fields
-      if (qrData.qr) {
+      if (qrData.image) {
+        qrCode = qrData.image
+        console.log(`🎯 QR code found in 'image' field (WHAPI screenshot format)`)
+      } else if (qrData.qr) {
         qrCode = qrData.qr
+        console.log(`🎯 QR code found in 'qr' field (legacy format)`)
       } else if (qrData.qrCode) {
         qrCode = qrData.qrCode
-      } else if (qrData.image) {
-        qrCode = qrData.image
-      } else if (qrData.screen) {
-        qrCode = qrData.screen
-      } else if (qrData.data && qrData.data.qr) {
-        qrCode = qrData.data.qr
-      } else if (qrData.message && qrData.type === 'qrCode') {
-        qrCode = qrData.message
-      } else if (qrData.base64) {
-        qrCode = qrData.base64
+        console.log(`🎯 QR code found in 'qrCode' field (legacy format)`)
       }
       
       if (qrCode) {
@@ -255,7 +254,7 @@ Deno.serve(async (req) => {
         console.log(`📊 Current instance status: ${statusCheck.status}`)
         
         // Map WHAPI status properly
-        if (statusCheck.status === 'authenticated' || statusCheck.status === 'ready') {
+        if (statusCheck.status === 'authenticated') {
           // Already connected!
           console.log('🎉 Instance already authenticated!')
           
@@ -271,7 +270,7 @@ Deno.serve(async (req) => {
             instance_id: instanceId
           }), { status: 200, headers: corsHeaders })
           
-        } else if (statusCheck.status === 'qr' || statusCheck.status === 'unauthorized' || statusCheck.status === 'loading') {
+        } else if (statusCheck.status === 'unauthorized') {
           // Ready for QR - this is good!
           console.log('✅ Existing instance ready for QR')
           
@@ -382,69 +381,3 @@ Deno.serve(async (req) => {
     }), { status: 500, headers: corsHeaders })
   }
 })
-
-async function createNewInstance(whapiPartnerToken: string, whapiProjectId: string, userId: string, supabaseUrl: string) {
-  console.log('🏗️ Creating new WHAPI instance...')
-  
-  const createResponse = await fetch('https://manager.whapi.cloud/channels', {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${whapiPartnerToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: `reecher_user_${userId.substring(0, 8)}`,
-      projectId: whapiProjectId
-    })
-  })
-  
-  console.log(`🏗️ Create response status: ${createResponse.status}`)
-  
-  if (!createResponse.ok) {
-    const errorText = await createResponse.text()
-    console.error(`❌ Failed to create instance: ${errorText}`)
-    throw new Error(`Failed to create instance: ${errorText}`)
-  }
-  
-  const channelData = await createResponse.json()
-  console.log(`✅ Channel created:`, Object.keys(channelData))
-  
-  if (!channelData.id || !channelData.token) {
-    console.error(`❌ Invalid channel data:`, channelData)
-    throw new Error('Invalid channel data received')
-  }
-  
-  // Setup webhook after instance creation
-  const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
-  console.log(`🔗 Setting up webhook: ${webhookUrl}`)
-  
-  try {
-    const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${channelData.token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        webhooks: [{
-          url: webhookUrl,
-          events: ['users', 'channel'],
-          mode: 'body'
-        }]
-      })
-    })
-    
-    if (webhookResponse.ok) {
-      console.log('✅ Webhook setup successful')
-    } else {
-      console.log('⚠️ Webhook setup failed, but continuing...')
-    }
-  } catch (webhookError) {
-    console.log('⚠️ Webhook setup error, but continuing...', webhookError.message)
-  }
-  
-  return {
-    instanceId: channelData.id,
-    token: channelData.token
-  }
-}

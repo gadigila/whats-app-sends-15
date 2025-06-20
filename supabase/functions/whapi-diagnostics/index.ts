@@ -67,12 +67,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(diagnostics), { status: 200, headers: corsHeaders })
     }
 
-    // Step 2: Test various WHAPI endpoints
+    // Step 2: Test various WHAPI endpoints with CORRECTED endpoints
     console.log('Testing WHAPI endpoints...')
 
-    // Test 1: Health endpoint (fixed from status)
+    // Test 1: Authentication status endpoint (FIXED: /me instead of /health)
     try {
-      const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+      const meResponse = await fetch(`https://gate.whapi.cloud/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -80,25 +80,28 @@ Deno.serve(async (req) => {
         }
       })
 
-      diagnostics.endpoints.health = {
-        httpStatus: healthResponse.status,
-        ok: healthResponse.ok
+      diagnostics.endpoints.me = {
+        httpStatus: meResponse.status,
+        ok: meResponse.ok
       }
 
-      if (healthResponse.ok) {
-        const healthData = await healthResponse.json()
-        diagnostics.whapi.status = healthData.status || healthData.state
-        diagnostics.endpoints.health.data = healthData
+      if (meResponse.ok) {
+        const meData = await meResponse.json()
+        diagnostics.whapi.authStatus = 'authenticated'
+        diagnostics.endpoints.me.data = meData
+      } else if (meResponse.status === 401) {
+        diagnostics.whapi.authStatus = 'unauthorized'
+        diagnostics.endpoints.me.message = 'Not authenticated - need QR scan'
       } else {
-        diagnostics.endpoints.health.error = await healthResponse.text()
+        diagnostics.endpoints.me.error = await meResponse.text()
       }
     } catch (error) {
-      diagnostics.endpoints.health = { error: error.message }
+      diagnostics.endpoints.me = { error: error.message }
     }
 
-    // Test 2: QR endpoint (fixed from screen)
+    // Test 2: QR endpoint (FIXED: /screenshot instead of /qr)
     try {
-      const qrResponse = await fetch(`https://gate.whapi.cloud/qr`, {
+      const qrResponse = await fetch(`https://gate.whapi.cloud/screenshot`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -106,21 +109,22 @@ Deno.serve(async (req) => {
         }
       })
 
-      diagnostics.endpoints.qr = {
+      diagnostics.endpoints.screenshot = {
         httpStatus: qrResponse.status,
         ok: qrResponse.ok
       }
 
       if (qrResponse.ok) {
         const qrData = await qrResponse.json()
-        diagnostics.endpoints.qr.hasQr = !!(qrData.qr || qrData.qrCode || qrData.image || qrData.base64)
-        diagnostics.endpoints.qr.fields = Object.keys(qrData)
-        diagnostics.endpoints.qr.responseSize = JSON.stringify(qrData).length
+        diagnostics.endpoints.screenshot.hasQr = !!(qrData.image || qrData.qr || qrData.qrCode)
+        diagnostics.endpoints.screenshot.fields = Object.keys(qrData)
+        diagnostics.endpoints.screenshot.responseSize = JSON.stringify(qrData).length
+        diagnostics.endpoints.screenshot.hasImage = !!qrData.image // WHAPI correct field
       } else {
-        diagnostics.endpoints.qr.error = await qrResponse.text()
+        diagnostics.endpoints.screenshot.error = await qrResponse.text()
       }
     } catch (error) {
-      diagnostics.endpoints.qr = { error: error.message }
+      diagnostics.endpoints.screenshot = { error: error.message }
     }
 
     // Test 3: Check channel settings
@@ -151,7 +155,32 @@ Deno.serve(async (req) => {
       diagnostics.endpoints.settings = { error: error.message }
     }
 
-    // Test 4: List all channels (partner API)
+    // Test 4: Groups endpoint (additional test)
+    try {
+      const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      diagnostics.endpoints.groups = {
+        httpStatus: groupsResponse.status,
+        ok: groupsResponse.ok
+      }
+
+      if (groupsResponse.ok) {
+        const groupsData = await groupsResponse.json()
+        diagnostics.endpoints.groups.count = Array.isArray(groupsData) ? groupsData.length : 'unknown'
+      } else {
+        diagnostics.endpoints.groups.error = await groupsResponse.text()
+      }
+    } catch (error) {
+      diagnostics.endpoints.groups = { error: error.message }
+    }
+
+    // Test 5: List all channels (partner API)
     try {
       const channelsResponse = await fetch('https://manager.whapi.cloud/channels', {
         headers: {
@@ -189,43 +218,30 @@ Deno.serve(async (req) => {
       diagnostics.whapi.channelListError = error.message
     }
 
-    // Generate specific recommendations
-    if (diagnostics.endpoints.health?.httpStatus === 404) {
+    // Generate specific recommendations based on CORRECTED endpoints
+    if (diagnostics.endpoints.me?.httpStatus === 404) {
       diagnostics.recommendations.push('❌ Channel not found with token - need new instance')
     }
 
-    if (diagnostics.endpoints.health?.httpStatus === 401) {
-      diagnostics.recommendations.push('❌ Token authentication failed - token may be invalid')
+    if (diagnostics.endpoints.me?.httpStatus === 401) {
+      diagnostics.recommendations.push('✅ Channel ready for QR scan (not authenticated yet)')
     }
 
-    if (diagnostics.endpoints.health?.data?.status === 'qr' || 
-        diagnostics.endpoints.health?.data?.status === 'unauthorized' ||
-        diagnostics.endpoints.health?.data?.state === 'qr' ||
-        diagnostics.endpoints.health?.data?.state === 'unauthorized') {
-      diagnostics.recommendations.push('✅ Channel ready for QR scan')
-      
-      if (!diagnostics.endpoints.qr?.hasQr) {
-        diagnostics.recommendations.push('⚠️ QR endpoint not returning QR code - may need to wait or retry')
-      } else {
-        diagnostics.recommendations.push('✅ QR code is available')
-      }
-    }
-
-    if (diagnostics.endpoints.health?.data?.status === 'authenticated' || 
-        diagnostics.endpoints.health?.data?.status === 'ready' ||
-        diagnostics.endpoints.health?.data?.state === 'authenticated' ||
-        diagnostics.endpoints.health?.data?.state === 'ready') {
+    if (diagnostics.whapi.authStatus === 'authenticated') {
       diagnostics.recommendations.push('✅ Channel already authenticated - no QR needed')
     }
 
-    if (diagnostics.endpoints.health?.data?.status === 'loading' ||
-        diagnostics.endpoints.health?.data?.status === 'initializing' ||
-        diagnostics.endpoints.health?.data?.state === 'loading' ||
-        diagnostics.endpoints.health?.data?.state === 'initializing') {
-      diagnostics.recommendations.push('⏳ Channel is initializing - wait 30-60 seconds and retry')
+    if (diagnostics.whapi.authStatus === 'unauthorized') {
+      diagnostics.recommendations.push('✅ Channel ready for QR scan')
+      
+      if (!diagnostics.endpoints.screenshot?.hasImage && !diagnostics.endpoints.screenshot?.hasQr) {
+        diagnostics.recommendations.push('⚠️ QR endpoint not returning QR code - may need to wait or retry')
+      } else {
+        diagnostics.recommendations.push('✅ QR code is available via /screenshot endpoint')
+      }
     }
 
-    const actualStatus = diagnostics.endpoints.health?.data?.status || diagnostics.endpoints.health?.data?.state
+    const actualStatus = diagnostics.whapi.authStatus
     if (diagnostics.database.instanceStatus !== actualStatus) {
       diagnostics.recommendations.push(
         `🔄 Database status mismatch: DB says '${diagnostics.database.instanceStatus}' but WHAPI says '${actualStatus}' - need to sync`

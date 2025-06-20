@@ -13,12 +13,29 @@ export class QrProcessor {
       dataType: qrData.data ? typeof qrData.data : 'undefined'
     })
     
-    // ENHANCED: Handle WHAPI's various QR response formats
+    // ENHANCED: Handle WHAPI's QR response format - /screenshot returns 'image' field
     
-    // Format 1: Direct QR fields
-    if (qrData.qr || qrData.qrCode || qrData.image) {
-      const qrCode = qrData.qr || qrData.qrCode || qrData.image
-      console.log('✅ QR code found in direct field')
+    // Format 1: WHAPI /screenshot endpoint - returns image field (CORRECT FORMAT)
+    if (qrData.image) {
+      console.log('✅ QR code found in image field (WHAPI screenshot format)')
+      let qrCode = qrData.image
+      
+      // Ensure proper base64 formatting
+      if (!qrCode.startsWith('data:image/')) {
+        qrCode = `data:image/png;base64,${qrCode}`
+      }
+      
+      return {
+        success: true,
+        qr_code: qrCode,
+        message: 'QR code generated successfully'
+      }
+    }
+    
+    // Format 2: Legacy direct QR fields (for backward compatibility)
+    else if (qrData.qr || qrData.qrCode) {
+      const qrCode = qrData.qr || qrData.qrCode
+      console.log('✅ QR code found in legacy qr/qrCode field')
       
       // Ensure proper base64 formatting
       let formattedQrCode = qrCode
@@ -33,10 +50,10 @@ export class QrProcessor {
       }
     }
     
-    // Format 2: Nested in data object
-    else if (qrData.data && qrData.data.qr) {
-      console.log('✅ QR code found in data.qr field')
-      let qrCode = qrData.data.qr
+    // Format 3: Nested in data object
+    else if (qrData.data && (qrData.data.qr || qrData.data.image)) {
+      console.log('✅ QR code found in data object')
+      let qrCode = qrData.data.qr || qrData.data.image
       if (!qrCode.startsWith('data:image/')) {
         qrCode = `data:image/png;base64,${qrCode}`
       }
@@ -48,7 +65,7 @@ export class QrProcessor {
       }
     }
     
-    // Format 3: WHAPI type/message format
+    // Format 4: WHAPI type/message format
     else if (qrData.type === 'qrCode' && qrData.message) {
       console.log('✅ QR code found in type/message format')
       let qrCode = qrData.message
@@ -63,7 +80,7 @@ export class QrProcessor {
       }
     }
     
-    // Format 4: Check for success status without QR (maybe already connected)
+    // Format 5: Check for success status without QR (maybe already connected)
     else if (qrData.success === true || qrData.status === 'success') {
       console.log('⚠️ Success response without QR - possibly already connected')
       return {
@@ -74,7 +91,7 @@ export class QrProcessor {
       }
     }
     
-    // Format 5: Error responses
+    // Format 6: Error responses
     else if (qrData.error || qrData.errors) {
       const errorMessage = qrData.error || (qrData.errors && qrData.errors[0] ? qrData.errors[0].message : 'Unknown error')
       console.error('❌ Error in QR response:', errorMessage)
@@ -86,7 +103,7 @@ export class QrProcessor {
       }
     }
     
-    // Format 6: Unknown format
+    // Format 7: Unknown format
     else {
       console.error('❌ No QR code found in response. Unknown format:', qrData)
       return {

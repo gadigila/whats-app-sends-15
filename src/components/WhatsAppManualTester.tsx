@@ -74,13 +74,12 @@ const WhatsAppManualTester = () => {
 
     console.log('🚀 Starting comprehensive WHAPI test with token:', token.substring(0, 20) + '...');
 
-    // Updated endpoints with correct WHAPI paths
+    // FIXED: Updated endpoints with correct WHAPI paths according to official docs
     const endpoints = [
-      { path: '/health', method: 'GET' },
-      { path: '/qr', method: 'GET' },
+      { path: '/me', method: 'GET' }, // FIXED: /me instead of /health
+      { path: '/screenshot', method: 'GET' }, // FIXED: /screenshot instead of /qr
       { path: '/settings', method: 'GET' },
-      { path: '/me', method: 'GET' },
-      { path: '/groups', method: 'GET' }
+      { path: '/groups', method: 'GET' } // Added groups endpoint
     ];
 
     const results = {
@@ -133,9 +132,9 @@ const WhatsAppManualTester = () => {
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
-        <CardTitle>🧪 WHAPI Manual Tester</CardTitle>
+        <CardTitle>🧪 WHAPI Manual Tester (Fixed Endpoints)</CardTitle>
         <p className="text-sm text-gray-600">
-          Test WHAPI endpoints directly to diagnose connection issues (Updated with correct endpoints)
+          Test WHAPI endpoints directly with CORRECTED endpoints: /me, /screenshot, /settings, /groups
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -170,7 +169,7 @@ const WhatsAppManualTester = () => {
             onChange={(e) => setManualToken(e.target.value)}
           />
           <p className="text-xs text-gray-500 mt-1">
-            Leave empty to use token from database. Test endpoints: /health, /qr, /settings, /me, /groups
+            Leave empty to use token from database. FIXED endpoints: /me (auth), /screenshot (QR), /settings, /groups
           </p>
         </div>
 
@@ -179,7 +178,7 @@ const WhatsAppManualTester = () => {
           disabled={isLoading || !user?.id}
           className="w-full"
         >
-          {isLoading ? 'Running Tests...' : 'Run Comprehensive Test (Fixed Endpoints)'}
+          {isLoading ? 'Running Tests...' : 'Run Test with FIXED Endpoints (/me, /screenshot)'}
         </Button>
 
         {testResults && (
@@ -192,7 +191,7 @@ const WhatsAppManualTester = () => {
             ) : (
               <>
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="font-semibold text-blue-900">Test Summary</h3>
+                  <h3 className="font-semibold text-blue-900">Test Summary (Fixed Endpoints)</h3>
                   <div className="grid grid-cols-3 gap-4 mt-2">
                     <div>
                       <p className="text-sm text-blue-600">Total</p>
@@ -210,13 +209,19 @@ const WhatsAppManualTester = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <h3 className="font-semibold">Endpoint Test Results</h3>
+                  <h3 className="font-semibold">Endpoint Test Results (WHAPI Official Endpoints)</h3>
                   {testResults.tests.map((test: any, index: number) => (
                     <div key={index} className="p-3 border rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{test.method}</Badge>
                           <code className="text-sm">{test.endpoint}</code>
+                          {test.endpoint === '/screenshot' && (
+                            <Badge variant="secondary" className="text-xs">QR Endpoint</Badge>
+                          )}
+                          {test.endpoint === '/me' && (
+                            <Badge variant="secondary" className="text-xs">Auth Status</Badge>
+                          )}
                         </div>
                         {getStatusBadge(test.status, test.ok)}
                       </div>

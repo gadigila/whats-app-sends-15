@@ -48,8 +48,8 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Found channel:', profile.instance_id, 'current status:', profile.instance_status)
 
-    // Check channel status using channel token
-    const statusResponse = await fetch(`https://gate.whapi.cloud/channels/${profile.instance_id}`, {
+    // FIXED: Check channel status using /me endpoint instead of /channels/{id}
+    const statusResponse = await fetch(`https://gate.whapi.cloud/me`, {
       headers: {
         'Authorization': `Bearer ${profile.whapi_token}`
       }
@@ -63,15 +63,13 @@ Deno.serve(async (req) => {
         channelId: profile.instance_id
       })
 
-      // If it's a 404, clean up the database
-      if (statusResponse.status === 404) {
-        console.log('🗑️ Channel not found (404), cleaning up database...')
+      // If it's a 404 or 401, clean up the database
+      if (statusResponse.status === 404 || statusResponse.status === 401) {
+        console.log('🗑️ Channel not found or unauthorized, updating database...')
         await supabase
           .from('profiles')
           .update({
-            instance_id: null,
-            whapi_token: null,
-            instance_status: 'disconnected',
+            instance_status: 'unauthorized',
             updated_at: new Date().toISOString()
           })
           .eq('id', userId)
@@ -79,8 +77,9 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             connected: false, 
-            error: 'Channel not found. Please create a new channel.',
-            requiresNewInstance: true
+            status: 'unauthorized',
+            error: 'Channel needs QR scan',
+            requiresQr: true
           }),
           { status: 200, headers: corsHeaders }
         )
@@ -95,8 +94,8 @@ Deno.serve(async (req) => {
     const statusData = await statusResponse.json()
     console.log('📊 Channel status response:', statusData)
     
-    // Check if channel is connected (has phone number)
-    const isConnected = statusData.status === 'active' || !!statusData.phone
+    // FIXED: Check if channel is connected - /me returns user data when authenticated
+    const isConnected = !!statusData.id || !!statusData.phone || !!statusData.name
 
     // Update status in database if connected
     if (isConnected && profile.instance_status !== 'connected') {
@@ -108,16 +107,27 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', userId)
+    } else if (!isConnected && profile.instance_status === 'connected') {
+      console.log('📱 Updating database status to unauthorized (needs QR)')
+      await supabase
+        .from('profiles')
+        .update({
+          instance_status: 'unauthorized',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
     }
 
-    console.log('✅ Status check completed:', statusData.status, 'Connected:', isConnected)
+    console.log('✅ Status check completed. Connected:', isConnected)
 
     return new Response(
       JSON.stringify({
         connected: isConnected,
-        status: statusData.status,
+        status: isConnected ? 'connected' : 'unauthorized',
         phone: statusData.phone,
-        channel_id: profile.instance_id
+        name: statusData.name,
+        channel_id: profile.instance_id,
+        user_data: statusData
       }),
       { status: 200, headers: corsHeaders }
     )
