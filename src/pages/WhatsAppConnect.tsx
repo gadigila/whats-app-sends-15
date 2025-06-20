@@ -15,8 +15,8 @@ import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 const WhatsAppConnect = () => {
-  const { user } = useAuth();
-  const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
+  const { user, isAuthReady } = useAuth();
+  const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
   const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
@@ -25,9 +25,11 @@ const WhatsAppConnect = () => {
   const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
 
   console.log('🔄 WhatsAppConnect render:', {
+    isAuthReady,
     user: user?.email,
     userId: user?.id,
     profileLoading,
+    profileError: profileError?.message,
     profile: profile ? {
       instance_id: profile.instance_id,
       instance_status: profile.instance_status,
@@ -38,9 +40,21 @@ const WhatsAppConnect = () => {
     pollingAttempts
   });
 
+  // Handle profile errors
+  useEffect(() => {
+    if (profileError) {
+      console.error('❌ Profile error:', profileError);
+      toast({
+        title: "שגיאה בטעינת הפרופיל",
+        description: "נסה לרענן את הדף",
+        variant: "destructive",
+      });
+    }
+  }, [profileError]);
+
   // Update connection step based on profile - but only after user initiates connection
   useEffect(() => {
-    if (profile && profileLoading === false) {
+    if (profile && profileLoading === false && isAuthReady) {
       console.log('📊 Evaluating profile for connection step:', {
         instance_status: profile.instance_status,
         has_instance_id: !!profile.instance_id,
@@ -65,12 +79,12 @@ const WhatsAppConnect = () => {
       
       // Reset polling attempts when profile changes
       setPollingAttempts(0);
-    } else if (!profile && !profileLoading) {
-      console.log('👤 No profile found - showing initial view');
+    } else if (!profile && !profileLoading && profileError) {
+      console.log('👤 Profile error - showing initial view');
       setConnectionStep('initial');
       setUserInitiatedConnection(false);
     }
-  }, [profile, profileLoading, userInitiatedConnection]);
+  }, [profile, profileLoading, profileError, userInitiatedConnection, isAuthReady]);
 
   // Intelligent polling when channel is being created
   useEffect(() => {
@@ -185,7 +199,6 @@ const WhatsAppConnect = () => {
       console.log('🔄 Calling whapi-partner-login function...');
       console.log('📋 Function payload:', { userId: user.id });
       
-      // Make sure we're calling the correct function name
       const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
         body: { userId: user.id }
       });
@@ -309,9 +322,21 @@ const WhatsAppConnect = () => {
     setSelectedMethod(null);
   };
 
-  if (profileLoading) {
-    console.log('⏳ Profile loading...');
+  // Show loading only when auth is not ready or profile is loading
+  if (!isAuthReady || (profileLoading && !profileError)) {
+    console.log('⏳ Still loading...', { isAuthReady, profileLoading, hasProfileError: !!profileError });
     return <WhatsAppLoadingState />;
+  }
+
+  // If no user after auth is ready, show error
+  if (!user) {
+    return (
+      <Layout>
+        <div className="max-w-2xl mx-auto text-center py-8">
+          <p className="text-gray-600">יש לך להתחבר תחילה</p>
+        </div>
+      </Layout>
+    );
   }
 
   // Connected state
@@ -361,65 +386,57 @@ const WhatsAppConnect = () => {
           </p>
         </div>
         
-        {user?.id ? (
-          <>
-            {/* Step 1: Initial - Main Connect Button */}
-            {connectionStep === 'initial' && (
-              <WhatsAppInitialView 
-                onConnect={handleCreateChannel} 
-              />
-            )}
-            
-            {/* Step 2: Creating Channel - Loading State with Polling */}
-            {connectionStep === 'creating_channel' && (
-              <WhatsAppCreatingChannel />
-            )}
-            
-            {/* Step 3: Choose Connection Method */}
-            {connectionStep === 'choose_method' && (
-              <WhatsAppMethodSelection onMethodSelect={(method: 'qr' | 'phone') => {
-                console.log('📱 Method selected:', method);
-                setSelectedMethod(method);
-                setConnectionStep('connecting');
-              }} />
-            )}
-            
-            {/* Step 4: Connecting with Selected Method */}
-            {connectionStep === 'connecting' && selectedMethod && user.id && (
-              <WhatsAppConnectingView
-                selectedMethod={selectedMethod}
-                userId={user.id}
-                onConnected={async () => {
-                  console.log('🎉 WhatsApp connected successfully');
-                  setConnectionStep('connected');
-                  
-                  // Refresh profile
-                  await refetchProfile();
-                  
-                  // Sync groups
-                  try {
-                    console.log('📱 Syncing groups...');
-                    await syncGroups.mutateAsync();
-                  } catch (error) {
-                    console.error('Failed to sync groups:', error);
-                  }
-                  
-                  toast({
-                    title: "וואטסאפ מחובר!",
-                    description: "החיבור הושלם בהצלחה",
-                  });
-                }}
-                onBackToMethodSelection={() => {
-                  setConnectionStep('choose_method');
-                  setSelectedMethod(null);
-                }}
-              />
-            )}
-          </>
-        ) : (
-          <div className="text-center py-8">
-            <p className="text-gray-600">טוען פרטי משתמש...</p>
-          </div>
+        {/* Step 1: Initial - Main Connect Button */}
+        {connectionStep === 'initial' && (
+          <WhatsAppInitialView 
+            onConnect={handleCreateChannel} 
+          />
+        )}
+        
+        {/* Step 2: Creating Channel - Loading State with Polling */}
+        {connectionStep === 'creating_channel' && (
+          <WhatsAppCreatingChannel />
+        )}
+        
+        {/* Step 3: Choose Connection Method */}
+        {connectionStep === 'choose_method' && (
+          <WhatsAppMethodSelection onMethodSelect={(method: 'qr' | 'phone') => {
+            console.log('📱 Method selected:', method);
+            setSelectedMethod(method);
+            setConnectionStep('connecting');
+          }} />
+        )}
+        
+        {/* Step 4: Connecting with Selected Method */}
+        {connectionStep === 'connecting' && selectedMethod && user.id && (
+          <WhatsAppConnectingView
+            selectedMethod={selectedMethod}
+            userId={user.id}
+            onConnected={async () => {
+              console.log('🎉 WhatsApp connected successfully');
+              setConnectionStep('connected');
+              
+              // Refresh profile
+              await refetchProfile();
+              
+              // Sync groups
+              try {
+                console.log('📱 Syncing groups...');
+                await syncGroups.mutateAsync();
+              } catch (error) {
+                console.error('Failed to sync groups:', error);
+              }
+              
+              toast({
+                title: "וואטסאפ מחובר!",
+                description: "החיבור הושלם בהצלחה",
+              });
+            }}
+            onBackToMethodSelection={() => {
+              setConnectionStep('choose_method');
+              setSelectedMethod(null);
+            }}
+          />
         )}
         
         <WhatsAppInstructions />

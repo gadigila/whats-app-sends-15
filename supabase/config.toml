@@ -1,22 +1,29 @@
 
 project_id = "ifxvwettmgixfbivlzzl"
 
-[functions.whatsapp-scheduler]
-verify_jwt = false
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
 
-[functions.cleanup-expired-trials]
-verify_jwt = false
-
-[functions.sync-whatsapp-groups]
-verify_jwt = false
-
-[functions.send-immediate-message]
-verify_jwt = false
-
-[functions.manage-instance-lifecycle]
-verify_jwt = false
+[auth]
+enabled = true
+port = 54324
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://preview--whats-app-sends-15.lovable.app"]
+jwt_expiry = 3600
+enable_signup = true
+enable_email_confirmations = false
 
 [functions.whapi-partner-login]
+verify_jwt = false
+
+[functions.whapi-unified-connect]
+verify_jwt = false
+
+[functions.whapi-webhook]
 verify_jwt = false
 
 [functions.whapi-get-qr]
@@ -25,20 +32,35 @@ verify_jwt = false
 [functions.whapi-check-status]
 verify_jwt = false
 
-[functions.whapi-webhook]
+[functions.whapi-manual-status-sync]
 verify_jwt = false
 
-[functions.whapi-unified-connect]
+[functions.whapi-phone-auth]
 verify_jwt = false
 
 [functions.whapi-delete-instance]
 verify_jwt = false
 
-[functions.whapi-manual-status-sync]
+[functions.whapi-diagnostics]
 verify_jwt = false
 
 [functions.whapi-auto-recovery]
 verify_jwt = false
 
-[functions.whapi-diagnostics]
+[functions.send-immediate-message]
+verify_jwt = false
+
+[functions.sync-whatsapp-groups]
+verify_jwt = false
+
+[functions.whatsapp-scheduler]
+verify_jwt = false
+
+[functions.manage-instance-lifecycle]
+verify_jwt = false
+
+[functions.cleanup-expired-trials]
+verify_jwt = false
+
+[functions.cleanup-orphaned-channels]
 verify_jwt = false
