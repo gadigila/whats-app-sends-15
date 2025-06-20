@@ -16,16 +16,29 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('🚀 WHAPI Partner Login Function Started')
+    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     const whapiProjectId = Deno.env.get('WHAPI_PROJECT_ID')!
     
-    console.log('🔐 WHAPI Channel Creation: Starting...')
     console.log('🔍 Environment check:', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
       hasPartnerToken: !!whapiPartnerToken,
-      hasProjectId: !!whapiProjectId
+      hasProjectId: !!whapiProjectId,
+      partnerTokenPrefix: whapiPartnerToken ? whapiPartnerToken.substring(0, 8) + '...' : 'missing',
+      projectId: whapiProjectId || 'missing'
     })
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('❌ Missing Supabase configuration')
+      return new Response(
+        JSON.stringify({ error: 'Supabase configuration missing' }),
+        { status: 500, headers: corsHeaders }
+      )
+    }
     
     if (!whapiPartnerToken || !whapiProjectId) {
       console.error('❌ Missing WHAPI configuration')
@@ -36,9 +49,22 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-    const { userId }: CreateChannelRequest = await req.json()
+    
+    let userId: string;
+    try {
+      const requestBody = await req.json()
+      userId = requestBody?.userId
+      console.log('📋 Request parsed:', { userId, hasUserId: !!userId })
+    } catch (parseError) {
+      console.error('❌ Failed to parse request body:', parseError)
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
 
     if (!userId) {
+      console.error('❌ Missing userId in request')
       return new Response(
         JSON.stringify({ error: 'User ID is required' }),
         { status: 400, headers: corsHeaders }
@@ -62,6 +88,13 @@ Deno.serve(async (req) => {
       )
     }
 
+    console.log('👤 Current profile:', {
+      hasInstanceId: !!profile?.instance_id,
+      hasToken: !!profile?.whapi_token,
+      status: profile?.instance_status,
+      lastUpdated: profile?.updated_at
+    })
+
     // If user already has a valid instance, return it
     if (profile?.instance_id && profile?.whapi_token && profile?.instance_status !== 'disconnected') {
       console.log('✅ User already has existing instance:', profile.instance_id, 'Status:', profile.instance_status)
@@ -82,60 +115,98 @@ Deno.serve(async (req) => {
     const channelId = `REECHER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
     console.log('🆔 Generated channel ID:', channelId)
 
-    // Create new channel using Manager API with correct format
+    // Create new channel using Manager API
     const createChannelPayload = {
       name: channelId,
       projectId: whapiProjectId
     }
 
     console.log('📤 Creating channel with payload:', createChannelPayload)
+    console.log('🔑 Using partner token:', whapiPartnerToken.substring(0, 10) + '...')
 
-    const createChannelResponse = await fetch('https://manager.whapi.cloud/channels', {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${whapiPartnerToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(createChannelPayload)
-    })
-
-    console.log('📥 Channel creation response status:', createChannelResponse.status)
+    let createChannelResponse;
+    try {
+      createChannelResponse = await fetch('https://manager.whapi.cloud/channels', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${whapiPartnerToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(createChannelPayload)
+      });
+      
+      console.log('📥 Channel creation response status:', createChannelResponse.status)
+      console.log('📥 Channel creation response headers:', Object.fromEntries(createChannelResponse.headers.entries()))
+      
+    } catch (fetchError) {
+      console.error('❌ Network error calling WHAPI:', fetchError)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Network error connecting to WHAPI', 
+          details: fetchError.message 
+        }),
+        { status: 500, headers: corsHeaders }
+      )
+    }
 
     if (!createChannelResponse.ok) {
       const errorText = await createChannelResponse.text()
       console.error('❌ Channel creation failed:', {
         status: createChannelResponse.status,
+        statusText: createChannelResponse.statusText,
         error: errorText,
         payload: createChannelPayload
       })
+      
+      // Don't save anything to DB if channel creation failed
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to create channel', 
-          details: `Status: ${createChannelResponse.status}, Error: ${errorText}` 
+          error: 'Failed to create channel with WHAPI', 
+          details: `Status: ${createChannelResponse.status}, Error: ${errorText}`,
+          whapiError: true
         }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    const channelData = await createChannelResponse.json()
-    console.log('✅ Channel created successfully:', {
-      hasToken: !!channelData?.token,
-      hasId: !!channelData?.id,
-      channelId: channelData?.id || channelId
-    })
+    let channelData;
+    try {
+      channelData = await createChannelResponse.json()
+      console.log('✅ Channel created successfully (raw response):', channelData)
+    } catch (jsonError) {
+      console.error('❌ Failed to parse WHAPI response as JSON:', jsonError)
+      const responseText = await createChannelResponse.text()
+      console.error('❌ Raw response text:', responseText)
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid response from WHAPI',
+          details: responseText
+        }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
 
     const finalChannelId = channelData?.id || channelId
     const channelToken = channelData?.token
 
-    if (!channelToken) {
-      console.error('❌ No token received from WHAPI:', channelData)
+    // Don't save to DB if we don't have essential data
+    if (!channelToken || !finalChannelId) {
+      console.error('❌ No token or id received from WHAPI:', channelData)
       return new Response(
         JSON.stringify({ 
-          error: 'No token received from WHAPI'
+          error: 'Incomplete data received from WHAPI',
+          details: channelData
         }),
         { status: 400, headers: corsHeaders }
       )
     }
+
+    console.log('🎯 Channel creation successful:', {
+      channelId: finalChannelId,
+      hasToken: !!channelToken,
+      tokenPrefix: channelToken.substring(0, 10) + '...'
+    })
 
     // Setup webhook
     console.log('🔗 Setting up webhook for channel:', finalChannelId)
@@ -160,10 +231,12 @@ Deno.serve(async (req) => {
         })
       })
 
+      console.log('🔗 Webhook setup response:', webhookResponse.status)
       if (webhookResponse.ok) {
         console.log('✅ Webhook setup successful')
       } else {
-        console.error('⚠️ Webhook setup failed:', webhookResponse.status)
+        const webhookError = await webhookResponse.text()
+        console.error('⚠️ Webhook setup failed:', webhookError)
       }
     } catch (webhookError) {
       console.error('⚠️ Webhook setup error:', webhookError)
@@ -200,11 +273,13 @@ Deno.serve(async (req) => {
     console.log('✅ Database updated successfully')
 
     // Wait a bit for channel to initialize
+    console.log('⏳ Waiting for channel initialization...')
     await new Promise(resolve => setTimeout(resolve, 3000))
     
     // Check channel status
     let channelReady = false;
     try {
+      console.log('📊 Checking channel status...')
       const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
         method: 'GET',
         headers: {
@@ -213,12 +288,15 @@ Deno.serve(async (req) => {
         }
       })
       
+      console.log('📊 Status check response:', statusResponse.status)
+      
       if (statusResponse.ok) {
         const statusData = await statusResponse.json()
-        console.log('📊 Channel status:', statusData)
+        console.log('📊 Channel status data:', statusData)
         
         if (statusData.status === 'qr' || statusData.status === 'unauthorized' || statusData.status === 'ready') {
           channelReady = true
+          console.log('🎉 Channel is ready for connection!')
           
           // Update status to unauthorized
           await supabase
@@ -228,11 +306,22 @@ Deno.serve(async (req) => {
               updated_at: new Date().toISOString()
             })
             .eq('id', userId)
+        } else {
+          console.log('⏳ Channel still initializing, status:', statusData.status)
         }
+      } else {
+        const statusError = await statusResponse.text()
+        console.log('⚠️ Status check failed:', statusError)
       }
     } catch (statusError) {
-      console.log('⚠️ Status check failed:', statusError.message)
+      console.log('⚠️ Status check error:', statusError.message)
     }
+
+    console.log('🎯 Function completed successfully:', {
+      channelId: finalChannelId,
+      channelReady,
+      trialExpiresAt
+    })
 
     return new Response(
       JSON.stringify({

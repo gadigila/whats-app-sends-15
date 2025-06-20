@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -186,6 +185,7 @@ const WhatsAppConnect = () => {
       console.log('🔄 Calling whapi-partner-login function...');
       console.log('📋 Function payload:', { userId: user.id });
       
+      // Make sure we're calling the correct function name
       const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
         body: { userId: user.id }
       });
@@ -193,48 +193,32 @@ const WhatsAppConnect = () => {
       console.log('📥 Function response received:', {
         hasData: !!data,
         hasError: !!error,
-        errorMessage: error?.message,
-        errorDetails: error?.details,
-        errorCode: error?.code
+        data: data || null,
+        error: error || null
       });
       
       if (error) {
         console.error('❌ Supabase function error:', error);
-        console.error('❌ Full error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw error;
+        throw new Error(`Function error: ${error.message}`);
       }
       
-      if (data?.error) {
+      if (!data) {
+        console.error('❌ No data returned from function');
+        throw new Error('No data returned from function');
+      }
+      
+      if (data.error) {
         console.error('❌ Function returned error:', data.error);
-        console.error('❌ Function error details:', data);
         throw new Error(data.error);
       }
       
       console.log('✅ Channel creation result:', data);
-      console.log('🔍 Result analysis:', {
-        success: data?.success,
-        channelId: data?.channel_id,
-        channelReady: data?.channel_ready,
-        message: data?.message
-      });
       
       // Refresh profile to get new channel data
       console.log('🔄 Refreshing profile to get new channel data...');
       const refreshResult = await refetchProfile();
-      console.log('📊 Profile after refresh:', {
-        hasData: !!refreshResult.data,
-        instanceId: refreshResult.data?.instance_id,
-        instanceStatus: refreshResult.data?.instance_status,
-        hasToken: !!refreshResult.data?.whapi_token
-      });
       
       if (data.channel_ready) {
-        // Channel is immediately ready
         console.log('🎯 Channel is immediately ready!');
         setConnectionStep('choose_method');
         
@@ -243,25 +227,16 @@ const WhatsAppConnect = () => {
           description: "בחר איך תרצה להתחבר לוואטסאפ",
         });
       } else {
-        // Channel needs time to initialize
         console.log('⏳ Channel created, waiting for initialization...');
         
         toast({
           title: "יוצר ערוץ...",
           description: "זה עשוי לקחת כמה שניות",
         });
-        
-        // Polling will start automatically via useEffect
       }
       
     } catch (error) {
       console.error('❌ Channel creation failed:', error);
-      console.error('❌ Full error context:', {
-        name: error?.name,
-        message: error?.message,
-        stack: error?.stack,
-        cause: error?.cause
-      });
       
       setConnectionStep('initial');
       setPollingAttempts(0);
@@ -269,7 +244,7 @@ const WhatsAppConnect = () => {
       
       toast({
         title: "שגיאה ביצירת ערוץ",
-        description: error.message || "נסה שוב מאוחר יותר",
+        description: error?.message || "נסה שוב מאוחר יותר",
         variant: "destructive",
       });
     }
