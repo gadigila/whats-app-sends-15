@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,6 +27,7 @@ const WhatsAppConnect = () => {
 
   console.log('🔄 WhatsAppConnect render:', {
     user: user?.email,
+    userId: user?.id,
     profileLoading,
     profile: profile ? {
       instance_id: profile.instance_id,
@@ -82,18 +84,31 @@ const WhatsAppConnect = () => {
       pollInterval = setInterval(async () => {
         try {
           console.log('📡 Checking channel status via manual sync...');
+          console.log('📋 Manual sync payload:', { userId: user?.id });
           
           const { data, error } = await supabase.functions.invoke('whapi-manual-status-sync', {
-            body: { userId: user.id }
+            body: { userId: user?.id }
           });
           
           if (error) {
             console.error('❌ Manual status sync error:', error);
+            console.error('❌ Error details:', {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code
+            });
           } else {
             console.log('📊 Manual status sync result:', data);
             
             // Refresh profile to get updated status
             const refreshResult = await refetchProfile();
+            console.log('🔄 Profile refresh result:', {
+              success: !!refreshResult.data,
+              newStatus: refreshResult.data?.instance_status,
+              hasInstanceId: !!refreshResult.data?.instance_id,
+              hasToken: !!refreshResult.data?.whapi_token
+            });
             
             if (refreshResult.data?.instance_status === 'unauthorized') {
               console.log('🎉 Channel is now ready for connection!');
@@ -110,6 +125,11 @@ const WhatsAppConnect = () => {
           }
         } catch (error) {
           console.error('❌ Polling error:', error);
+          console.error('❌ Polling error details:', {
+            name: error?.name,
+            message: error?.message,
+            stack: error?.stack
+          });
         }
         
         setPollingAttempts(prev => prev + 1);
@@ -143,35 +163,75 @@ const WhatsAppConnect = () => {
   const handleCreateChannel = async () => {
     if (!user?.id) {
       console.error('❌ No user ID available');
+      toast({
+        title: "שגיאה",
+        description: "לא נמצא מזהה משתמש",
+        variant: "destructive",
+      });
       return;
     }
     
     console.log('🚀 User clicked create channel button');
+    console.log('👤 User details:', {
+      id: user.id,
+      email: user.email,
+      isAuthenticated: !!user
+    });
+    
     setUserInitiatedConnection(true);
     setConnectionStep('creating_channel');
     setPollingAttempts(0);
     
     try {
-      console.log('🔄 Creating WhatsApp channel...');
+      console.log('🔄 Calling whapi-partner-login function...');
+      console.log('📋 Function payload:', { userId: user.id });
       
       const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
         body: { userId: user.id }
       });
       
+      console.log('📥 Function response received:', {
+        hasData: !!data,
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorDetails: error?.details,
+        errorCode: error?.code
+      });
+      
       if (error) {
         console.error('❌ Supabase function error:', error);
+        console.error('❌ Full error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         throw error;
       }
       
       if (data?.error) {
         console.error('❌ Function returned error:', data.error);
+        console.error('❌ Function error details:', data);
         throw new Error(data.error);
       }
       
       console.log('✅ Channel creation result:', data);
+      console.log('🔍 Result analysis:', {
+        success: data?.success,
+        channelId: data?.channel_id,
+        channelReady: data?.channel_ready,
+        message: data?.message
+      });
       
       // Refresh profile to get new channel data
-      await refetchProfile();
+      console.log('🔄 Refreshing profile to get new channel data...');
+      const refreshResult = await refetchProfile();
+      console.log('📊 Profile after refresh:', {
+        hasData: !!refreshResult.data,
+        instanceId: refreshResult.data?.instance_id,
+        instanceStatus: refreshResult.data?.instance_status,
+        hasToken: !!refreshResult.data?.whapi_token
+      });
       
       if (data.channel_ready) {
         // Channel is immediately ready
@@ -196,6 +256,13 @@ const WhatsAppConnect = () => {
       
     } catch (error) {
       console.error('❌ Channel creation failed:', error);
+      console.error('❌ Full error context:', {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+        cause: error?.cause
+      });
+      
       setConnectionStep('initial');
       setPollingAttempts(0);
       setUserInitiatedConnection(false);

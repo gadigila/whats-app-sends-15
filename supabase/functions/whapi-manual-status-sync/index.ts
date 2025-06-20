@@ -20,27 +20,65 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { userId }: ManualSyncRequest = await req.json()
-    console.log('🔄 Manual status sync requested for user:', userId)
+    // Enhanced request parsing and validation
+    let userId: string;
+    try {
+      const requestBody = await req.json()
+      userId = requestBody?.userId
+      console.log('🔄 Manual status sync requested:', { 
+        userId, 
+        hasUserId: !!userId,
+        requestBody 
+      })
+    } catch (parseError) {
+      console.error('❌ Failed to parse request body:', parseError)
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid request body', 
+          details: parseError.message 
+        }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
 
     if (!userId) {
+      console.error('❌ Missing userId in request')
       return new Response(
-        JSON.stringify({ error: 'User ID is required' }),
+        JSON.stringify({ 
+          error: 'User ID is required',
+          received: { userId }
+        }),
         { status: 400, headers: corsHeaders }
       )
     }
 
     // Get user's current profile
+    console.log('🔍 Fetching user profile for:', userId)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status, updated_at')
       .eq('id', userId)
       .single()
 
-    if (profileError || !profile) {
+    if (profileError) {
       console.error('❌ Error fetching user profile:', profileError)
       return new Response(
-        JSON.stringify({ error: 'User profile not found' }),
+        JSON.stringify({ 
+          error: 'User profile not found', 
+          details: profileError.message,
+          userId 
+        }),
+        { status: 404, headers: corsHeaders }
+      )
+    }
+
+    if (!profile) {
+      console.error('❌ No profile data returned for user:', userId)
+      return new Response(
+        JSON.stringify({ 
+          error: 'User profile not found',
+          userId 
+        }),
         { status: 404, headers: corsHeaders }
       )
     }
@@ -58,15 +96,21 @@ Deno.serve(async (req) => {
         JSON.stringify({ 
           success: false, 
           error: 'No WhatsApp instance found',
-          requiresNewInstance: true 
+          requiresNewInstance: true,
+          profileData: {
+            hasInstanceId: !!profile.instance_id,
+            hasToken: !!profile.whapi_token,
+            status: profile.instance_status
+          }
         }),
-        { status: 400, headers: corsHeaders }
+        { status: 200, headers: corsHeaders }
       )
     }
 
     // Check actual WHAPI status
     try {
       console.log('🔍 Checking WHAPI status directly...')
+      console.log('🔑 Using token:', profile.whapi_token.substring(0, 10) + '...')
       
       const statusResponse = await fetch(`https://gate.whapi.cloud/status`, {
         method: 'GET',
@@ -76,18 +120,28 @@ Deno.serve(async (req) => {
         }
       })
 
+      console.log('📡 WHAPI status response:', {
+        status: statusResponse.status,
+        statusText: statusResponse.statusText,
+        ok: statusResponse.ok
+      })
+
       if (!statusResponse.ok) {
-        console.error('❌ WHAPI status check failed:', statusResponse.status)
         const errorText = await statusResponse.text()
-        console.error('❌ WHAPI error details:', errorText)
+        console.error('❌ WHAPI status check failed:', {
+          status: statusResponse.status,
+          statusText: statusResponse.statusText,
+          errorText
+        })
         
         return new Response(
           JSON.stringify({
             success: false,
             error: 'Failed to check WHAPI status',
-            details: `Status: ${statusResponse.status}, Error: ${errorText}`
+            details: `Status: ${statusResponse.status}, Error: ${errorText}`,
+            whapiError: true
           }),
-          { status: 400, headers: corsHeaders }
+          { status: 200, headers: corsHeaders }
         )
       }
 
@@ -160,7 +214,8 @@ Deno.serve(async (req) => {
           newStatus: newStatus,
           whapiStatus: whapiStatus.status,
           statusChanged: statusChanged,
-          message: statusChanged ? 'Status updated successfully' : 'Status unchanged'
+          message: statusChanged ? 'Status updated successfully' : 'Status unchanged',
+          whapiResponse: whapiStatus
         }),
         { status: 200, headers: corsHeaders }
       )
@@ -171,9 +226,10 @@ Deno.serve(async (req) => {
         JSON.stringify({
           success: false,
           error: 'Failed to communicate with WHAPI',
-          details: whapiError.message
+          details: whapiError.message,
+          whapiError: true
         }),
-        { status: 500, headers: corsHeaders }
+        { status: 200, headers: corsHeaders }
       )
     }
 
