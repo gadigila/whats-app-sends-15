@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { ChannelManager } from './channel-manager.ts'
 
@@ -180,7 +179,7 @@ async function createNewInstance(whapiPartnerToken: string, whapiProjectId: stri
     throw new Error('Invalid channel data received')
   }
   
-  // Setup webhook after instance creation
+  // FIXED: Setup webhook with correct format
   const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
   console.log(`🔗 Setting up webhook: ${webhookUrl}`)
   
@@ -194,8 +193,11 @@ async function createNewInstance(whapiPartnerToken: string, whapiProjectId: stri
       body: JSON.stringify({
         webhooks: [{
           url: webhookUrl,
-          events: ['users', 'channel'],
-          mode: 'body'
+          events: [
+            {"type": "users", "method": "post"},
+            {"type": "channel", "method": "post"}
+          ],
+          callback_persist: true
         }]
       })
     })
@@ -203,7 +205,8 @@ async function createNewInstance(whapiPartnerToken: string, whapiProjectId: stri
     if (webhookResponse.ok) {
       console.log('✅ Webhook setup successful')
     } else {
-      console.log('⚠️ Webhook setup failed, but continuing...')
+      const webhookError = await webhookResponse.text()
+      console.log('⚠️ Webhook setup failed:', webhookError)
     }
   } catch (webhookError) {
     console.log('⚠️ Webhook setup error, but continuing...', webhookError.message)

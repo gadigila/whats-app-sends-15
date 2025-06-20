@@ -19,12 +19,22 @@ Deno.serve(async (req) => {
     const webhookData = await req.json()
     console.log('📬 Received WHAPI webhook:', JSON.stringify(webhookData, null, 2))
 
-    // Extract relevant information from webhook
-    const { event, data } = webhookData
+    // IMPROVED: Better webhook data parsing
+    const { event, data, type } = webhookData
+    const webhookType = event || type // Some webhooks use 'type' instead of 'event'
 
-    if (event === 'channel' && data?.status) {
+    console.log('🔍 Webhook details:', {
+      event: event,
+      type: type,
+      webhookType: webhookType,
+      hasData: !!data,
+      dataKeys: data ? Object.keys(data) : [],
+      fullPayload: webhookData
+    })
+
+    if (webhookType === 'channel' && data?.status) {
       console.log('📢 Channel status update:', {
-        event,
+        event: webhookType,
         status: data.status,
         channelId: data.id,
         timestamp: new Date().toISOString()
@@ -53,21 +63,22 @@ Deno.serve(async (req) => {
             incomingStatus: data.status
           })
 
-          // Map WHAPI status to our internal status
+          // IMPROVED: Map WHAPI status to our internal status
           let newStatus = data.status
           
-          if (data.status === 'unauthorized') {
+          if (data.status === 'unauthorized' || data.status === 'qr') {
             newStatus = 'unauthorized'
             console.log('🎯 Channel is now ready for QR generation!')
-          } else if (data.status === 'ready') {
-            newStatus = 'authorized'
-            console.log('📱 Channel is ready but not authenticated')
-          } else if (data.status === 'authenticated') {
+          } else if (data.status === 'ready' || data.status === 'launched') {
+            newStatus = 'unauthorized' // Ready for authentication
+            console.log('📱 Channel is ready for authentication')
+          } else if (data.status === 'authenticated' || data.status === 'connected') {
             newStatus = 'connected'
             console.log('🎉 WhatsApp session is now connected!')
-          } else if (data.status === 'qr') {
+          } else if (data.status === 'active') {
+            // Active status usually means channel is running but not authenticated
             newStatus = 'unauthorized'
-            console.log('📱 QR code is ready for scanning')
+            console.log('🔄 Channel is active but needs authentication')
           } else {
             console.log('📝 Keeping status as received:', data.status)
           }
@@ -95,9 +106,9 @@ Deno.serve(async (req) => {
           console.log('⚠️ No profile found for channel ID:', data.id)
         }
       }
-    } else if (event === 'users' && data?.status) {
+    } else if (webhookType === 'users' && data?.status) {
       console.log('👥 User status update:', {
-        event,
+        event: webhookType,
         status: data.status,
         phone: data.phone
       })
@@ -110,7 +121,8 @@ Deno.serve(async (req) => {
         // For now, we'll just log this as we may need additional mapping
       }
     } else {
-      console.log('📝 Received webhook event:', event, 'with data:', data)
+      console.log('📝 Received webhook event:', webhookType, 'with data:', data)
+      console.log('🔍 Full webhook payload for debugging:', webhookData)
     }
 
     // Always return success to WHAPI
@@ -121,6 +133,12 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('💥 Webhook Error:', error)
+    console.error('💥 Request details:', {
+      method: req.method,
+      url: req.url,
+      headers: Object.fromEntries(req.headers.entries())
+    })
+    
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }

@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -299,7 +298,7 @@ Deno.serve(async (req) => {
       console.log('✅ New channel created:', channelData.id)
       recoverySteps.push(`New channel created: ${channelData.id}`)
 
-      // Setup webhook
+      // Setup webhook with correct format
       const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
       try {
         const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
@@ -311,8 +310,11 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             webhooks: [{
               url: webhookUrl,
-              events: ['users', 'channel'],
-              mode: 'body'
+              events: [
+                {"type": "users", "method": "post"},
+                {"type": "channel", "method": "post"}
+              ],
+              callback_persist: true
             }]
           })
         })

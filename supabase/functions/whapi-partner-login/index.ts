@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -170,7 +169,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // IMPROVED: Setup webhook with better error handling and verification
+    // FIXED: Setup webhook with correct format
     console.log('🔗 Setting up webhook for channel:', channelId)
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
     
@@ -186,8 +185,11 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           webhooks: [{
             url: webhookUrl,
-            events: ['users', 'channel'],
-            mode: 'body'
+            events: [
+              {"type": "users", "method": "post"},
+              {"type": "channel", "method": "post"}
+            ],
+            callback_persist: true
           }]
         })
       })
