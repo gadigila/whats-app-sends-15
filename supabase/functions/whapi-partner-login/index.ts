@@ -13,8 +13,8 @@ interface CreateChannelRequest {
 // Helper function to wait/delay
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-// Helper function to check WHAPI status with retries
-async function checkWhapiStatus(channelToken: string, maxAttempts = 10): Promise<{ status: string; ready: boolean }> {
+// Helper function to check WHAPI status with intelligent polling
+async function checkWhapiStatusWithPolling(channelToken: string, maxAttempts = 8): Promise<{ status: string; ready: boolean }> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       console.log(`🔍 Status check attempt ${attempt + 1}/${maxAttempts}`)
@@ -29,27 +29,25 @@ async function checkWhapiStatus(channelToken: string, maxAttempts = 10): Promise
       
       if (statusResponse.ok) {
         const whapiStatus = await statusResponse.json()
-        console.log('📊 WHAPI status:', whapiStatus)
+        console.log('📊 WHAPI status response:', whapiStatus)
         
-        if (whapiStatus.status === 'qr' || whapiStatus.status === 'unauthorized' || whapiStatus.status === 'active') {
+        // Check if channel is ready for QR generation
+        if (whapiStatus.status === 'qr' || whapiStatus.status === 'unauthorized' || whapiStatus.status === 'active' || whapiStatus.status === 'ready') {
           console.log('✅ Channel is ready for QR generation!')
           return { status: whapiStatus.status, ready: true }
-        } else if (whapiStatus.status === 'ready' || whapiStatus.status === 'launched') {
-          console.log('📱 Channel is ready for authentication')
-          return { status: whapiStatus.status, ready: true }
         } else {
-          console.log(`⏳ Channel status: ${whapiStatus.status}, waiting...`)
+          console.log(`⏳ Channel status: ${whapiStatus.status}, continuing to wait...`)
         }
       } else {
-        console.log(`⚠️ Status check failed: ${statusResponse.status}`)
+        console.log(`⚠️ Status check failed with status: ${statusResponse.status}`)
       }
     } catch (error) {
       console.log(`❌ Status check error on attempt ${attempt + 1}:`, error.message)
     }
     
-    // Wait before next attempt (exponential backoff)
+    // Wait before next attempt with exponential backoff
     if (attempt < maxAttempts - 1) {
-      const waitTime = Math.min(2000 * Math.pow(1.5, attempt), 10000) // Max 10 seconds
+      const waitTime = Math.min(2000 * Math.pow(1.5, attempt), 8000) // Max 8 seconds
       console.log(`⏳ Waiting ${waitTime}ms before next attempt...`)
       await delay(waitTime)
     }
@@ -69,7 +67,7 @@ Deno.serve(async (req) => {
     const whapiPartnerToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!
     let whapiProjectId = Deno.env.get('WHAPI_PROJECT_ID')
     
-    console.log('🔐 WHAPI Channel Creation: Starting for user...')
+    console.log('🔐 WHAPI Channel Creation: Starting...')
     
     if (!whapiPartnerToken) {
       console.error('❌ Missing WHAPI partner token')
@@ -122,9 +120,9 @@ Deno.serve(async (req) => {
 
     console.log('🏗️ Creating new instance...')
 
-    // Get project ID with fallback mechanism
+    // Get project ID if not set
     if (!whapiProjectId) {
-      console.log('🔍 No WHAPI_PROJECT_ID set, fetching from API...')
+      console.log('🔍 Fetching project ID from WHAPI...')
       
       try {
         const projectsResponse = await fetch('https://manager.whapi.cloud/projects', {
@@ -139,23 +137,20 @@ Deno.serve(async (req) => {
           
           if (projectsData && projectsData.length > 0) {
             whapiProjectId = projectsData[0].id
-            console.log('✅ Using fallback project ID:', whapiProjectId)
+            console.log('✅ Using project ID:', whapiProjectId)
           } else {
-            console.error('❌ No projects found in account')
             return new Response(
               JSON.stringify({ error: 'No projects found in WHAPI account' }),
               { status: 400, headers: corsHeaders }
             )
           }
         } else {
-          console.error('❌ Failed to fetch projects:', projectsResponse.status)
           return new Response(
             JSON.stringify({ error: 'Failed to fetch project ID from WHAPI' }),
             { status: 400, headers: corsHeaders }
           )
         }
       } catch (error) {
-        console.error('❌ Error fetching projects:', error)
         return new Response(
           JSON.stringify({ error: 'Error fetching project ID' }),
           { status: 500, headers: corsHeaders }
@@ -201,8 +196,7 @@ Deno.serve(async (req) => {
       hasToken: !!channelData?.token,
       hasId: !!channelData?.id,
       projectId: whapiProjectId,
-      channelId: channelData?.id,
-      managerStatus: channelData?.status
+      channelId: channelData?.id
     })
 
     const channelId = channelData?.id
@@ -223,8 +217,6 @@ Deno.serve(async (req) => {
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
     
     try {
-      console.log('📡 Webhook URL:', webhookUrl)
-      
       const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
         method: 'PATCH',
         headers: {
@@ -243,18 +235,10 @@ Deno.serve(async (req) => {
         })
       })
 
-      console.log('📥 Webhook setup response status:', webhookResponse.status)
-      
       if (webhookResponse.ok) {
-        const webhookResult = await webhookResponse.json()
-        console.log('✅ Webhook setup successful:', webhookResult)
+        console.log('✅ Webhook setup successful')
       } else {
-        const webhookError = await webhookResponse.text()
-        console.error('⚠️ Webhook setup failed:', {
-          status: webhookResponse.status,
-          error: webhookError,
-          url: webhookUrl
-        })
+        console.error('⚠️ Webhook setup failed:', webhookResponse.status)
       }
     } catch (webhookError) {
       console.error('⚠️ Webhook setup error:', webhookError)
@@ -263,9 +247,9 @@ Deno.serve(async (req) => {
     // Save initial channel data with 'initializing' status
     const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
     
-    console.log('💾 Saving channel data to database with INITIALIZING status...')
+    console.log('💾 Saving channel data to database...')
 
-    const { error: updateError, data: updateData } = await supabase
+    const { error: updateError } = await supabase
       .from('profiles')
       .update({
         instance_id: channelId,
@@ -276,30 +260,9 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', userId)
-      .select()
 
     if (updateError) {
       console.error('❌ Database update failed:', updateError)
-      
-      // Cleanup the created channel
-      try {
-        console.log('🗑️ Attempting to cleanup channel from WHAPI due to DB error...')
-        const deleteResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${whapiPartnerToken}`
-          }
-        })
-        
-        if (deleteResponse.ok) {
-          console.log('✅ Successfully cleaned up channel from WHAPI')
-        } else {
-          console.error('❌ Failed to cleanup channel from WHAPI:', deleteResponse.status)
-        }
-      } catch (cleanupError) {
-        console.error('❌ Error during channel cleanup:', cleanupError)
-      }
-      
       return new Response(
         JSON.stringify({ 
           error: 'Failed to save channel data to database', 
@@ -309,38 +272,16 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (!updateData || updateData.length === 0) {
-      console.error('❌ Database update verification failed: No rows affected')
-      
-      try {
-        await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${whapiPartnerToken}`
-          }
-        })
-      } catch (cleanupError) {
-        console.error('❌ Cleanup error:', cleanupError)
-      }
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Database update failed - no rows affected'
-        }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
+    console.log('✅ Database updated successfully')
 
-    console.log('✅ Database update verified successfully')
-
-    // NEW: Active status checking with intelligent polling
+    // Active status checking with intelligent polling
     console.log('🔄 Starting active status polling...')
     
     try {
       // Initial delay to let the channel initialize
       await delay(3000)
       
-      const statusResult = await checkWhapiStatus(channelToken, 10)
+      const statusResult = await checkWhapiStatusWithPolling(channelToken, 8)
       
       if (statusResult.ready) {
         console.log('🎯 Channel is ready! Updating database status to unauthorized')
@@ -381,9 +322,9 @@ Deno.serve(async (req) => {
             project_id: whapiProjectId,
             trial_expires_at: trialExpiresAt,
             channel_ready: false,
-            initialization_time: 60000,
+            initialization_time: 30000,
             webhook_url: webhookUrl,
-            message: 'Channel created. Waiting for initialization to complete via webhook.'
+            message: 'Channel created. Waiting for initialization to complete.'
           }),
           { status: 200, headers: corsHeaders }
         )
@@ -398,7 +339,7 @@ Deno.serve(async (req) => {
           project_id: whapiProjectId,
           trial_expires_at: trialExpiresAt,
           channel_ready: false,
-          initialization_time: 60000,
+          initialization_time: 30000,
           webhook_url: webhookUrl,
           message: 'Channel created. Status will be updated via webhook.'
         }),
