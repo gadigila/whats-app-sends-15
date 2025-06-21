@@ -4,13 +4,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import WhatsAppLoadingState from '@/components/WhatsAppLoadingState';
 import WhatsAppConnectedView from '@/components/WhatsAppConnectedView';
+import WhatsAppInitialState from '@/components/WhatsAppInitialState';
+import WhatsAppChannelCreating from '@/components/WhatsAppChannelCreating';
+import WhatsAppQRReady from '@/components/WhatsAppQRReady';
+import WhatsAppQRDisplay from '@/components/WhatsAppQRDisplay';
+import WhatsAppInitializing from '@/components/WhatsAppInitializing';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { MessageCircle, Loader2, Smartphone } from 'lucide-react';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
@@ -125,159 +127,31 @@ const WhatsAppConnect = () => {
 
         {/* Step 1: No channel - Show create button */}
         {!profile?.instance_id && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
-                <MessageCircle className="h-12 w-12 text-green-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                מוכן להתחבר לוואטסאפ?
-              </h3>
-              <p className="text-gray-600 mb-6">
-                נתחיל ביצירת חיבור בטוח בינך לבין וואטסאפ
-              </p>
-              <Button
-                onClick={handleCreateChannel}
-                disabled={isCreatingChannel}
-                size="lg"
-                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold"
-              >
-                {isCreatingChannel ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    יוצר ערוץ...
-                  </>
-                ) : (
-                  "התחבר לוואטסאפ"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+          <WhatsAppInitialState onCreateChannel={handleCreateChannel} />
         )}
 
         {/* Step 2: Channel creating - Show countdown */}
         {isCreatingChannel && countdown > 0 && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="relative">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mx-auto"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-green-600">{countdown}</span>
-                </div>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mt-6 mb-2">מכין את החיבור...</h3>
-              <p className="text-gray-600 mb-4">
-                יוצר ערוץ בטוח לחיבור הוואטסאפ שלך
-              </p>
-              <p className="text-sm text-orange-600">
-                זמן המתנה נדרש: {countdown} שניות נותרו
-              </p>
-              <p className="text-xs text-gray-500 mt-2">
-                זהו דרישה של WHAPI - אנא המתן עד לסיום
-              </p>
-            </CardContent>
-          </Card>
+          <WhatsAppChannelCreating countdown={countdown} />
         )}
 
         {/* Step 3: Channel ready but no QR - Show get QR button */}
         {profile?.instance_id && profile?.instance_status === 'unauthorized' && !qrCode && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="p-4 bg-blue-50 rounded-full w-fit mx-auto mb-6">
-                <Smartphone className="h-12 w-12 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">
-                ערוץ מוכן לחיבור!
-              </h3>
-              <p className="text-gray-600 mb-6">
-                כעת תוכל לקבל קוד QR כדי לחבר את הוואטסאפ שלך
-              </p>
-              <Button
-                onClick={handleGetQR}
-                disabled={isGettingQR}
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold"
-              >
-                {isGettingQR ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                    מקבל QR...
-                  </>
-                ) : (
-                  "קבל קוד QR"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+          <WhatsAppQRReady onGetQR={handleGetQR} isGettingQR={isGettingQR} />
         )}
 
         {/* Step 4: Show QR Code */}
         {qrCode && (
-          <Card>
-            <CardContent className="p-8 text-center space-y-6">
-              <h3 className="text-xl font-semibold">סרוק עם הוואטסאפ שלך</h3>
-              
-              <div className="p-4 bg-white rounded-2xl shadow-lg border w-fit mx-auto">
-                <img
-                  src={`data:image/png;base64,${qrCode}`}
-                  alt="WhatsApp QR Code"
-                  className="w-80 h-80 mx-auto rounded-lg"
-                  style={{
-                    maxWidth: '90vw',
-                    height: 'auto',
-                    aspectRatio: '1/1',
-                    imageRendering: 'crisp-edges'
-                  }}
-                />
-              </div>
-              
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>1. פתח וואטסאפ בטלפון</p>
-                <p>2. לך להגדרות ← מכשירים מקושרים</p>
-                <p>3. לחץ "קשר מכשיר" וסרוק</p>
-              </div>
-              
-              <div className="flex items-center justify-center gap-2 text-blue-600">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                מחכה לסריקה...
-              </div>
-              
-              <Button
-                onClick={handleGetQR}
-                variant="outline"
-                size="sm"
-                disabled={isGettingQR}
-              >
-                {isGettingQR ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                רענן קוד QR
-              </Button>
-            </CardContent>
-          </Card>
+          <WhatsAppQRDisplay 
+            qrCode={qrCode} 
+            onRefreshQR={handleGetQR} 
+            isRefreshing={isGettingQR}
+          />
         )}
 
         {/* Channel initializing */}
         {profile?.instance_status === 'initializing' && !isCreatingChannel && (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Loader2 className="h-12 w-12 animate-spin text-orange-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">מכין ערוץ...</h3>
-              <p className="text-gray-600 mb-4">
-                הערוץ עדיין נטען במערכת של WHAPI
-              </p>
-              <Button
-                onClick={handleGetQR}
-                variant="outline"
-                disabled={isGettingQR}
-              >
-                {isGettingQR ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                נסה לקבל QR
-              </Button>
-            </CardContent>
-          </Card>
+          <WhatsAppInitializing onTryGetQR={handleGetQR} isTrying={isGettingQR} />
         )}
       </div>
     </Layout>
