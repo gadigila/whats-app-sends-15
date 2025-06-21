@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
 
     console.log('📊 Channel status:', profile.instance_status)
 
-    // NEW: Health pre-check before requesting QR
+    // Health pre-check and QR retrieval function
     async function checkHealthAndGetQR(token: string, retryCount = 0, maxRetries = 3) {
       try {
         console.log(`🔍 Health pre-check (attempt ${retryCount + 1}/${maxRetries + 1})...`)
@@ -127,10 +127,10 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Now get QR code
-        console.log(`🔲 Health check passed, getting QR code...`)
+        // Now get QR code - FIXED: Use correct endpoint /screenshot not /screen
+        console.log(`🔲 Health check passed, getting QR code from /screenshot...`)
         
-        const qrResponse = await fetch(`https://gate.whapi.cloud/screen`, {
+        const qrResponse = await fetch(`https://gate.whapi.cloud/screenshot`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
         }
 
         if (!qrData.qr_code) {
-          throw new Error('QR code not available')
+          throw new Error('QR code not available in response')
         }
 
         console.log('✅ QR code received successfully')
@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
              error.message.includes('not ready') ||
              error.message.includes('not available'))) {
           
-          const retryDelay = Math.min(30000, 5000 * Math.pow(2, retryCount)) // Exponential backoff
+          const retryDelay = Math.min(30000, 5000 * Math.pow(2, retryCount))
           console.log(`🔄 Retrying in ${retryDelay/1000} seconds... (attempt ${retryCount + 2}/${maxRetries + 1})`)
           await new Promise(resolve => setTimeout(resolve, retryDelay))
           return checkHealthAndGetQR(token, retryCount + 1, maxRetries)
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Execute the improved health check and QR retrieval
+    // Execute the health check and QR retrieval
     const result = await checkHealthAndGetQR(profile.whapi_token)
 
     return new Response(
@@ -250,6 +250,8 @@ Deno.serve(async (req) => {
       errorMessage = 'QR code not available. Channel may need more time to initialize.'
     } else if (error.message.includes('Token invalid')) {
       errorMessage = 'Token invalid. Please create a new channel.'
+    } else if (error.message.includes('/screenshot not found')) {
+      errorMessage = 'QR endpoint not found. Please try again or create a new channel.'
     }
     
     return new Response(
