@@ -153,6 +153,16 @@ const WhatsAppConnect = () => {
         {profile?.instance_status === 'initializing' && !isCreatingChannel && (
           <WhatsAppInitializing onTryGetQR={handleGetQR} isTrying={isGettingQR} />
         )}
+
+        {/* Handle "active" status - treat as unauthorized and allow QR generation */}
+        {profile?.instance_status === 'active' && profile?.instance_id && !qrCode && (
+          <WhatsAppQRReady onGetQR={handleGetQR} isGettingQR={isGettingQR} />
+        )}
+
+        {/* Fallback for unknown statuses */}
+        {profile?.instance_id && !['connected', 'unauthorized', 'initializing', 'active'].includes(profile?.instance_status || '') && (
+          <WhatsAppInitializing onTryGetQR={handleGetQR} isTrying={isGettingQR} />
+        )}
       </div>
     </Layout>
   );
