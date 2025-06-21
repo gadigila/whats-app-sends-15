@@ -17,6 +17,15 @@ jwt_expiry = 3600
 enable_signup = true
 enable_email_confirmations = false
 
+[functions.whapi-create-channel]
+verify_jwt = false
+
+[functions.whapi-get-qr-simple]
+verify_jwt = false
+
+[functions.whapi-webhook-simple]
+verify_jwt = false
+
 [functions.whapi-partner-login]
 verify_jwt = false
 

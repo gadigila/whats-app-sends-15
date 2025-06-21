@@ -1,484 +1,51 @@
+
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
-import WhatsAppInstructions from '@/components/WhatsAppInstructions';
 import WhatsAppLoadingState from '@/components/WhatsAppLoadingState';
 import WhatsAppConnectedView from '@/components/WhatsAppConnectedView';
-import WhatsAppInitialView from '@/components/WhatsAppInitialView';
-import WhatsAppCreatingChannel from '@/components/WhatsAppCreatingChannel';
-import WhatsAppMethodSelection from '@/components/WhatsAppMethodSelection';
-import WhatsAppConnectingView from '@/components/WhatsAppConnectingView';
-import { toast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
-import { useUserProfile } from '@/hooks/useUserProfile';
-import { useWhapiValidation } from '@/hooks/useWhapiValidation';
-import { useWhapiWebhook } from '@/hooks/useWhapiWebhook';
+import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
-import { Webhook, Settings } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { MessageCircle, Loader2, Smartphone } from 'lucide-react';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const { validateUserChannel, syncChannelStatus, cleanupStuckChannel, isValidating: isChannelValidating, isSyncing, isCleaning } = useWhapiValidation();
-  const { fixWebhook, validateWebhook, isFixing, isValidating: isWebhookValidating } = useWhapiWebhook();
-  const [connectionStep, setConnectionStep] = useState<'initial' | 'creating_channel' | 'choose_method' | 'connecting' | 'connected'>('initial');
-  const [selectedMethod, setSelectedMethod] = useState<'qr' | 'phone' | null>(null);
-  const [pollingAttempts, setPollingAttempts] = useState(0);
-  const [userInitiatedConnection, setUserInitiatedConnection] = useState(false);
-  const [isCreatingChannel, setIsCreatingChannel] = useState(false);
-  const [channelCreationTime, setChannelCreationTime] = useState(0);
+  const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
+  
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(0);
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
-    user: user?.email,
     userId: user?.id,
     profileLoading,
-    profileError: profileError?.message,
-    profile: profile ? {
-      instance_id: profile.instance_id,
-      instance_status: profile.instance_status,
-      has_token: !!profile.whapi_token
-    } : null,
-    connectionStep,
-    userInitiatedConnection,
-    pollingAttempts,
-    isCreatingChannel
+    profileStatus: profile?.instance_status,
+    hasInstanceId: !!profile?.instance_id,
+    hasToken: !!profile?.whapi_token
   });
 
-  // Handle profile errors
+  // Countdown for channel creation (90 seconds)
   useEffect(() => {
-    if (profileError) {
-      console.error('❌ Profile error:', profileError);
-      toast({
-        title: "שגיאה בטעינת הפרופיל",
-        description: "נסה לרענן את הדף",
-        variant: "destructive",
-      });
-    }
-  }, [profileError]);
-
-  // Enhanced connection step evaluation
-  useEffect(() => {
-    if (profile && profileLoading === false && isAuthReady) {
-      console.log('📊 Enhanced evaluation of profile for connection step:', {
-        instance_status: profile.instance_status,
-        has_instance_id: !!profile.instance_id,
-        has_token: !!profile.whapi_token,
-        userInitiatedConnection
-      });
-      
-      if (profile.instance_status === 'connected') {
-        console.log('✅ Profile shows connected status');
-        setConnectionStep('connected');
-      } else if (profile.instance_id && profile.whapi_token) {
-        if (profile.instance_status === 'unauthorized') {
-          console.log('🔑 Channel ready for connection');
-          setConnectionStep('choose_method');
-        } else if (profile.instance_status === 'initializing' && userInitiatedConnection) {
-          console.log('⏳ Channel still initializing after user action');
-          setConnectionStep('creating_channel');
-        } else {
-          console.log('🔍 Channel exists but status unclear, checking...');
-          setConnectionStep('choose_method');
-        }
-      } else {
-        console.log('🎯 No valid channel - showing initial view');
-        setConnectionStep('initial');
-        setUserInitiatedConnection(false);
-      }
-      
-      setPollingAttempts(0);
-    } else if (!profile && !profileLoading && profileError) {
-      console.log('👤 Profile error - showing initial view');
-      setConnectionStep('initial');
-      setUserInitiatedConnection(false);
-    }
-  }, [profile, profileLoading, profileError, userInitiatedConnection, isAuthReady]);
-
-  // Enhanced polling for channel initialization with extended timeout
-  useEffect(() => {
-    let pollInterval: NodeJS.Timeout;
-    let timeInterval: NodeJS.Timeout;
-    const maxPollingAttempts = 30; // Extended to 90 seconds
-    
-    if (connectionStep === 'creating_channel' && profile?.instance_id && profile?.whapi_token && pollingAttempts < maxPollingAttempts) {
-      console.log('🔄 Starting enhanced status polling with extended timeout, attempt:', pollingAttempts + 1);
-      
-      // Start time counter
-      timeInterval = setInterval(() => {
-        setChannelCreationTime(prev => prev + 1);
+    let interval: NodeJS.Timeout;
+    if (countdown > 0) {
+      interval = setInterval(() => {
+        setCountdown(prev => prev - 1);
       }, 1000);
-      
-      pollInterval = setInterval(async () => {
-        try {
-          console.log('📡 Enhanced channel status check...');
-          
-          const { data, error } = await supabase.functions.invoke('whapi-manual-status-sync', {
-            body: { userId: user?.id }
-          });
-          
-          if (error) {
-            console.error('❌ Manual status sync error:', error);
-          } else {
-            console.log('📊 Manual status sync result:', data);
-            
-            const refreshResult = await refetchProfile();
-            console.log('🔄 Profile refresh result:', {
-              success: !!refreshResult.data,
-              newStatus: refreshResult.data?.instance_status
-            });
-            
-            if (refreshResult.data?.instance_status === 'unauthorized') {
-              console.log('🎉 Channel is now ready for connection!');
-              setConnectionStep('choose_method');
-              clearInterval(pollInterval);
-              clearInterval(timeInterval);
-              setChannelCreationTime(0);
-              
-              toast({
-                title: "ערוץ מוכן!",
-                description: "כעת תוכל לבחור איך להתחבר לוואטסאפ",
-              });
-              
-              return;
-            } else if (refreshResult.data?.instance_status === 'connected') {
-              console.log('🎉 Channel is already connected!');
-              setConnectionStep('connected');
-              clearInterval(pollInterval);
-              clearInterval(timeInterval);
-              setChannelCreationTime(0);
-              return;
-            }
-          }
-        } catch (error) {
-          console.error('❌ Enhanced polling error:', error);
-        }
-        
-        setPollingAttempts(prev => prev + 1);
-      }, 3000);
-      
-      // Enhanced timeout handling
-      setTimeout(() => {
-        if (pollInterval) {
-          clearInterval(pollInterval);
-          clearInterval(timeInterval);
-          console.log('⏰ Enhanced polling timeout reached after 90 seconds');
-          
-          if (pollingAttempts >= maxPollingAttempts) {
-            toast({
-              title: "יצירת הערוץ לוקחת זמן רב מהצפוי",
-              description: "תוכל להמשיך ולנסות לקבל קוד QR, או ליצור ערוץ חדש",
-              variant: "destructive",
-            });
-            
-            // Auto-transition to method selection anyway
-            setConnectionStep('choose_method');
-            setChannelCreationTime(0);
-          }
-        }
-      }, maxPollingAttempts * 3000);
     }
-    
     return () => {
-      if (pollInterval) {
-        console.log('🛑 Stopping enhanced status polling');
-        clearInterval(pollInterval);
-      }
-      if (timeInterval) {
-        clearInterval(timeInterval);
-      }
+      if (interval) clearInterval(interval);
     };
-  }, [connectionStep, profile?.instance_id, profile?.whapi_token, pollingAttempts, user?.id, refetchProfile]);
-
-  // Enhanced channel creation with better error handling
-  const handleCreateChannel = async () => {
-    if (!user?.id) {
-      console.error('❌ No user ID available');
-      toast({
-        title: "שגיאה",
-        description: "לא נמצא מזהה משתמש",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (isCreatingChannel) {
-      console.log('⚠️ Channel creation already in progress');
-      return;
-    }
-    
-    console.log('🚀 Enhanced channel creation process started');
-    
-    setIsCreatingChannel(true);
-    setUserInitiatedConnection(true);
-    setConnectionStep('creating_channel');
-    setPollingAttempts(0);
-    setChannelCreationTime(0);
-    
-    try {
-      console.log('🔄 Calling enhanced whapi-partner-login function...');
-      
-      const { data, error } = await supabase.functions.invoke('whapi-partner-login', {
-        body: { userId: user.id }
-      });
-      
-      console.log('📥 Enhanced function response received:', {
-        hasData: !!data,
-        hasError: !!error,
-        data: data || null,
-        error: error || null
-      });
-      
-      if (error) {
-        console.error('❌ Supabase function error:', error);
-        throw new Error(`Function error: ${error.message}`);
-      }
-      
-      if (!data) {
-        console.error('❌ No data returned from function');
-        throw new Error('No data returned from function');
-      }
-      
-      if (data.error) {
-        console.error('❌ Function returned error:', data.error);
-        throw new Error(data.error);
-      }
-      
-      console.log('✅ Enhanced channel creation result:', data);
-      
-      // Refresh profile to get new channel data
-      console.log('🔄 Refreshing profile to get new channel data...');
-      const refreshResult = await refetchProfile();
-      
-      if (data.existing_instance) {
-        console.log('🔄 Using existing instance');
-        setConnectionStep('choose_method');
-        setChannelCreationTime(0);
-        
-        toast({
-          title: "ערוץ קיים נמצא!",
-          description: "משתמש בחיבור הקיים שלך",
-        });
-      } else if (data.channel_ready) {
-        console.log('🎯 New channel is immediately ready!');
-        setConnectionStep('choose_method');
-        setChannelCreationTime(0);
-        
-        toast({
-          title: "ערוץ נוצר ומוכן!",
-          description: "בחר איך תרצה להתחבר לוואטסאפ",
-        });
-      } else {
-        console.log('⏳ Channel created, waiting for initialization...');
-        
-        toast({
-          title: "יוצר ערוץ...",
-          description: data.timeout_reached ? 
-            "הערוץ נוצר אך עדיין מתכונן. תוכל להמשיך ולנסות לקבל QR" :
-            "זה עשוי לקחת עד דקה וחצי",
-        });
-        
-        // If timeout was reached during creation, offer to continue anyway
-        if (data.timeout_reached) {
-          setTimeout(() => {
-            setConnectionStep('choose_method');
-            setChannelCreationTime(0);
-          }, 3000);
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Enhanced channel creation failed:', error);
-      
-      setConnectionStep('initial');
-      setPollingAttempts(0);
-      setUserInitiatedConnection(false);
-      setChannelCreationTime(0);
-      
-      toast({
-        title: "שגיאה ביצירת ערוץ",
-        description: error?.message || "נסה שוב מאוחר יותר",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCreatingChannel(false);
-    }
-  };
-
-  const handleContinueAnyway = () => {
-    console.log('👤 User chose to continue anyway');
-    setConnectionStep('choose_method');
-    setChannelCreationTime(0);
-    
-    toast({
-      title: "ממשיך בכל מקרה",
-      description: "תוכל לנסות לקבל קוד QR גם אם הערוץ עדיין מתכונן",
-    });
-  };
-
-  const handleResetAndStart = async () => {
-    if (!user?.id) return;
-    
-    try {
-      console.log('🧹 Resetting user profile and starting fresh...');
-      
-      // Clean up database
-      await supabase
-        .from('profiles')
-        .update({
-          instance_id: null,
-          whapi_token: null,
-          instance_status: 'disconnected',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
-      
-      // Reset state
-      setConnectionStep('initial');
-      setSelectedMethod(null);
-      setPollingAttempts(0);
-      setUserInitiatedConnection(false);
-      setIsCreatingChannel(false);
-      setChannelCreationTime(0);
-      
-      // Refresh profile
-      await refetchProfile();
-      
-      toast({
-        title: "איפוס הושלם",
-        description: "כעת תוכל להתחיל מחדש",
-      });
-      
-    } catch (error) {
-      console.error('❌ Reset failed:', error);
-      toast({
-        title: "שגיאה באיפוס",
-        description: "נסה שוב מאוחר יותר",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleMethodSelect = (method: 'qr' | 'phone') => {
-    console.log('📱 Method selected:', method);
-    setSelectedMethod(method);
-    setConnectionStep('connecting');
-  };
-
-  const handleConnected = async () => {
-    console.log('🎉 WhatsApp connected successfully');
-    setConnectionStep('connected');
-    
-    await refetchProfile();
-    
-    try {
-      console.log('📱 Syncing groups...');
-      await syncGroups.mutateAsync();
-    } catch (error) {
-      console.error('Failed to sync groups:', error);
-    }
-    
-    toast({
-      title: "וואטסאפ מחובר!",
-      description: "החיבור הושלם בהצלחה",
-    });
-  };
-
-  const handleDisconnect = async () => {
-    if (!user?.id) return;
-    
-    try {
-      await deleteInstance.mutateAsync();
-      await refetchProfile();
-      setConnectionStep('initial');
-      setSelectedMethod(null);
-      setPollingAttempts(0);
-      setUserInitiatedConnection(false);
-      setChannelCreationTime(0);
-    } catch (error) {
-      console.error('❌ Disconnect failed:', error);
-    }
-  };
-
-  const handleSyncGroups = async () => {
-    try {
-      await syncGroups.mutateAsync();
-    } catch (error) {
-      console.error('Failed to sync groups:', error);
-    }
-  };
-
-  const handleNavigateToCompose = () => {
-    window.location.href = '/compose';
-  };
-
-  const handleBackToMethodSelection = () => {
-    setConnectionStep('choose_method');
-    setSelectedMethod(null);
-  };
-
-  // Enhanced validation functions with webhook support
-  const handleValidateChannel = async () => {
-    try {
-      await validateUserChannel.mutateAsync();
-      await refetchProfile();
-    } catch (error) {
-      console.error('❌ Validation failed:', error);
-    }
-  };
-
-  const handleSyncStatus = async () => {
-    try {
-      await syncChannelStatus.mutateAsync();
-      await refetchProfile();
-    } catch (error) {
-      console.error('❌ Sync failed:', error);
-    }
-  };
-
-  const handleCleanupStuck = async () => {
-    try {
-      await cleanupStuckChannel.mutateAsync();
-      await refetchProfile();
-      
-      // Reset connection step to initial after cleanup
-      setConnectionStep('initial');
-      setSelectedMethod(null);
-      setPollingAttempts(0);
-      setUserInitiatedConnection(false);
-      setIsCreatingChannel(false);
-      setChannelCreationTime(0);
-    } catch (error) {
-      console.error('❌ Cleanup failed:', error);
-    }
-  };
-
-  // New webhook handlers
-  const handleFixWebhook = async () => {
-    try {
-      await fixWebhook.mutateAsync();
-      await refetchProfile();
-    } catch (error) {
-      console.error('❌ Webhook fix failed:', error);
-    }
-  };
-
-  const handleValidateWebhook = async () => {
-    try {
-      await validateWebhook.mutateAsync();
-    } catch (error) {
-      console.error('❌ Webhook validation failed:', error);
-    }
-  };
+  }, [countdown]);
 
   // Show loading only when auth is not ready or profile is loading
   if (!isAuthReady || (profileLoading && !profileError)) {
-    console.log('⏳ Still loading...', { isAuthReady, profileLoading, hasProfileError: !!profileError });
     return <WhatsAppLoadingState />;
   }
 
@@ -494,8 +61,7 @@ const WhatsAppConnect = () => {
   }
 
   // Connected state
-  if (connectionStep === 'connected') {
-    console.log('🎉 Showing connected view');
+  if (profile?.instance_status === 'connected') {
     return (
       <WhatsAppConnectedView
         profile={profile}
@@ -508,16 +74,9 @@ const WhatsAppConnect = () => {
           }
         }}
         onDisconnect={async () => {
-          if (!user?.id) return;
-          
           try {
             await deleteInstance.mutateAsync();
             await refetchProfile();
-            setConnectionStep('initial');
-            setSelectedMethod(null);
-            setPollingAttempts(0);
-            setUserInitiatedConnection(false);
-            setChannelCreationTime(0);
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
           }
@@ -528,9 +87,32 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Main connection flow
-  console.log('🎯 Rendering main connection flow, step:', connectionStep);
-  
+  // Handle channel creation
+  const handleCreateChannel = async () => {
+    try {
+      setCountdown(90); // Start 90-second countdown
+      await createChannel.mutateAsync();
+      await refetchProfile();
+    } catch (error) {
+      console.error('❌ Channel creation failed:', error);
+      setCountdown(0);
+    }
+  };
+
+  // Handle QR code request
+  const handleGetQR = async () => {
+    try {
+      const result = await getQRCode.mutateAsync();
+      if (result.already_connected) {
+        await refetchProfile();
+      } else if (result.qr_code) {
+        setQrCode(result.qr_code);
+      }
+    } catch (error) {
+      console.error('❌ QR code failed:', error);
+    }
+  };
+
   return (
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
@@ -540,162 +122,163 @@ const WhatsAppConnect = () => {
             חבר את הוואטסאפ שלך כדי להתחיל לשלוח הודעות לקבוצות
           </p>
         </div>
-        
-        {/* Enhanced Validation & Troubleshooting Section with Webhook Support */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
-            <CheckCircle className="h-5 w-5" />
-            כלי אבחון ותיקון מתקדמים
-          </h3>
-          <p className="text-blue-700 text-sm mb-4">
-            אם אתה נתקע או רואה בעיות בחיבור, השתמש בכלים האלה לאבחון ותיקון:
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handleValidateChannel}
-              disabled={isChannelValidating}
-              variant="outline"
-              size="sm"
-              className="border-blue-300 text-blue-700 hover:bg-blue-100"
-            >
-              {isChannelValidating ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle className="h-4 w-4 mr-2" />
-              )}
-              בדוק ערוץ
-            </Button>
-            
-            <Button
-              onClick={handleSyncStatus}
-              disabled={isSyncing}
-              variant="outline"
-              size="sm"
-              className="border-green-300 text-green-700 hover:bg-green-100"
-            >
-              {isSyncing ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              סנכרן סטטוס
-            </Button>
-            
-            <Button
-              onClick={handleValidateWebhook}
-              disabled={isWebhookValidating}
-              variant="outline"
-              size="sm"
-              className="border-purple-300 text-purple-700 hover:bg-purple-100"
-            >
-              {isWebhookValidating ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Webhook className="h-4 w-4 mr-2" />
-              )}
-              בדוק Webhook
-            </Button>
-            
-            <Button
-              onClick={handleFixWebhook}
-              disabled={isFixing}
-              variant="outline"
-              size="sm"
-              className="border-indigo-300 text-indigo-700 hover:bg-indigo-100"
-            >
-              {isFixing ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Settings className="h-4 w-4 mr-2" />
-              )}
-              תקן Webhook
-            </Button>
-            
-            <Button
-              onClick={handleCleanupStuck}
-              disabled={isCleaning}
-              variant="outline"
-              size="sm"
-              className="border-orange-300 text-orange-700 hover:bg-orange-100"
-            >
-              {isCleaning ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 mr-2" />
-              )}
-              נקה ערוץ תקוע
-            </Button>
-            
-            {profile?.instance_id && (
+
+        {/* Step 1: No channel - Show create button */}
+        {!profile?.instance_id && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-6">
+                <MessageCircle className="h-12 w-12 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                מוכן להתחבר לוואטסאפ?
+              </h3>
+              <p className="text-gray-600 mb-6">
+                נתחיל ביצירת חיבור בטוח בינך לבין וואטסאפ
+              </p>
               <Button
-                onClick={handleResetAndStart}
+                onClick={handleCreateChannel}
+                disabled={isCreatingChannel}
+                size="lg"
+                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold"
+              >
+                {isCreatingChannel ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    יוצר ערוץ...
+                  </>
+                ) : (
+                  "התחבר לוואטסאפ"
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 2: Channel creating - Show countdown */}
+        {isCreatingChannel && countdown > 0 && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600 mx-auto"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-green-600">{countdown}</span>
+                </div>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mt-6 mb-2">מכין את החיבור...</h3>
+              <p className="text-gray-600 mb-4">
+                יוצר ערוץ בטוח לחיבור הוואטסאפ שלך
+              </p>
+              <p className="text-sm text-orange-600">
+                זמן המתנה נדרש: {countdown} שניות נותרו
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                זהו דרישה של WHAPI - אנא המתן עד לסיום
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 3: Channel ready but no QR - Show get QR button */}
+        {profile?.instance_id && profile?.instance_status === 'unauthorized' && !qrCode && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="p-4 bg-blue-50 rounded-full w-fit mx-auto mb-6">
+                <Smartphone className="h-12 w-12 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">
+                ערוץ מוכן לחיבור!
+              </h3>
+              <p className="text-gray-600 mb-6">
+                כעת תוכל לקבל קוד QR כדי לחבר את הוואטסאפ שלך
+              </p>
+              <Button
+                onClick={handleGetQR}
+                disabled={isGettingQR}
+                size="lg"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold"
+              >
+                {isGettingQR ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    מקבל QR...
+                  </>
+                ) : (
+                  "קבל קוד QR"
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Step 4: Show QR Code */}
+        {qrCode && (
+          <Card>
+            <CardContent className="p-8 text-center space-y-6">
+              <h3 className="text-xl font-semibold">סרוק עם הוואטסאפ שלך</h3>
+              
+              <div className="p-4 bg-white rounded-2xl shadow-lg border w-fit mx-auto">
+                <img
+                  src={`data:image/png;base64,${qrCode}`}
+                  alt="WhatsApp QR Code"
+                  className="w-80 h-80 mx-auto rounded-lg"
+                  style={{
+                    maxWidth: '90vw',
+                    height: 'auto',
+                    aspectRatio: '1/1',
+                    imageRendering: 'crisp-edges'
+                  }}
+                />
+              </div>
+              
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>1. פתח וואטסאפ בטלפון</p>
+                <p>2. לך להגדרות ← מכשירים מקושרים</p>
+                <p>3. לחץ "קשר מכשיר" וסרוק</p>
+              </div>
+              
+              <div className="flex items-center justify-center gap-2 text-blue-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                מחכה לסריקה...
+              </div>
+              
+              <Button
+                onClick={handleGetQR}
                 variant="outline"
                 size="sm"
-                className="border-red-300 text-red-700 hover:bg-red-100"
+                disabled={isGettingQR}
               >
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                אפס והתחל מחדש
+                {isGettingQR ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                רענן קוד QR
               </Button>
-            )}
-          </div>
-          <p className="text-xs text-blue-600 mt-3">
-            💡 "בדוק ערוץ" - בודק אם הערוץ שלך קיים ב-WHAPI ומנקה אם לא<br/>
-            💡 "סנכרן סטטוס" - מעדכן את הסטטוס האמיתי מ-WHAPI<br/>
-            💡 "בדוק Webhook" - בודק אם ה-Webhook מוגדר נכון ב-WHAPI<br/>
-            💡 "תקן Webhook" - מגדיר את ה-Webhook לערוץ קיים<br/>
-            💡 "נקה ערוץ תקוע" - מנקה ערוצים עם סטטוס timeout/initializing/error<br/>
-            💡 "אפס והתחל מחדש" - מנקה הכל ומאפשר התחלה מחדש
-          </p>
-        </div>
-        
-        {/* Emergency Reset Button */}
-        {(profile?.instance_id || connectionStep !== 'initial') && (
-          <div className="text-center">
-            <Button
-              variant="outline"
-              onClick={handleResetAndStart}
-              className="text-red-600 border-red-300 hover:bg-red-50"
-            >
-              🧹 אפס הכל והתחל מחדש
-            </Button>
-          </div>
+            </CardContent>
+          </Card>
         )}
-        
-        {/* Step 1: Initial - Main Connect Button */}
-        {connectionStep === 'initial' && (
-          <WhatsAppInitialView 
-            onConnect={handleCreateChannel} 
-          />
+
+        {/* Channel initializing */}
+        {profile?.instance_status === 'initializing' && !isCreatingChannel && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Loader2 className="h-12 w-12 animate-spin text-orange-600 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">מכין ערוץ...</h3>
+              <p className="text-gray-600 mb-4">
+                הערוץ עדיין נטען במערכת של WHAPI
+              </p>
+              <Button
+                onClick={handleGetQR}
+                variant="outline"
+                disabled={isGettingQR}
+              >
+                {isGettingQR ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                נסה לקבל QR
+              </Button>
+            </CardContent>
+          </Card>
         )}
-        
-        {/* Step 2: Creating Channel - Enhanced Loading State with Continue Option */}
-        {connectionStep === 'creating_channel' && (
-          <WhatsAppCreatingChannel 
-            onContinueAnyway={handleContinueAnyway}
-            timeElapsed={channelCreationTime}
-          />
-        )}
-        
-        {/* Step 3: Choose Connection Method */}
-        {connectionStep === 'choose_method' && (
-          <WhatsAppMethodSelection onMethodSelect={(method: 'qr' | 'phone') => {
-            console.log('📱 Method selected:', method);
-            setSelectedMethod(method);
-            setConnectionStep('connecting');
-          }} />
-        )}
-        
-        {/* Step 4: Connecting with Selected Method */}
-        {connectionStep === 'connecting' && selectedMethod && user.id && (
-          <WhatsAppConnectingView
-            selectedMethod={selectedMethod}
-            userId={user.id}
-            onConnected={handleConnected}
-            onBackToMethodSelection={handleBackToMethodSelection}
-          />
-        )}
-        
-        <WhatsAppInstructions />
       </div>
     </Layout>
   );
