@@ -17,13 +17,34 @@ jwt_expiry = 3600
 enable_signup = true
 enable_email_confirmations = false
 
-[functions.whapi-simple-connect]
+[functions.whapi-partner-login]
 verify_jwt = false
 
-[functions.whapi-simple-webhook]
+[functions.whapi-unified-connect]
 verify_jwt = false
 
-[functions.whapi-simple-disconnect]
+[functions.whapi-webhook]
+verify_jwt = false
+
+[functions.whapi-get-qr]
+verify_jwt = false
+
+[functions.whapi-check-status]
+verify_jwt = false
+
+[functions.whapi-manual-status-sync]
+verify_jwt = false
+
+[functions.whapi-phone-auth]
+verify_jwt = false
+
+[functions.whapi-delete-instance]
+verify_jwt = false
+
+[functions.whapi-diagnostics]
+verify_jwt = false
+
+[functions.whapi-auto-recovery]
 verify_jwt = false
 
 [functions.send-immediate-message]
@@ -35,5 +56,11 @@ verify_jwt = false
 [functions.whatsapp-scheduler]
 verify_jwt = false
 
+[functions.manage-instance-lifecycle]
+verify_jwt = false
+
 [functions.cleanup-expired-trials]
+verify_jwt = false
+
+[functions.cleanup-orphaned-channels]
 verify_jwt = false
