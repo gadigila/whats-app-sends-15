@@ -4,6 +4,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Credentials': 'true'
 }
 
 interface GetQRRequest {
@@ -11,8 +13,12 @@ interface GetQRRequest {
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    })
   }
 
   try {
@@ -106,14 +112,18 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Check if status is ready for QR - handle both string and object statuses
+        const statusValue = typeof healthData.status === 'object' ? healthData.status.text : healthData.status
+        console.log('📊 Processed status:', statusValue)
+
         // If not ready for QR yet, retry or fail
-        if (!['qr', 'unauthorized'].includes(healthData.status)) {
+        if (!['qr', 'unauthorized', 'QR'].includes(statusValue)) {
           if (retryCount < maxRetries) {
-            console.log(`⏳ Status is "${healthData.status}", retrying in 10 seconds...`)
+            console.log(`⏳ Status is "${statusValue}", retrying in 10 seconds...`)
             await new Promise(resolve => setTimeout(resolve, 10000))
             return checkHealthAndGetQR(token, retryCount + 1, maxRetries)
           } else {
-            throw new Error(`Channel not ready for QR. Status: ${healthData.status}`)
+            throw new Error(`Channel not ready for QR. Status: ${statusValue}`)
           }
         }
 

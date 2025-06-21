@@ -4,6 +4,8 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Credentials': 'true'
 }
 
 interface CreateChannelRequest {
@@ -11,8 +13,12 @@ interface CreateChannelRequest {
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    })
   }
 
   try {
@@ -182,7 +188,7 @@ Deno.serve(async (req) => {
     let pollAttempts = 0
     const maxPollAttempts = 24 // 2 minutes with 5-second intervals
     
-    while (pollAttempts < maxPollAttempts && !['qr', 'unauthorized', 'connected'].includes(healthStatus)) {
+    while (pollAttempts < maxPollAttempts && !['qr', 'unauthorized', 'connected', 'QR'].includes(healthStatus)) {
       pollAttempts++
       console.log(`🔍 Health check attempt ${pollAttempts}/${maxPollAttempts}...`)
       
@@ -197,10 +203,11 @@ Deno.serve(async (req) => {
         
         if (healthResponse.ok) {
           const healthData = await healthResponse.json()
-          healthStatus = healthData.status || 'initializing'
+          // Handle both string and object statuses
+          healthStatus = typeof healthData.status === 'object' ? healthData.status.text : healthData.status
           console.log(`📊 Health status: ${healthStatus}`)
           
-          if (['qr', 'unauthorized', 'connected'].includes(healthStatus)) {
+          if (['qr', 'unauthorized', 'connected', 'QR'].includes(healthStatus)) {
             console.log('✅ Channel is ready!')
             break
           }
@@ -219,7 +226,7 @@ Deno.serve(async (req) => {
     
     // Update status based on polling result
     let finalStatus = 'unauthorized'
-    if (['qr', 'unauthorized'].includes(healthStatus)) {
+    if (['qr', 'unauthorized', 'QR'].includes(healthStatus)) {
       finalStatus = 'unauthorized'
     } else if (healthStatus === 'connected') {
       finalStatus = 'connected'
