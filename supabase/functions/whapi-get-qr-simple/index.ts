@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🔲 WHAPI Get QR - Using Correct /users/login Endpoint')
+    console.log('🔲 WHAPI Get QR - Using Correct GET /users/login with wakeup=true')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -127,17 +127,15 @@ Deno.serve(async (req) => {
           }
         }
 
-        // FIXED: Use correct WHAPI endpoint /users/login for QR code
-        console.log(`🔲 Health check passed, getting QR code from /users/login...`)
+        // FIXED: Use correct WHAPI endpoint /users/login with GET and wakeup=true
+        console.log(`🔲 Health check passed, getting QR code from /users/login with wakeup=true...`)
         
-        const qrResponse = await fetch(`https://gate.whapi.cloud/users/login`, {
-          method: 'POST',
+        const qrResponse = await fetch(`https://gate.whapi.cloud/users/login?wakeup=true`, {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
-          body: JSON.stringify({}),
           signal: AbortSignal.timeout(30000)
         })
 
@@ -153,7 +151,7 @@ Deno.serve(async (req) => {
         }
 
         const qrData = await qrResponse.json()
-        console.log('📊 QR response received:', { hasQR: !!qrData.qr, status: qrData.status })
+        console.log('📊 QR response received:', { hasBase64: !!qrData.base64, status: qrData.status, expire: qrData.expire })
 
         // Double-check for connection status
         if (qrData.status === 'connected' || qrData.me) {
@@ -175,19 +173,19 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Check for QR code in response (WHAPI uses 'qr' field, not 'qr_code')
-        if (!qrData.qr) {
+        // Check for QR code in response (WHAPI uses 'base64' field for QR image data)
+        if (!qrData.base64) {
           throw new Error('QR code not available in response')
         }
 
         console.log('✅ QR code received successfully')
         return {
           success: true,
-          qr_code: qrData.qr,
-          qr_code_url: `data:image/png;base64,${qrData.qr}`,
+          qr_code: qrData.base64,
+          qr_code_url: `data:image/png;base64,${qrData.base64}`,
           status: qrData.status,
           message: 'QR code ready for scanning',
-          expires_in: '60 seconds'
+          expires_in: qrData.expire ? `${qrData.expire} seconds` : '60 seconds'
         }
 
       } catch (error) {
