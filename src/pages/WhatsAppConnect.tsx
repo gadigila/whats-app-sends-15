@@ -92,7 +92,7 @@ const WhatsAppConnect = () => {
   // Handle channel creation
   const handleCreateChannel = async () => {
     try {
-      setCountdown(90); // Start 90-second countdown
+      setCountdown(90); // Visual countdown for user
       await createChannel.mutateAsync();
       await refetchProfile();
     } catch (error) {
@@ -135,8 +135,8 @@ const WhatsAppConnect = () => {
           <WhatsAppChannelCreating countdown={countdown} />
         )}
 
-        {/* Step 3: Channel ready but no QR - Show get QR button */}
-        {profile?.instance_id && profile?.instance_status === 'unauthorized' && !qrCode && (
+        {/* Step 3: Channel ready for QR - Handle multiple statuses */}
+        {profile?.instance_id && ['unauthorized', 'qr', 'active', 'ready'].includes(profile?.instance_status || '') && !qrCode && (
           <WhatsAppQRReady onGetQR={handleGetQR} isGettingQR={isGettingQR} />
         )}
 
@@ -149,18 +149,13 @@ const WhatsAppConnect = () => {
           />
         )}
 
-        {/* Channel initializing */}
+        {/* Channel still initializing */}
         {profile?.instance_status === 'initializing' && !isCreatingChannel && (
           <WhatsAppInitializing onTryGetQR={handleGetQR} isTrying={isGettingQR} />
         )}
 
-        {/* Handle "active" status - treat as unauthorized and allow QR generation */}
-        {profile?.instance_status === 'active' && profile?.instance_id && !qrCode && (
-          <WhatsAppQRReady onGetQR={handleGetQR} isGettingQR={isGettingQR} />
-        )}
-
         {/* Fallback for unknown statuses */}
-        {profile?.instance_id && !['connected', 'unauthorized', 'initializing', 'active'].includes(profile?.instance_status || '') && (
+        {profile?.instance_id && !['connected', 'unauthorized', 'qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && (
           <WhatsAppInitializing onTryGetQR={handleGetQR} isTrying={isGettingQR} />
         )}
       </div>

@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 WHAPI Create Channel - Following Official Documentation')
+    console.log('🚀 WHAPI Create Channel - Using Health Polling (Following WHAPI Best Practices)')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     const channelId = `REECHER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
     console.log('🆔 Generated channel ID:', channelId)
 
-    // Step 1: Create channel using Partner API (exact as documentation)
+    // Step 1: Create channel using Partner API
     console.log('📱 Creating channel with Partner API...')
     const createChannelResponse = await fetch('https://manager.whapi.cloud/channels', {
       method: 'PUT',
@@ -116,9 +116,9 @@ Deno.serve(async (req) => {
 
     console.log('✅ Channel created successfully with token')
 
-    // Step 2: Setup comprehensive webhooks (as per documentation)
-    console.log('🔗 Setting up comprehensive webhooks...')
-    const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
+    // Step 2: Setup webhooks
+    console.log('🔗 Setting up webhooks...')
+    const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook-simple`
     
     const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
       method: 'PATCH',
@@ -132,8 +132,8 @@ Deno.serve(async (req) => {
           events: [
             { type: 'messages', method: 'post' },
             { type: 'statuses', method: 'post' },
-            { type: 'ready', method: 'post' },           // Critical: when WhatsApp connects
-            { type: 'auth_failure', method: 'post' },    // Critical: when auth fails
+            { type: 'ready', method: 'post' },
+            { type: 'auth_failure', method: 'post' },
             { type: 'chats', method: 'post' },
             { type: 'groups', method: 'post' },
             { type: 'contacts', method: 'post' }
@@ -175,33 +175,77 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Step 4: Critical 90-second wait (as per WHAPI documentation)
-    console.log('⏳ Starting mandatory 90-second wait (WHAPI requirement)...')
-    console.log('📝 Reason: Channel needs time to load after creation')
+    // Step 4: NEW - Poll /health until channel is ready (instead of fixed 90s wait)
+    console.log('🔍 Starting health polling until channel is ready...')
     
-    // Wait exactly 90 seconds as documentation requires
-    await new Promise(resolve => setTimeout(resolve, 90000))
+    let healthStatus = 'initializing'
+    let pollAttempts = 0
+    const maxPollAttempts = 24 // 2 minutes with 5-second intervals
     
-    console.log('✅ 90-second wait completed - channel should be ready for QR')
-
-    // Update status to 'unauthorized' (ready for QR)
+    while (pollAttempts < maxPollAttempts && !['qr', 'unauthorized', 'connected'].includes(healthStatus)) {
+      pollAttempts++
+      console.log(`🔍 Health check attempt ${pollAttempts}/${maxPollAttempts}...`)
+      
+      try {
+        const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${channelToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json()
+          healthStatus = healthData.status || 'initializing'
+          console.log(`📊 Health status: ${healthStatus}`)
+          
+          if (['qr', 'unauthorized', 'connected'].includes(healthStatus)) {
+            console.log('✅ Channel is ready!')
+            break
+          }
+        } else {
+          console.log(`⚠️ Health check failed: ${healthResponse.status}`)
+        }
+      } catch (error) {
+        console.log(`⚠️ Health check error: ${error.message}`)
+      }
+      
+      // Wait 5 seconds before next poll
+      if (pollAttempts < maxPollAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000))
+      }
+    }
+    
+    // Update status based on polling result
+    let finalStatus = 'unauthorized'
+    if (['qr', 'unauthorized'].includes(healthStatus)) {
+      finalStatus = 'unauthorized'
+    } else if (healthStatus === 'connected') {
+      finalStatus = 'connected'
+    } else {
+      console.log('⚠️ Channel did not become ready in time, marking as unauthorized anyway')
+      finalStatus = 'unauthorized'
+    }
+    
     await supabase
       .from('profiles')
       .update({
-        instance_status: 'unauthorized',
+        instance_status: finalStatus,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId)
 
-    console.log('🎯 Channel creation process completed successfully')
+    console.log(`🎯 Channel creation completed with final status: ${finalStatus}`)
 
     return new Response(
       JSON.stringify({
         success: true,
         channel_id: channelId,
-        message: 'Channel created and ready for QR code',
-        wait_time_completed: '90 seconds',
-        next_step: 'Get QR code',
+        final_status: finalStatus,
+        health_polls: pollAttempts,
+        message: finalStatus === 'connected' ? 'Channel created and already connected' : 'Channel created and ready for QR code',
+        next_step: finalStatus === 'connected' ? 'Already connected' : 'Get QR code',
         webhook_configured: true
       }),
       { status: 200, headers: corsHeaders }

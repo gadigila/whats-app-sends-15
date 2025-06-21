@@ -28,40 +28,67 @@ Deno.serve(async (req) => {
     const eventType = webhookData.type
     const eventData = webhookData.data || {}
 
-    // Handle different event types as per WHAPI documentation
+    // Handle different event types
     switch (eventType) {
       case 'ready':
         console.log('🎉 WhatsApp connected successfully!')
         console.log('📱 Phone number:', eventData.phone)
         console.log('📊 Device info:', eventData.device)
         
-        // Find user by channel token or instance_id
+        // Find users with matching tokens and update to connected
         const phoneNumber = eventData.phone
         const deviceInfo = eventData.device
         
-        // Update user profile to connected status
-        const { data: profiles, error: findError } = await supabase
+        // Update users who are waiting for connection
+        const { data: waitingProfiles, error: findError } = await supabase
           .from('profiles')
-          .select('id, instance_id')
-          .eq('instance_status', 'unauthorized')
-          .or('instance_status.eq.initializing')
+          .select('id, instance_id, whapi_token')
+          .in('instance_status', ['unauthorized', 'initializing', 'qr', 'active'])
 
         if (findError) {
-          console.error('❌ Error finding profiles:', findError)
-        } else if (profiles && profiles.length > 0) {
-          // Update the most recent profile (or all matching ones)
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({
-              instance_status: 'connected',
-              updated_at: new Date().toISOString()
-            })
-            .in('id', profiles.map(p => p.id))
+          console.error('❌ Error finding waiting profiles:', findError)
+        } else if (waitingProfiles && waitingProfiles.length > 0) {
+          console.log(`📊 Found ${waitingProfiles.length} profiles waiting for connection`)
+          
+          // Check which token this event belongs to by trying health check
+          // (Since webhook doesn't include token info)
+          for (const profile of waitingProfiles) {
+            try {
+              const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${profile.whapi_token}`,
+                  'Content-Type': 'application/json'
+                }
+              })
+              
+              if (healthResponse.ok) {
+                const healthData = await healthResponse.json()
+                if (healthData.status === 'connected' && healthData.me?.phone === phoneNumber) {
+                  console.log(`✅ Updating profile ${profile.id} to connected`)
+                  
+                  const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({
+                      instance_status: 'connected',
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', profile.id)
 
-          if (updateError) {
-            console.error('❌ Error updating profile status:', updateError)
-          } else {
-            console.log('✅ Updated profile(s) to connected status')
+                  if (updateError) {
+                    console.error('❌ Error updating profile:', updateError)
+                  } else {
+                    console.log('✅ Profile updated to connected status')
+                    break // Found the right profile, stop checking others
+                  }
+                }
+              }
+            } catch (error) {
+              console.log(`⚠️ Error checking profile ${profile.id}:`, error.message)
+            }
+            
+            // Small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 50))
           }
         }
         
@@ -71,19 +98,29 @@ Deno.serve(async (req) => {
         console.log('❌ WhatsApp authentication failed')
         console.log('🔍 Reason:', eventData.reason || eventData.error || 'Unknown')
         
-        // Update status to reflect auth failure
-        const { error: authFailError } = await supabase
+        // Update status to reflect auth failure - but don't auto-cleanup tokens
+        // Let users manually retry or create new channel
+        const { data: authFailProfiles, error: authFailError } = await supabase
           .from('profiles')
-          .update({
-            instance_status: 'unauthorized',
-            updated_at: new Date().toISOString()
-          })
-          .or('instance_status.eq.initializing,instance_status.eq.connecting')
+          .select('id')
+          .in('instance_status', ['initializing', 'qr', 'active'])
 
         if (authFailError) {
-          console.error('❌ Error updating auth failure status:', authFailError)
-        } else {
-          console.log('✅ Updated profiles after auth failure')
+          console.error('❌ Error finding auth fail profiles:', authFailError)
+        } else if (authFailProfiles && authFailProfiles.length > 0) {
+          const { error: failUpdateError } = await supabase
+            .from('profiles')
+            .update({
+              instance_status: 'unauthorized',
+              updated_at: new Date().toISOString()
+            })
+            .in('id', authFailProfiles.map(p => p.id))
+
+          if (failUpdateError) {
+            console.error('❌ Error updating auth failure status:', failUpdateError)
+          } else {
+            console.log('✅ Updated profiles after auth failure')
+          }
         }
         
         break
@@ -135,7 +172,7 @@ Deno.serve(async (req) => {
         break
     }
 
-    // Always return 200 OK to WHAPI within 30 seconds (as per documentation)
+    // Always return 200 OK to WHAPI within 30 seconds
     return new Response(
       JSON.stringify({ 
         received: true, 
