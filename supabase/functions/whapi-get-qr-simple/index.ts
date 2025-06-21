@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🔲 WHAPI Get QR - With Health Pre-Check')
+    console.log('🔲 WHAPI Get QR - Using Correct /users/login Endpoint')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -127,15 +127,17 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Now get QR code - FIXED: Use correct endpoint /screenshot not /screen
-        console.log(`🔲 Health check passed, getting QR code from /screenshot...`)
+        // FIXED: Use correct WHAPI endpoint /users/login for QR code
+        console.log(`🔲 Health check passed, getting QR code from /users/login...`)
         
-        const qrResponse = await fetch(`https://gate.whapi.cloud/screenshot`, {
-          method: 'GET',
+        const qrResponse = await fetch(`https://gate.whapi.cloud/users/login`, {
+          method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
             'Accept': 'application/json'
           },
+          body: JSON.stringify({}),
           signal: AbortSignal.timeout(30000)
         })
 
@@ -151,7 +153,7 @@ Deno.serve(async (req) => {
         }
 
         const qrData = await qrResponse.json()
-        console.log('📊 QR response received:', { hasQR: !!qrData.qr_code, status: qrData.status })
+        console.log('📊 QR response received:', { hasQR: !!qrData.qr, status: qrData.status })
 
         // Double-check for connection status
         if (qrData.status === 'connected' || qrData.me) {
@@ -173,15 +175,16 @@ Deno.serve(async (req) => {
           }
         }
 
-        if (!qrData.qr_code) {
+        // Check for QR code in response (WHAPI uses 'qr' field, not 'qr_code')
+        if (!qrData.qr) {
           throw new Error('QR code not available in response')
         }
 
         console.log('✅ QR code received successfully')
         return {
           success: true,
-          qr_code: qrData.qr_code,
-          qr_code_url: `data:image/png;base64,${qrData.qr_code}`,
+          qr_code: qrData.qr,
+          qr_code_url: `data:image/png;base64,${qrData.qr}`,
           status: qrData.status,
           message: 'QR code ready for scanning',
           expires_in: '60 seconds'
@@ -250,8 +253,8 @@ Deno.serve(async (req) => {
       errorMessage = 'QR code not available. Channel may need more time to initialize.'
     } else if (error.message.includes('Token invalid')) {
       errorMessage = 'Token invalid. Please create a new channel.'
-    } else if (error.message.includes('/screenshot not found')) {
-      errorMessage = 'QR endpoint not found. Please try again or create a new channel.'
+    } else if (error.message.includes('/users/login')) {
+      errorMessage = 'QR login endpoint error. Please try again or create a new channel.'
     }
     
     return new Response(
