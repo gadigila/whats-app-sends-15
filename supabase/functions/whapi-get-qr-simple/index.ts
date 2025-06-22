@@ -210,19 +210,34 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Step 7: Return successful QR response
-        const qrBase64 = qrData.base64 || qrData.qr
-        console.log('✅ QR code received successfully, length:', qrBase64?.length || 0)
-        
-        return {
-          success: true,
-          qr_code: qrBase64,
-          qr_code_url: `data:image/png;base64,${qrBase64}`,
-          status: qrData.status,
-          message: 'QR code ready for scanning',
-          expires_in: qrData.expire ? `${qrData.expire} seconds` : '60 seconds',
-          attempt: retryCount + 1
+     // Step 7: Return successful QR response
+    const qrBase64 = qrData.base64 || qrData.qr || qrData.image || qrData.qrCode
+    console.log('✅ QR code received successfully, length:', qrBase64?.length || 0)
+
+    // Make sure QR has proper format
+    let formattedQR = qrBase64
+    if (formattedQR && !formattedQR.startsWith('data:image')) {
+      formattedQR = `data:image/png;base64,${formattedQR}`
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        qr_code: qrBase64,
+        qr_code_url: formattedQR,
+        status: qrData.status,
+        message: 'QR code ready for scanning',
+        expires_in: qrData.expire ? `${qrData.expire} seconds` : '60 seconds',
+        attempt: retryCount + 1,
+        debug_info: {
+          response_keys: Object.keys(qrData),
+          had_base64: !!qrData.base64,
+          had_qr: !!qrData.qr,
+          had_image: !!qrData.image
         }
+      }),
+      { status: 200, headers: corsHeaders }
+    )
 
       } catch (error) {
         console.error(`❌ QR attempt ${retryCount + 1} failed:`, error.message)
