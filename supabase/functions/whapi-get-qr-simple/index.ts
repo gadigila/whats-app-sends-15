@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
         // Step 3: Get QR code using correct endpoint
         console.log(`🔲 Health check passed, getting QR code from /users/login with wakeup=true...`)
         
-        const qrResponse = await fetch(`https://gate.whapi.cloud/users/login?wakeup=true`, {
+        const qrResponse = await fetch(`https://gate.whapi.cloud/users/login`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
