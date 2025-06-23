@@ -102,18 +102,22 @@ const WhatsAppConnect = () => {
   };
 
   // Handle QR code request
-  const handleGetQR = async () => {
-    try {
-      const result = await getQRCode.mutateAsync();
-      if (result.already_connected) {
-        await refetchProfile();
-      } else if (result.qr_code) {
-        setQrCode(result.qr_code);
-      }
-    } catch (error) {
-      console.error('❌ QR code failed:', error);
-    }
-  };
+       const handleGetQR = async () => {
+        try {
+          const result = await getQRCode.mutateAsync();
+          
+          if (result.already_connected) {
+            await refetchProfile();
+          } else if (result.qr_code_url) {
+            setQrCode(result.qr_code_url); // אם קיים URL
+          } else if (result.qr_code) {
+            setQrCode(result.qr_code); // תמיכה גם ב-base64 למקרה הצורך
+          }
+        } catch (error) {
+          console.error('❌ QR code failed:', error);
+        }
+      };
+
 
   return (
     <Layout>
