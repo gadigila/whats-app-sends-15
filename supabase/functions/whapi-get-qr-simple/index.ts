@@ -59,11 +59,12 @@ Deno.serve(async (req) => {
     }
 
       // ⏳ Optional delay if just created
-         const bootingStatuses = ['initializing', 'starting', 'booting', 'ready']
-          if (bootingStatuses.includes(profile.instance_status)) {
+           const bootingStatuses = ['initializing', 'starting', 'booting'] // ❌ remove 'ready'
+            if (bootingStatuses.includes(profile.instance_status)) {
             console.log(`⏳ Channel is still booting (${profile.instance_status}), waiting 90 seconds before QR...`)
             await new Promise(resolve => setTimeout(resolve, 90000))
-          }
+    }
+
 
 
 
@@ -187,6 +188,7 @@ Deno.serve(async (req) => {
         }
 
         const qrData = await qrResponse.json()
+        console.log('📤 WHAPI QR Response:', JSON.stringify(qrData, null, 2))
         console.log('📊 Detailed QR response:', JSON.stringify(qrData, null, 2))
 
         // Step 4: Check if connected during QR request
@@ -347,7 +349,7 @@ Deno.serve(async (req) => {
       suggestion = 'Wait 30 seconds and try again'
     }
 
-      console.log('📤 Final QR result:', result)
+      console.log('📤 Final QR error details:', error)
     
     return new Response(
       JSON.stringify({ 
