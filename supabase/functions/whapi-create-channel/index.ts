@@ -231,8 +231,9 @@ Deno.serve(async (req) => {
       
       if (normalizedStatus === 'connected') {
         finalStatus = 'connected'
-      } else if (normalizedStatus === 'qr') {
-        finalStatus = 'ready'  // ready to show QR
+      } else if (normalizedStatus === 'qr' || normalizedStatus === 'unauthorized') {
+      finalStatus = 'unauthorized'
+      }
       } else {
         console.log(`⚠️ Channel did not become ready in time. Health status: ${healthStatus}`)
       }
