@@ -16,8 +16,8 @@ const WhatsAppQRDisplay = ({ qrCode, onRefreshQR, isRefreshing }: WhatsAppQRDisp
         <h3 className="text-xl font-semibold">סרוק עם הוואטסאפ שלך</h3>
         
         <div className="p-4 bg-white rounded-2xl shadow-lg border w-fit mx-auto">
-          <img
-            src={qrCode.includes('base64') ? qrCode : qrCode}
+           <img
+            src={qrCode.startsWith('data:image') || qrCode.startsWith('http') ? qrCode : `data:image/png;base64,${qrCode}`}
             alt="WhatsApp QR Code"
             className="w-80 h-80 mx-auto rounded-lg"
             style={{
@@ -25,8 +25,9 @@ const WhatsAppQRDisplay = ({ qrCode, onRefreshQR, isRefreshing }: WhatsAppQRDisp
               height: 'auto',
               aspectRatio: '1/1',
               imageRendering: 'crisp-edges'
-            }}
-          />
+              }}
+            />
+
         </div>
         
         <div className="text-sm text-gray-600 space-y-1">
