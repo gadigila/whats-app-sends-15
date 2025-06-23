@@ -54,6 +54,14 @@ Deno.serve(async (req) => {
       )
     }
 
+      // ⏳ Optional delay if just created
+      if (profile.instance_status === 'initializing') {
+        console.log('⏳ New channel likely just created, pausing for 90 seconds before QR attempt...')
+        await new Promise(resolve => setTimeout(resolve, 90000)) // 1.5 minutes
+      }
+
+
+    
     if (!profile.instance_id || !profile.whapi_token) {
       console.error('❌ No channel found for user')
       return new Response(
