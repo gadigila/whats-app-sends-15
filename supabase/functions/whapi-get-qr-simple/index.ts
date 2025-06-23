@@ -55,10 +55,12 @@ Deno.serve(async (req) => {
     }
 
       // ⏳ Optional delay if just created
-      if (profile.instance_status === 'initializing') {
-        console.log('⏳ New channel likely just created, pausing for 90 seconds before QR attempt...')
-        await new Promise(resolve => setTimeout(resolve, 90000)) // 1.5 minutes
-      }
+         const bootingStatuses = ['initializing', 'starting', 'booting', 'ready']
+          if (bootingStatuses.includes(profile.instance_status)) {
+            console.log(`⏳ Channel is still booting (${profile.instance_status}), waiting 90 seconds before QR...`)
+            await new Promise(resolve => setTimeout(resolve, 90000))
+          }
+
 
 
     
@@ -125,7 +127,7 @@ Deno.serve(async (req) => {
         console.log('📊 Processed health status:', statusValue)
 
         // Step 2: Check if ready for QR or needs more time
-          const readyStatuses = ['qr', 'QR', 'ready', 'unauthorized'].map(s => s.toLowerCase())
+          const readyStatuses = ['qr', 'unauthorized'].map(s => s.toLowerCase())
           const statusValue = (typeof healthData.status === 'object' ? healthData.status.text : healthData.status || '').toLowerCase()
           
           if (!readyStatuses.includes(statusValue)) {
