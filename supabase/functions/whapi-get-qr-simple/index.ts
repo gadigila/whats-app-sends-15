@@ -117,7 +117,13 @@ Deno.serve(async (req) => {
         console.log('📊 Processed health status:', statusValue)
 
         // Step 2: Check if ready for QR or needs more time
-        const readyStatuses = ['qr', 'unauthorized', 'QR']
+          const readyStatuses = ['qr', 'QR', 'ready', 'unauthorized'].map(s => s.toLowerCase())
+          const statusValue = (typeof healthData.status === 'object' ? healthData.status.text : healthData.status || '').toLowerCase()
+          
+          if (!readyStatuses.includes(statusValue)) {
+            // proceed with retry or error
+          }
+
         const initializingStatuses = ['initializing', 'starting', 'booting']
         
         if (!readyStatuses.includes(statusValue)) {
@@ -298,7 +304,7 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 Final QR Error:', error)
+    console.error('💥 Final QR Error:', error.message, error.stack)
     
     let errorMessage = 'Failed to get QR code'
     let suggestion = 'Try again or create a new channel if the problem persists'
