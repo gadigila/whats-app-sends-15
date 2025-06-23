@@ -46,6 +46,10 @@ Deno.serve(async (req) => {
       .eq('id', userId)
       .single()
 
+    console.log('📋 Loaded profile:', profile)
+    console.log('🪪 WHAPI Token:', profile?.whapi_token)
+
+
     if (profileError || !profile) {
       console.error('❌ Profile error:', profileError)
       return new Response(
@@ -165,8 +169,15 @@ Deno.serve(async (req) => {
         })
 
         if (!qrResponse.ok) {
-          const errorText = await qrResponse.text()
-          console.error(`❌ QR request failed (${qrResponse.status}):`, errorText)
+        let errorText: string
+        try {
+          const errorJson = await qrResponse.json()
+          errorText = JSON.stringify(errorJson)
+        } catch {
+          errorText = await qrResponse.text()
+        }
+        console.error(`❌ QR request failed (${qrResponse.status}):`, errorText)
+
           
           if (qrResponse.status === 401) {
             throw new Error('Token invalid or expired')
@@ -335,6 +346,8 @@ Deno.serve(async (req) => {
       errorMessage = 'QR code not available. Channel may need more time.'
       suggestion = 'Wait 30 seconds and try again'
     }
+
+      console.log('📤 Final QR result:', result)
     
     return new Response(
       JSON.stringify({ 
