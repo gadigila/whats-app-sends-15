@@ -73,3 +73,6 @@ verify_jwt = false
 
 [functions.cleanup-orphaned-channels]
 verify_jwt = false
+
+[functions.check-whapi-token]
+verify_jwt = false
