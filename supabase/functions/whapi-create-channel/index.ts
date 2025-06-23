@@ -84,30 +84,18 @@ Deno.serve(async (req) => {
     console.log('🆔 Generated channel ID:', channelId)
 
     // Step 1: Create channel using Partner API
-          console.log('📱 Creating channel with Partner API...')
-          const createChannelResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${whapiPartnerToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          name: channelName,
-          project_id: whapiProjectId,
-          mode: 'TRIAL'  // חשוב להוסיף!
-        })
+    console.log('📱 Creating channel with Partner API...')
+    const createChannelResponse = await fetch('https://manager.whapi.cloud/channels', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${whapiPartnerToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: channelId,
+        projectId: whapiProjectId
       })
-   // const createChannelResponse = await fetch('https://manager.whapi.cloud/channels', {
-    //  method: 'PUT',
-    //  headers: {
-    //    'Authorization': `Bearer ${whapiPartnerToken}`,
-    //    'Content-Type': 'application/json'
-    //  },
-   //   body: JSON.stringify({
-   //     name: channelId,
-  //      projectId: whapiProjectId
-  //    })
- //   });
+    });
 
     if (!createChannelResponse.ok) {
       const errorText = await createChannelResponse.text()
@@ -122,20 +110,17 @@ Deno.serve(async (req) => {
     }
 
     const channelData = await createChannelResponse.json()
-    console.log('📊 Channel data received:', channelData)
+    const channelToken = channelData?.token
 
-    // חשוב: הטוקן מגיע כ-channel_id ולא כ-token
-    const channelToken = channelData.id || channelId // השתמש ב-channelId כטוקן
-
-        if (!channelToken) {
-      console.error('❌ No channel ID received from WHAPI')
+    if (!channelToken) {
+      console.error('❌ No token received from WHAPI')
       return new Response(
-        JSON.stringify({ error: 'No channel ID received from WHAPI' }),
+        JSON.stringify({ error: 'No token received from WHAPI' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    console.log('✅ Channel created successfully with ID/token:', channelToken)
+    console.log('✅ Channel created successfully with token')
 
     // Step 2: Setup webhooks
     console.log('🔗 Setting up webhooks...')
