@@ -123,12 +123,11 @@ Deno.serve(async (req) => {
         }
 
         // Process health status - handle both string and object formats
-       // Remove or comment out the first 'statusValue'
+        const statusValue = (typeof healthData.status === 'object' ? healthData.status.text : healthData.status || '').toLowerCase()
         console.log('📊 Processed health status:', statusValue)
+        
+        const readyStatuses = ['qr', 'unauthorized']
 
-        // Step 2: Check if ready for QR or needs more time
-          const readyStatuses = ['qr', 'unauthorized'].map(s => s.toLowerCase())
-          const statusValue = (typeof healthData.status === 'object' ? healthData.status.text : healthData.status || '').toLowerCase()
           
           if (!readyStatuses.includes(statusValue)) {
             // proceed with retry or error
