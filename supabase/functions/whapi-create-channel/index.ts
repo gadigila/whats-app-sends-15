@@ -224,16 +224,19 @@ Deno.serve(async (req) => {
       }
     }
     
-    // Update status based on polling result
-    let finalStatus = 'unauthorized'
-    if (['qr', 'unauthorized', 'QR'].includes(healthStatus)) {
-      finalStatus = 'unauthorized'
-    } else if (healthStatus === 'connected') {
-      finalStatus = 'connected'
-    } else {
-      console.log('⚠️ Channel did not become ready in time, marking as unauthorized anyway')
-      finalStatus = 'unauthorized'
-    }
+        // Update status based on polling result
+      let finalStatus = 'unauthorized'
+      
+      const normalizedStatus = (healthStatus || '').toLowerCase()
+      
+      if (normalizedStatus === 'connected') {
+        finalStatus = 'connected'
+      } else if (normalizedStatus === 'qr') {
+        finalStatus = 'ready'  // ready to show QR
+      } else {
+        console.log(`⚠️ Channel did not become ready in time. Health status: ${healthStatus}`)
+      }
+
     
     await supabase
       .from('profiles')
