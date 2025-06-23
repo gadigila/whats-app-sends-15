@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
         }
 
         // Process health status - handle both string and object formats
-        const statusValue = typeof healthData.status === 'object' ? healthData.status.text : healthData.status
+       // Remove or comment out the first 'statusValue'
         console.log('📊 Processed health status:', statusValue)
 
         // Step 2: Check if ready for QR or needs more time
@@ -249,27 +249,31 @@ Deno.serve(async (req) => {
         console.error(`❌ QR attempt ${retryCount + 1} failed:`, error.message)
         
         // Handle token invalidity immediately
-        if (error.message.includes('Token invalid') || error.message.includes('401')) {
-          console.log('🧹 Token invalid, cleaning up profile...')
+            if (error.message.includes('Token invalid') || error.message.includes('401')) {
+            console.log('🧹 Token invalid, cleaning up profile...')
+            
+            await supabase
+              .from('profiles')
+              .update({
+                instance_id: null,
+                whapi_token: null,
+                instance_status: 'disconnected',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', userId)
           
-          await supabase
-            .from('profiles')
-            .update({
-              instance_id: null,
-              whapi_token: null,
-              instance_status: 'disconnected',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId)
-          
-          return {
-            success: false,
-            error: 'Token invalid - cleaned up',
-            message: 'הטוקן לא תקין, נוקה מהמערכת. צור ערוץ חדש',
-            token_cleaned: true,
-            requires_new_channel: true
+            return new Response(
+              JSON.stringify({
+                success: false,
+                error: 'Token invalid - cleaned up',
+                message: 'הטוקן לא תקין, נוקה מהמערכת. צור ערוץ חדש',
+                token_cleaned: true,
+                requires_new_channel: true
+              }),
+              { status: 401, headers: corsHeaders }
+            )
           }
-        }
+
         
         // Retry logic for recoverable errors
         const retryableErrors = [
