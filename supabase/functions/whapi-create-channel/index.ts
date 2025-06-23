@@ -181,64 +181,55 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Step 4: NEW - Poll /health until channel is ready (instead of fixed 90s wait)
-    console.log('🔍 Starting health polling until channel is ready...')
-    
-    let healthStatus = 'initializing'
-    let pollAttempts = 0
-    const maxPollAttempts = 24 // 2 minutes with 5-second intervals
-    
-    while (pollAttempts < maxPollAttempts && !['qr', 'unauthorized', 'connected', 'QR'].includes(healthStatus)) {
-      pollAttempts++
-      console.log(`🔍 Health check attempt ${pollAttempts}/${maxPollAttempts}...`)
-      
-      try {
-        const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${channelToken}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        
-        if (healthResponse.ok) {
-          const healthData = await healthResponse.json()
-          // Handle both string and object statuses
-          healthStatus = typeof healthData.status === 'object' ? healthData.status.text : healthData.status
-          console.log(`📊 Health status: ${healthStatus}`)
+              // Step 4: Poll /health until channel is ready
+          console.log('🔍 Starting health polling until channel is ready...')
           
-          if (['qr', 'unauthorized', 'connected', 'QR'].includes(healthStatus)) {
-            console.log('✅ Channel is ready!')
-            break
+          let healthStatus = 'initializing'
+          let pollAttempts = 0
+          const maxPollAttempts = 24 // 2 minutes with 5-second intervals
+          
+          while (pollAttempts < maxPollAttempts && !['qr', 'unauthorized', 'connected', 'QR'].includes(healthStatus)) {
+            pollAttempts++
+            console.log(`🔍 Health check attempt ${pollAttempts}/${maxPollAttempts}...`)
+          
+            try {
+              const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${channelToken}`,
+                  'Content-Type': 'application/json'
+                }
+              })
+          
+              if (healthResponse.ok) {
+                const healthData = await healthResponse.json()
+                healthStatus = typeof healthData.status === 'object' ? healthData.status.text : healthData.status
+                console.log(`📊 Health status: ${healthStatus}`)
+              } else {
+                console.log(`⚠️ Health check failed: ${healthResponse.status}`)
+              }
+            } catch (error) {
+              console.log(`⚠️ Health check error: ${error.message}`)
+            }
+          
+            if (pollAttempts < maxPollAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
+            }
           }
-        } else {
-          console.log(`⚠️ Health check failed: ${healthResponse.status}`)
-        }
-      } catch (error) {
-        console.log(`⚠️ Health check error: ${error.message}`)
-      }
-      
-      // Wait 5 seconds before next poll
-      if (pollAttempts < maxPollAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 5000))
-      }
-    }
-    
-        // Update status based on polling result
-      let finalStatus = 'unauthorized'
-      
-      const normalizedStatus = (healthStatus || '').toLowerCase()
-      
-      if (normalizedStatus === 'connected') {
-        finalStatus = 'connected'
-      } else if (normalizedStatus === 'qr' || normalizedStatus === 'unauthorized') {
-      finalStatus = 'unauthorized'
-      }
-      } else {
-        console.log(`⚠️ Channel did not become ready in time. Health status: ${healthStatus}`)
-      }
+          
+          // ✅ After polling ends, determine final status
+          let finalStatus = 'initializing'
+          const normalizedStatus = (healthStatus || '').toLowerCase()
+          
+          if (normalizedStatus === 'connected') {
+            finalStatus = 'connected'
+          } else if (['qr', 'unauthorized'].includes(normalizedStatus)) {
+            finalStatus = 'unauthorized'
+          } else {
+            console.log(`⚠️ Channel did not become ready in time. Final health status: ${normalizedStatus}`)
+          }
 
-    
+      
     await supabase
       .from('profiles')
       .update({
