@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     // Get user's WHAPI token
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whapi_token, instance_id')
+      .select('whapi_token, instance_id, instance_status')
       .eq('id', userId)
       .single()
 
@@ -50,7 +50,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🔧 FIXED: Use /users/profile endpoint to detect connection properly
+    console.log('📊 Current DB status:', profile.instance_status)
+
+    // 🔧 FIXED: Use /users/profile endpoint to detect connection
     console.log('📊 Checking users/profile endpoint...')
     const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
       method: 'GET',
@@ -64,6 +66,18 @@ Deno.serve(async (req) => {
 
     if (!profileResponse.ok) {
       console.log('❌ Profile endpoint failed:', profileResponse.status)
+      
+      // If unauthorized, update DB status
+      if (profileResponse.status === 401 || profileResponse.status === 403) {
+        await supabase
+          .from('profiles')
+          .update({
+            instance_status: 'unauthorized',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+      }
+      
       return new Response(
         JSON.stringify({
           connected: false,
@@ -76,22 +90,25 @@ Deno.serve(async (req) => {
     }
 
     const profileData = await profileResponse.json()
-    console.log('📊 Profile response:', JSON.stringify(profileData, null, 2))
+    console.log('📊 Profile response data:', JSON.stringify(profileData, null, 2))
 
     // 🔧 FIXED: Check for connection based on user profile response
-    // If we get a successful response with phone number, user is connected
+    // If we get a successful response with user data, user is connected
     const isConnected = !!(
-      profileData.phone || 
+      profileData.name || 
       profileData.id ||
-      profileData.name
+      profileData.phone ||
+      profileData.about !== undefined // Even if about is empty, it means profile exists
     )
 
     if (isConnected) {
       const phoneNumber = profileData.phone || profileData.id || 'Connected'
-      console.log('✅ User is connected:', phoneNumber)
+      const userName = profileData.name || 'User'
       
-      // Update database status
-      await supabase
+      console.log('✅ User is connected:', { phone: phoneNumber, name: userName })
+      
+      // 🚀 CRUCIAL: Update database status to connected
+      const { error: updateError } = await supabase
         .from('profiles')
         .update({
           instance_status: 'connected',
@@ -99,11 +116,18 @@ Deno.serve(async (req) => {
         })
         .eq('id', userId)
 
+      if (updateError) {
+        console.error('❌ Failed to update database:', updateError)
+      } else {
+        console.log('✅ Database updated to connected status')
+      }
+
       return new Response(
         JSON.stringify({
           connected: true,
           status: 'connected',
           phone: phoneNumber,
+          name: userName,
           message: 'WhatsApp is connected',
           profile_data: profileData // Include for debugging
         }),
@@ -111,14 +135,22 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Not connected
-    console.log('📊 No connection detected from profile response')
+    // Not connected - profile exists but no user data
+    console.log('📊 Profile endpoint succeeded but no user data found - likely not connected')
+
+    await supabase
+      .from('profiles')
+      .update({
+        instance_status: 'unauthorized',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
 
     return new Response(
       JSON.stringify({
         connected: false,
         status: 'unauthorized',
-        message: 'WhatsApp not connected',
+        message: 'WhatsApp not connected - no profile data',
         profile_data: profileData // Include for debugging
       }),
       { status: 200, headers: corsHeaders }
