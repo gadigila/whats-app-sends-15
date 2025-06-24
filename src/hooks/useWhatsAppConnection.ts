@@ -38,29 +38,33 @@ export const useWhatsAppConnection = () => {
           
           console.log(`📊 Status check result:`, data);
           
-             if (data?.connected === true) {
-          console.log('✅ Connection detected! Stopping polling...');
-          return {
-            connected: true,
-            phone: data.phone || 'Connected',
-            status: data.status || 'connected',
-            message: 'WhatsApp connected successfully!'
-          };
-        }
-        
-        // If not connected yet, wait before next attempt
-        if (attempt < 40) {
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
+          // 🔧 ENHANCED DEBUG: Let's see exactly what we're getting
+          console.log('🔍 Debug connection check:', {
+            dataConnected: data?.connected,
+            dataConnectedType: typeof data?.connected,
+            strictCheck: data?.connected === true,
+            dataStatus: data?.status,
+            dataPhone: data?.phone
+          });
+          
+          if (data?.connected === true) {
+            console.log('✅ Connection detected! Stopping polling...');
+            return {
+              connected: true,
+              phone: data.phone || 'Connected',
+              status: data.status || 'connected',
+              message: 'WhatsApp connected successfully!'
+            };
+          }
                   
         } catch (checkError) {
           console.error(`❌ Check attempt ${attempt} failed:`, checkError);
-          // Continue polling even if one attempt fails
-          if (attempt < 40) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          }
         }
-      }
+        
+        // Wait before next attempt (MOVED OUTSIDE try/catch)
+        if (attempt < 40) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
       
       // If we get here, polling timed out
       throw new Error('Connection timeout - WhatsApp was not connected within 2 minutes');
