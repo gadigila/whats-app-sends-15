@@ -1,9 +1,14 @@
+
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+}
+
+interface StatusCheckRequest {
+  userId: string
 }
 
 Deno.serve(async (req) => {
@@ -16,7 +21,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { userId } = await req.json()
+    const { userId }: StatusCheckRequest = await req.json()
 
     if (!userId) {
       return new Response(
@@ -25,137 +30,82 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('🔍 CORRECTED Status Check for user:', userId)
+    console.log('🔍 Checking status for user:', userId)
 
     // Get user's WHAPI token
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whapi_token, instance_id, instance_status')
+      .select('whapi_token, instance_id')
       .eq('id', userId)
       .single()
 
     if (profileError || !profile?.whapi_token) {
+      console.error('❌ No WHAPI token found for user')
       return new Response(
         JSON.stringify({ 
           connected: false,
-          status: 'no_channel',
-          message: 'No WhatsApp channel found'
+          status: 'no_token',
+          error: 'No WhatsApp instance found'
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    console.log('📊 Current DB status:', profile.instance_status)
-
-    try {
-      // Use ONLY the documented /health endpoint
-      console.log('📊 Checking /health endpoint...')
-      const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${profile.whapi_token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (!healthResponse.ok) {
-        console.log('❌ Health check failed:', healthResponse.status)
-        
-        if (healthResponse.status === 401) {
-          // Token invalid, clean up
-          await supabase
-            .from('profiles')
-            .update({
-              instance_status: 'disconnected',
-              whapi_token: null,
-              instance_id: null,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId)
-        }
-
-        return new Response(
-          JSON.stringify({
-            connected: false,
-            status: 'unhealthy',
-            message: 'Channel not responding'
-          }),
-          { status: 200, headers: corsHeaders }
-        )
+    // Check status using /me endpoint
+    const meResponse = await fetch(`https://gate.whapi.cloud/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${profile.whapi_token}`,
+        'Content-Type': 'application/json'
       }
+    })
 
-      const healthData = await healthResponse.json()
-      console.log('📊 Health data:', healthData)
-
-      // Determine status based on /health response only
-      let connected = false
-      let currentStatus = 'unknown'
-      let message = 'Unknown status'
-      let phone = null
-
-      if (healthData.status === 'connected' && healthData.me?.phone) {
-        // Connected with phone number
-        connected = true
-        currentStatus = 'connected'
-        phone = healthData.me.phone
-        message = 'WhatsApp is connected and ready'
-        console.log('✅ CONNECTED! Phone:', phone)
-      } else if (healthData.status === 'unauthorized' || healthData.status === 'qr') {
-        // Needs QR scan
-        currentStatus = 'unauthorized'
-        message = 'Waiting for QR scan'
-        console.log('🔲 Needs QR scan')
-      } else if (healthData.status === 'initializing' || healthData.status === 'starting') {
-        // Still starting up
-        currentStatus = 'initializing'
-        message = 'Channel still starting up'
-        console.log('⏳ Still initializing')
-      } else {
-        // Other status
-        currentStatus = healthData.status || 'unknown'
-        message = `Status: ${currentStatus}`
-        console.log('📊 Status:', currentStatus)
-      }
-
-      // Update database if status changed
-      if (profile.instance_status !== currentStatus) {
-        console.log(`🔄 Updating status from ${profile.instance_status} to ${currentStatus}`)
-        
-        await supabase
-          .from('profiles')
-          .update({
-            instance_status: currentStatus,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userId)
-      }
-
-      return new Response(
-        JSON.stringify({
-          connected,
-          status: currentStatus,
-          phone,
-          message,
-          instance_id: profile.instance_id,
-          health_status: healthData.status,
-          changed: profile.instance_status !== currentStatus
-        }),
-        { status: 200, headers: corsHeaders }
-      )
-
-    } catch (fetchError) {
-      console.error('💥 Error checking WHAPI health:', fetchError)
-      
+    if (!meResponse.ok) {
+      console.log('❌ /me endpoint failed, user not connected')
       return new Response(
         JSON.stringify({
           connected: false,
-          status: 'error',
-          message: 'Failed to check WhatsApp status',
-          error: fetchError.message
+          status: 'unauthorized',
+          message: 'WhatsApp not connected'
         }),
         { status: 200, headers: corsHeaders }
       )
     }
+
+    const meData = await meResponse.json()
+    console.log('📱 /me response:', meData)
+
+    if (meData.phone) {
+      console.log('✅ User is connected:', meData.phone)
+      
+      // Update database status
+      await supabase
+        .from('profiles')
+        .update({
+          instance_status: 'connected',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+
+      return new Response(
+        JSON.stringify({
+          connected: true,
+          status: 'connected',
+          phone: meData.phone,
+          message: 'WhatsApp is connected'
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
+    return new Response(
+      JSON.stringify({
+        connected: false,
+        status: 'unauthorized',
+        message: 'WhatsApp not connected'
+      }),
+      { status: 200, headers: corsHeaders }
+    )
 
   } catch (error) {
     console.error('💥 Status Check Error:', error)
@@ -163,9 +113,10 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         connected: false,
         status: 'error',
-        error: 'Internal server error'
+        error: 'Failed to check status',
+        details: error.message
       }),
-      { status: 500, headers: corsHeaders }
+      { status: 200, headers: corsHeaders }
     )
   }
 })

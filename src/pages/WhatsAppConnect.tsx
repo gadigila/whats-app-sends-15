@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import WhatsAppLoadingState from '@/components/WhatsAppLoadingState';
 import WhatsAppConnectedView from '@/components/WhatsAppConnectedView';
 import WhatsAppInitialState from '@/components/WhatsAppInitialState';
+import WhatsAppQRDisplay from '@/components/WhatsAppQRDisplay';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
@@ -12,21 +13,14 @@ import { toast } from '@/hooks/use-toast';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
-  const { data: profile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile();
+  const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const { 
-    createChannel, 
-    getQRCode, 
-    checkStatus, 
-    startConnectionPolling,
-    isCreatingChannel, 
-    isGettingQR 
-  } = useWhatsAppSimple();
+  const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
-  const pollingCleanupRef = useRef<(() => void) | null>(null);
+  const [isPollingForQR, setIsPollingForQR] = useState(false);
+  const [pollingAttempts, setPollingAttempts] = useState(0);
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
@@ -34,35 +28,93 @@ const WhatsAppConnect = () => {
     profileStatus: profile?.instance_status,
     hasInstanceId: !!profile?.instance_id,
     qrCode: !!qrCode,
-    isPolling
+    isPollingForQR,
+    pollingAttempts
   });
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollingCleanupRef.current) {
-        pollingCleanupRef.current();
-      }
-    };
-  }, []);
-
-  // Auto-get QR when channel is ready
-  useEffect(() => {
-    const shouldGetQR = 
-      profile?.instance_id && 
-      ['unauthorized', 'initializing'].includes(profile?.instance_status || '') &&
-      !qrCode && 
-      !isGettingQR &&
-      !isCreatingChannel;
-    
-    if (shouldGetQR) {
-      console.log('🚀 Auto-getting QR code...');
-      handleGetQR();
+  // Simplified QR polling
+  const pollForQR = async () => {
+    if (pollingAttempts >= 30) { // Max 30 attempts = 1.5 minutes
+      console.error('❌ Max polling attempts reached');
+      setIsPollingForQR(false);
+      setPollingAttempts(0);
+      toast({
+        title: "שגיאה",
+        description: "לא הצלחנו לקבל קוד QR. נסה ליצור ערוץ חדש",
+        variant: "destructive",
+      });
+      return;
     }
-  }, [profile?.instance_status, profile?.instance_id]);
+
+    try {
+      console.log(`🔄 Polling attempt ${pollingAttempts + 1}/30`);
+      const result = await getQRCode.mutateAsync();
+      
+      console.log('📤 Poll result:', {
+        success: result.success,
+        hasQrCode: !!result.qr_code,
+        alreadyConnected: result.already_connected
+      });
+      
+      if (result.already_connected) {
+        console.log('✅ Already connected!');
+        setIsPollingForQR(false);
+        setPollingAttempts(0);
+        await refetchProfile();
+        return;
+      }
+      
+      if (result.qr_code && result.qr_code.trim() !== '') {
+        console.log('✅ QR code found! Setting in state...');
+        setQrCode(result.qr_code);
+        setIsPollingForQR(false);
+        setPollingAttempts(0);
+        return;
+      }
+      
+      // Continue polling
+      setPollingAttempts(prev => prev + 1);
+      setTimeout(() => {
+        if (isPollingForQR) {
+          pollForQR();
+        }
+      }, 3000);
+      
+    } catch (error) {
+      console.error('❌ Polling error:', error);
+      setPollingAttempts(prev => prev + 1);
+      
+      // Retry on error
+      setTimeout(() => {
+        if (isPollingForQR && pollingAttempts < 30) {
+          pollForQR();
+        }
+      }, 5000);
+    }
+  };
+
+  // Start polling when channel is ready
+  useEffect(() => {
+    const shouldPoll = 
+      profile?.instance_id && 
+      ['unauthorized', 'qr', 'active', 'ready'].includes(profile?.instance_status || '') &&
+      !qrCode && 
+      !isPollingForQR;
+    
+    if (shouldPoll) {
+      console.log('🚀 Starting QR polling...');
+      setIsPollingForQR(true);
+      setPollingAttempts(0);
+      
+      // Start polling after a short delay
+      setTimeout(() => {
+        pollForQR();
+      }, 2000);
+    }
+  }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR]);
 
   // Loading states
-  if (!isAuthReady || profileLoading) {
+  if (!isAuthReady || (profileLoading && !profileError)) {
     return <WhatsAppLoadingState />;
   }
 
@@ -70,7 +122,7 @@ const WhatsAppConnect = () => {
     return (
       <Layout>
         <div className="max-w-2xl mx-auto text-center py-8">
-          <p className="text-gray-600">יש להתחבר תחילה</p>
+          <p className="text-gray-600">יש לך להתחבר תחילה</p>
         </div>
       </Layout>
     );
@@ -91,14 +143,11 @@ const WhatsAppConnect = () => {
         }}
         onDisconnect={async () => {
           try {
-            if (pollingCleanupRef.current) {
-              pollingCleanupRef.current();
-              pollingCleanupRef.current = null;
-            }
             await deleteInstance.mutateAsync();
             await refetchProfile();
             setQrCode(null);
-            setIsPolling(false);
+            setIsPollingForQR(false);
+            setPollingAttempts(0);
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
           }
@@ -109,7 +158,7 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Event handlers
+  // Channel creation
   const handleCreateChannel = async () => {
     try {
       await createChannel.mutateAsync();
@@ -119,69 +168,12 @@ const WhatsAppConnect = () => {
     }
   };
 
-  const handleGetQR = async () => {
-    try {
-      const result = await getQRCode.mutateAsync();
-      
-      if (result.already_connected) {
-        await refetchProfile();
-      } else if (result.qr_code) {
-        setQrCode(result.qr_code_url || result.qr_code);
-        
-        // Start AGGRESSIVE polling for connection
-        console.log('🔄 Starting aggressive connection detection...');
-        setIsPolling(true);
-        
-        // Stop any existing polling
-        if (pollingCleanupRef.current) {
-          pollingCleanupRef.current();
-        }
-        
-        pollingCleanupRef.current = startConnectionPolling(async () => {
-          console.log('✅ Connection detected by polling!');
-          setIsPolling(false);
-          setQrCode(null);
-          await refetchProfile();
-          pollingCleanupRef.current = null;
-        });
-      }
-    } catch (error) {
-      console.error('❌ QR failed:', error);
-    }
-  };
-
+  // Manual QR refresh
   const handleRefreshQR = async () => {
-    // Stop current polling
-    if (pollingCleanupRef.current) {
-      pollingCleanupRef.current();
-      pollingCleanupRef.current = null;
-    }
-    setIsPolling(false);
     setQrCode(null);
-    await handleGetQR();
-  };
-
-  const handleManualCheck = async () => {
-    try {
-      const result = await checkStatus.mutateAsync();
-      
-      if (result.connected) {
-        if (pollingCleanupRef.current) {
-          pollingCleanupRef.current();
-          pollingCleanupRef.current = null;
-        }
-        setIsPolling(false);
-        setQrCode(null);
-        await refetchProfile();
-      } else {
-        toast({
-          title: "עדיין לא מחובר",
-          description: `סטטוס: ${result.status}`,
-        });
-      }
-    } catch (error) {
-      console.error('❌ Manual status check failed:', error);
-    }
+    setIsPollingForQR(true);
+    setPollingAttempts(0);
+    pollForQR();
   };
 
   return (
@@ -195,10 +187,8 @@ const WhatsAppConnect = () => {
         </div>
 
         {/* No channel */}
-              {!profile?.instance_id && (
-              <WhatsAppInitialState 
-              onCreateChannel={handleCreateChannel}
-              />
+        {!profile?.instance_id && (
+          <WhatsAppInitialState onCreateChannel={handleCreateChannel} />
         )}
 
         {/* Channel creating */}
@@ -210,25 +200,30 @@ const WhatsAppConnect = () => {
           </div>
         )}
 
-        {/* Channel ready, getting QR */}
+        {/* Waiting for QR */}
         {profile?.instance_id && 
-         ['unauthorized', 'initializing'].includes(profile?.instance_status || '') && 
+         ['unauthorized', 'qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && 
          !qrCode && 
          !isCreatingChannel && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
             <div className="text-yellow-800">
-              {isGettingQR ? (
+              {isPollingForQR ? (
                 <>
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600 mx-auto mb-4"></div>
-                  <h3 className="text-lg font-semibold mb-2">מקבל קוד QR...</h3>
-                  <p className="text-sm">הערוץ מוכן, מכין קוד QR</p>
+                  <h3 className="text-lg font-semibold mb-2">מחכה לקוד QR...</h3>
+                  <p className="text-sm mb-2">הערוץ מוכן, מקבל קוד QR</p>
+                  <p className="text-xs">ניסיון {pollingAttempts + 1} מתוך 30</p>
                 </>
               ) : (
                 <>
                   <h3 className="text-lg font-semibold mb-2">ערוץ מוכן</h3>
-                  <p className="text-sm mb-4">לחץ לקבלת קוד QR</p>
+                  <p className="text-sm mb-4">הערוץ נוצר, ממתין לקוד QR</p>
                   <button
-                    onClick={handleGetQR}
+                    onClick={() => {
+                      setIsPollingForQR(true);
+                      setPollingAttempts(0);
+                      pollForQR();
+                    }}
                     className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
                   >
                     קבל קוד QR
@@ -239,121 +234,13 @@ const WhatsAppConnect = () => {
           </div>
         )}
 
-        {/* QR Code Display with AGGRESSIVE polling indicator */}
+        {/* QR Code Display */}
         {qrCode && (
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold mb-4">סרוק את קוד ה-QR</h3>
-              
-              <div className="mb-4">
-                <img 
-                  src={qrCode} 
-                  alt="QR Code" 
-                  className="mx-auto border rounded-lg"
-                  style={{ maxWidth: '300px', width: '100%' }}
-                />
-              </div>
-              
-              {/* ENHANCED: Aggressive polling indicator */}
-              {isPolling && (
-                <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center justify-center space-x-3 mb-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                    <div className="animate-pulse rounded-full h-2 w-2 bg-green-500"></div>
-                    <div className="animate-bounce rounded-full h-2 w-2 bg-blue-500"></div>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-blue-700 font-semibold text-sm">🔍 מזהה חיבור באופן אוטומטי</span>
-                    <p className="text-xs text-blue-600 mt-1">
-                      בודק כל 3 שניות • זיהוי מיידי לאחר סריקה
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              <div className="space-y-2 mb-6">
-                <p className="text-sm text-gray-600">
-                  📱 1. פתח את הוואטסאפ בטלפון שלך
-                </p>
-                <p className="text-sm text-gray-600">
-                  ⚙️ 2. לך ל"הגדרות" → "מכשירים מקושרים"
-                </p>
-                <p className="text-sm text-gray-600">
-                  📷 3. סרוק את הקוד הזה
-                </p>
-                <div className="mt-3 p-2 bg-green-50 border border-green-200 rounded">
-                  <p className="text-xs text-green-700">
-                    ✨ החיבור יזוהה אוטומטית תוך שניות מהסריקה
-                  </p>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="flex justify-center space-x-4">
-                  <button
-                    onClick={handleRefreshQR}
-                    disabled={isGettingQR}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
-                  >
-                    🔄 רענן QR
-                  </button>
-                  <button
-                    onClick={handleManualCheck}
-                    disabled={checkStatus.isPending}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {checkStatus.isPending ? '🔍 בודק...' : '✅ בדוק חיבור'}
-                  </button>
-                </div>
-                
-                {isPolling && (
-                  <button
-                    onClick={() => {
-                      if (pollingCleanupRef.current) {
-                        pollingCleanupRef.current();
-                        pollingCleanupRef.current = null;
-                      }
-                      setIsPolling(false);
-                    }}
-                    className="px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200"
-                  >
-                    🛑 עצור זיהוי אוטומטי
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Enhanced Debug info */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <h4 className="font-semibold mb-2">🔧 Debug Info:</h4>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <strong>Instance:</strong>
-                <pre className="text-gray-600 mt-1">
-                  {JSON.stringify({
-                    hasInstanceId: !!profile?.instance_id,
-                    instanceStatus: profile?.instance_status,
-                    instanceId: profile?.instance_id?.substring(0, 20) + '...'
-                  }, null, 2)}
-                </pre>
-              </div>
-              <div>
-                <strong>State:</strong>
-                <pre className="text-gray-600 mt-1">
-                  {JSON.stringify({
-                    hasQrCode: !!qrCode,
-                    isPolling,
-                    isGettingQR,
-                    isCreatingChannel,
-                    hasPollingCleanup: !!pollingCleanupRef.current
-                  }, null, 2)}
-                </pre>
-              </div>
-            </div>
-          </div>
+          <WhatsAppQRDisplay 
+            qrCode={qrCode} 
+            onRefreshQR={handleRefreshQR}
+            isRefreshing={isPollingForQR}
+          />
         )}
       </div>
     </Layout>
