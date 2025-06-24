@@ -3,12 +3,36 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
+// 🆕 Add TypeScript interfaces
+interface QRCodeResponse {
+  success: boolean;
+  qr_code?: string;
+  qr_code_url?: string;
+  already_connected?: boolean;
+  base64?: string;
+  _original?: any;
+  _parsed?: any;
+  _debug?: {
+    detectedQrField: string;
+    dataType: string;
+    parsedDataType: string;
+    responseKeys: string[];
+  };
+}
+
+interface CreateChannelResponse {
+  success: boolean;
+  channel_id: string;
+  message: string;
+  [key: string]: any;
+}
+
 export const useWhatsAppSimple = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   // Create channel with 90-second wait
-  const createChannel = useMutation({
+  const createChannel = useMutation<CreateChannelResponse, Error, void>({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
@@ -44,8 +68,8 @@ export const useWhatsAppSimple = () => {
   });
 
   // Get QR code with FIXED response handling
-  const getQRCode = useMutation({
-    mutationFn: async () => {
+  const getQRCode = useMutation<QRCodeResponse, Error, void>({
+    mutationFn: async (): Promise<QRCodeResponse> => {
       if (!user?.id) throw new Error('No user ID');
       
       console.log('🔲 Getting QR code...');
@@ -114,52 +138,12 @@ export const useWhatsAppSimple = () => {
         dataPreview: typeof data === 'string' ? data.substring(0, 100) + '...' : 'not string',
         parsedDataType: typeof parsedData
       });
-
-
-        // 🆕 ADD THIS NEW MUTATION HERE (after getQRCode, before the return statement)
-        const checkConnectionStatus = useMutation({
-          mutationFn: async () => {
-            if (!user?.id) throw new Error('No user ID');
-            
-            const { data, error } = await supabase.functions.invoke('whapi-check-status', {
-              body: { userId: user.id }
-            });
-            
-            if (error) throw error;
-            if (data?.error) throw new Error(data.error);
-            
-            return data;
-          },
-          onSuccess: (data) => {
-            if (data.connected && data.status === 'connected') {
-              console.log('✅ WhatsApp connected!', data.phone);
-              queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-              queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-              
-              toast({
-                title: "וואטסאפ מחובר!",
-                description: `חובר בהצלחה למספר: ${data.phone}`,
-              });
-            }
-          }
-        });
-        
-        // Add to your return statement
-        return {
-          createChannel,
-          getQRCode,
-          checkConnectionStatus, // Add this
-          isCreatingChannel: createChannel.isPending,
-          isGettingQR: getQRCode.isPending
-        };
-
-
       
       // Return enhanced data with guaranteed QR fields
       return {
         success: !!qrCode,
-        qr_code: qrCode,
-        qr_code_url: qrCodeUrl,
+        qr_code: qrCode || undefined,
+        qr_code_url: qrCodeUrl || undefined,
         already_connected: parsedData?.already_connected || false,
         // Preserve original response for debugging
         _original: data,
