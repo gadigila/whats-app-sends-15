@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Shield, Crown } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Shield, Star } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 
@@ -235,7 +235,7 @@ const Segments = () => {
                     {/* 👑 טוגל קבוצות מנהל */}
                     <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
                       <div className="flex items-center gap-2">
-                        <Crown className="h-4 w-4 text-amber-600" />
+                        <Star className="h-4 w-4 text-amber-600" />
                         <span className="text-sm font-medium text-amber-900">
                           הצג רק קבוצות שאני מנהל ({groupStats.adminGroups} מתוך {groupStats.totalGroups})
                         </span>
@@ -335,9 +335,9 @@ const Segments = () => {
                                   group.name
                                 )}
                               </label>
-                              {/* 👑 אייקון מנהל */}
+                              {/* ⭐ אייקון מנהל */}
                               {group.is_admin && (
-                                <Crown className="h-3 w-3 text-amber-500" title="אתה מנהל בקבוצה זו" />
+                                <Star className="h-3 w-3 text-amber-500" title="אתה מנהל בקבוצה זו" />
                               )}
                             </div>
                             <p className="text-xs text-gray-500">
@@ -424,7 +424,7 @@ const Segments = () => {
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-50 rounded-lg">
-                  <Crown className="h-5 w-5 text-amber-600" />
+                  <Star className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">קבוצות מנהל</p>
