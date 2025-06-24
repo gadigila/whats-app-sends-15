@@ -148,8 +148,8 @@ const WhatsAppConnect = () => {
   // Handle QR code request with timing validation
   const handleGetQR = async () => {
     // NEW: Check if enough time has passed
-    if (!canRequestQR()) {
-      const remainingTime = getRemainingWaitTime();
+    if (!canRequestQR) {
+  const remainingTime = getRemainingWaitTime;
       toast({
         title: "יש להמתין עוד",
         description: `WHAPI ממליץ להמתין 2 דקות לאחר יצירת הערוץ. נותרו ${remainingTime} שניות`,
@@ -265,7 +265,7 @@ const WhatsAppConnect = () => {
       </p>
       <button
         onClick={handleGetQR}
-        disabled={isGettingQR || !canRequestQR()}
+        disabled={isGettingQR || !canRequestQR}
         className={`px-6 py-3 rounded-lg font-medium transition-colors ${
           canRequestQR() && !isGettingQR()
             ? 'bg-blue-600 text-white hover:bg-blue-700'
