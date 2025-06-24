@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -51,8 +50,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check status using /me endpoint
-    const meResponse = await fetch(`https://gate.whapi.cloud/me`, {
+    // 🔧 FIXED: Use correct /health endpoint
+    console.log('📊 Checking health endpoint...')
+    const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${profile.whapi_token}`,
@@ -60,23 +60,35 @@ Deno.serve(async (req) => {
       }
     })
 
-    if (!meResponse.ok) {
-      console.log('❌ /me endpoint failed, user not connected')
+    if (!healthResponse.ok) {
+      console.log('❌ Health endpoint failed:', healthResponse.status)
       return new Response(
         JSON.stringify({
           connected: false,
           status: 'unauthorized',
-          message: 'WhatsApp not connected'
+          message: 'WhatsApp not connected',
+          http_status: healthResponse.status
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    const meData = await meResponse.json()
-    console.log('📱 /me response:', meData)
+    const healthData = await healthResponse.json()
+    console.log('📊 Health response:', JSON.stringify(healthData, null, 2))
 
-    if (meData.phone) {
-      console.log('✅ User is connected:', meData.phone)
+    // 🔧 FIXED: Check for connection based on WHAPI health response format
+    // According to WHAPI docs, when connected the response includes user info
+    const isConnected = !!(
+      healthData.me?.phone || 
+      healthData.phone || 
+      healthData.user?.phone ||
+      (healthData.status === 'connected') ||
+      (healthData.health?.status?.text === 'CONNECTED')
+    )
+
+    if (isConnected) {
+      const phoneNumber = healthData.me?.phone || healthData.phone || healthData.user?.phone || 'Unknown'
+      console.log('✅ User is connected:', phoneNumber)
       
       // Update database status
       await supabase
@@ -91,18 +103,24 @@ Deno.serve(async (req) => {
         JSON.stringify({
           connected: true,
           status: 'connected',
-          phone: meData.phone,
-          message: 'WhatsApp is connected'
+          phone: phoneNumber,
+          message: 'WhatsApp is connected',
+          health_data: healthData // Include for debugging
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
+    // Not connected - check specific status
+    const healthStatus = healthData.health?.status?.text || healthData.status || 'unknown'
+    console.log('📊 Health status:', healthStatus)
+
     return new Response(
       JSON.stringify({
         connected: false,
-        status: 'unauthorized',
-        message: 'WhatsApp not connected'
+        status: healthStatus.toLowerCase(),
+        message: `WhatsApp status: ${healthStatus}`,
+        health_data: healthData // Include for debugging
       }),
       { status: 200, headers: corsHeaders }
     )
