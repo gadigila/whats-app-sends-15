@@ -30,7 +30,7 @@ export const useWhatsAppSimple = () => {
       
       toast({
         title: "ערוץ נוצר בהצלחה",
-        description: "כעת תוכל לקבל קוד QR",
+        description: "כעת מחכה לקוד QR",
       });
     },
     onError: (error: any) => {
@@ -43,7 +43,7 @@ export const useWhatsAppSimple = () => {
     }
   });
 
-  // Get QR code with enhanced response handling
+  // Get QR code with FIXED response handling
   const getQRCode = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
@@ -64,46 +64,68 @@ export const useWhatsAppSimple = () => {
         throw new Error(data.error);
       }
       
-      // Enhanced debugging of response data
-      console.log('📤 Full QR response:', JSON.stringify(data, null, 2));
+      // FIXED: Enhanced debugging of response data
+      console.log('📤 Raw QR response from backend:', JSON.stringify(data, null, 2));
       
-      // Check all possible QR field names
-      const qrCode = data.qr_code || data.qr_code_url || data.base64 || data.qr || data.image;
-      const qrCodeUrl = data.qr_code_url || data.qr_code || data.base64 || data.qr || data.image;
+      // FIXED: The real issue - your logs show the QR is at the ROOT level of response
+      // Not nested in data.qr_code, but directly as data which IS the qr_code
+      let qrCode = null;
+      let qrCodeUrl = null;
       
-      console.log('🔍 QR field analysis:', {
-        hasQrCode: !!data.qr_code,
-        hasQrCodeUrl: !!data.qr_code_url,
-        hasBase64: !!data.base64,
-        hasQr: !!data.qr,
-        hasImage: !!data.image,
-        finalQrCode: !!qrCode,
-        finalQrCodeUrl: !!qrCodeUrl,
-        alreadyConnected: data.already_connected
+      // Check if data itself is the QR string (which your logs suggest)
+      if (typeof data === 'string' && data.startsWith('data:image')) {
+        qrCode = data;
+        qrCodeUrl = data;
+        console.log('✅ Found QR as direct string response');
+      }
+      // Check if data has qr_code field
+      else if (data?.qr_code) {
+        qrCode = data.qr_code;
+        qrCodeUrl = data.qr_code;
+        console.log('✅ Found QR in qr_code field');
+      }
+      // Check other possible fields
+      else if (data?.qr_code_url) {
+        qrCode = data.qr_code_url;
+        qrCodeUrl = data.qr_code_url;
+        console.log('✅ Found QR in qr_code_url field');
+      }
+      else if (data?.base64) {
+        qrCode = data.base64;
+        qrCodeUrl = data.base64;
+        console.log('✅ Found QR in base64 field');
+      }
+      
+      console.log('🔍 FINAL QR detection:', {
+        dataType: typeof data,
+        dataKeys: typeof data === 'object' ? Object.keys(data || {}) : 'not object',
+        foundQrCode: !!qrCode,
+        qrLength: qrCode?.length || 0,
+        dataPreview: typeof data === 'string' ? data.substring(0, 50) + '...' : 'not string'
       });
       
-      // Return enhanced data with multiple field options
+      // Return enhanced data with guaranteed QR fields
       return {
-        ...data,
+        success: !!qrCode,
         qr_code: qrCode,
         qr_code_url: qrCodeUrl,
-        // Add debug info
+        already_connected: data?.already_connected || false,
+        // Preserve original response for debugging
+        _original: data,
         _debug: {
-          originalResponse: data,
           detectedQrField: qrCode ? 'found' : 'not_found',
-          availableFields: Object.keys(data)
+          dataType: typeof data,
+          responseKeys: typeof data === 'object' ? Object.keys(data || {}) : []
         }
       };
     },
     onSuccess: (data) => {
       // Enhanced logging
-      const qrCode = data.qr_code || data.qr_code_url || data.base64 || data.qr || data.image;
-      
       console.log('✅ QR mutation success:', {
-        hasQrCode: !!qrCode,
+        success: data.success,
+        hasQrCode: !!data.qr_code,
         hasQrCodeUrl: !!data.qr_code_url,
         alreadyConnected: data.already_connected,
-        responseKeys: Object.keys(data),
         debugInfo: data._debug
       });
       
@@ -113,9 +135,9 @@ export const useWhatsAppSimple = () => {
         
         toast({
           title: "כבר מחובר!",
-          description: `הוואטסאפ שלך כבר מחובר: ${data.phone || 'מספר לא זמין'}`,
+          description: "הוואטסאפ שלך כבר מחובר ומוכן לשימוש",
         });
-      } else if (qrCode) {
+      } else if (data.qr_code) {
         toast({
           title: "קוד QR מוכן",
           description: "סרוק את הקוד עם הוואטסאפ שלך",
