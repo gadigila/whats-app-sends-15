@@ -10,13 +10,14 @@ import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const { createChannel, getQRCode, checkConnectionStatus, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
+  const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isPollingForQR, setIsPollingForQR] = useState(false);
@@ -97,7 +98,7 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // 🆕 NEW: Connection status polling function
+  // 🆕 NEW: Connection status polling function (using supabase directly)
   const pollForConnection = async () => {
     if (connectionPollingAttempts >= 60) { // Max 60 attempts = 5 minutes
       console.log('❌ Max connection polling attempts reached');
@@ -113,13 +114,28 @@ const WhatsAppConnect = () => {
 
     try {
       console.log(`🔍 Checking connection status... attempt ${connectionPollingAttempts + 1}/60`);
-      const result = await checkConnectionStatus.mutateAsync();
       
-      if (result.connected && result.status === 'connected') {
+      // Call the status check function directly
+      const { data, error } = await supabase.functions.invoke('whapi-check-status', {
+        body: { userId: user?.id }
+      });
+      
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || 'Status check failed');
+      }
+      
+      if (data?.connected && data?.status === 'connected') {
         console.log('🎉 Connection detected!');
         setIsPollingConnection(false);
         setConnectionPollingAttempts(0);
         setQrCode(null); // Hide QR code
+        
+        // Show success toast
+        toast({
+          title: "וואטסאפ מחובר!",
+          description: `חובר בהצלחה למספר: ${data.phone || 'לא זוהה'}`,
+        });
+        
         await refetchProfile();
         return;
       }
