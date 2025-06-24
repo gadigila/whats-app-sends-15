@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
 
     // Step 2: Setup webhooks
     console.log('🔗 Setting up webhooks...')
-    const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook-simple`
+    const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook-simple?userId=${userId}`
     
     const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
       method: 'PATCH',

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { useWhatsAppConnection } from './useWhatsAppConnection';
 
 // 🆕 Add TypeScript interfaces
 interface QRCodeResponse {
@@ -30,6 +31,7 @@ interface CreateChannelResponse {
 export const useWhatsAppSimple = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { pollForConnection } = useWhatsAppConnection();
 
   // Create channel with 90-second wait
   const createChannel = useMutation<CreateChannelResponse, Error, void>({
@@ -174,11 +176,17 @@ export const useWhatsAppSimple = () => {
           title: "כבר מחובר!",
           description: "הוואטסאפ שלך כבר מחובר ומוכן לשימוש",
         });
-      } else if (data.qr_code) {
+            } else if (data.qr_code) {
         toast({
           title: "קוד QR מוכן",
           description: "סרוק את הקוד עם הוואטסאפ שלך",
         });
+        
+        // 🆕 START POLLING FOR CONNECTION AFTER QR IS SHOWN
+        setTimeout(() => {
+          console.log('🚀 Starting connection polling after QR display...');
+          pollForConnection.mutate();
+        }, 2000); // Wait 2 seconds then start polling
       } else {
         console.warn('⚠️ No QR code found in successful response');
         toast({
@@ -214,7 +222,8 @@ export const useWhatsAppSimple = () => {
   return {
     createChannel,
     getQRCode,
+    pollForConnection,
     isCreatingChannel: createChannel.isPending,
-    isGettingQR: getQRCode.isPending
+    isGettingQR: getQRCode.isPending,
+    isPollingConnection: pollForConnection.isPending
   };
-};

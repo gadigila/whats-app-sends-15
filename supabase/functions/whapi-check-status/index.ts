@@ -94,11 +94,13 @@ Deno.serve(async (req) => {
 
     // 🔧 FIXED: Check for connection based on user profile response
     // If we get a successful response with user data, user is connected
+    // 🔧 ENHANCED: Better connection detection
     const isConnected = !!(
-      profileData.name || 
-      profileData.id ||
-      profileData.phone ||
-      profileData.about !== undefined // Even if about is empty, it means profile exists
+      profileData.phone ||                     // Phone number is the strongest indicator
+      profileData.name ||                      // Profile name indicates connection
+      profileData.id ||                        // WhatsApp ID indicates connection
+      (profileData.about !== undefined &&     // Profile data exists
+       profileData.status !== 'unauthorized') // And not unauthorized
     )
 
     if (isConnected) {
