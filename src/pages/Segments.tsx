@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Users, Plus, Edit, Trash2, MessageSquare, Search, X } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Shield, Crown } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 
@@ -20,7 +21,7 @@ interface Segment {
 }
 
 const Segments = () => {
-  const { groups, isLoadingGroups } = useWhatsAppGroups();
+  const { groups: allGroups, isLoadingGroups } = useWhatsAppGroups();
   
   const [segments, setSegments] = useState<Segment[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -31,16 +32,38 @@ const Segments = () => {
   // 🔍 חיפוש קבוצות
   const [searchQuery, setSearchQuery] = useState('');
   
-  // סינון קבוצות לפי חיפוש
+  // 👑 סינון קבוצות מנהל
+  const [showOnlyAdminGroups, setShowOnlyAdminGroups] = useState(false);
+  
+  // סינון קבוצות לפי חיפוש ומנהל
   const filteredGroups = useMemo(() => {
-    if (!searchQuery.trim()) return groups;
+    let filtered = allGroups;
     
-    const query = searchQuery.toLowerCase().trim();
-    return groups.filter(group => 
-      group.name.toLowerCase().includes(query) ||
-      (group.description && group.description.toLowerCase().includes(query))
-    );
-  }, [groups, searchQuery]);
+    // סנן לפי מנהל אם נדרש
+    if (showOnlyAdminGroups) {
+      filtered = filtered.filter(group => group.is_admin === true);
+    }
+    
+    // סנן לפי חיפוש
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(group => 
+        group.name.toLowerCase().includes(query) ||
+        (group.description && group.description.toLowerCase().includes(query))
+      );
+    }
+    
+    return filtered;
+  }, [allGroups, searchQuery, showOnlyAdminGroups]);
+
+  // סטטיסטיקות קבוצות
+  const groupStats = useMemo(() => {
+    const totalGroups = allGroups.length;
+    const adminGroups = allGroups.filter(g => g.is_admin).length;
+    const memberGroups = totalGroups - adminGroups;
+    
+    return { totalGroups, adminGroups, memberGroups };
+  }, [allGroups]);
 
   const handleCreateSegment = () => {
     if (!newSegmentName.trim()) {
@@ -62,7 +85,7 @@ const Segments = () => {
     }
 
     const totalMembers = selectedGroupIds.reduce((sum, groupId) => {
-      const group = groups.find(g => g.group_id === groupId);
+      const group = allGroups.find(g => g.group_id === groupId);
       return sum + (group?.participants_count || 0);
     }, 0);
 
@@ -96,7 +119,7 @@ const Segments = () => {
     if (!editingSegment) return;
 
     const totalMembers = selectedGroupIds.reduce((sum, groupId) => {
-      const group = groups.find(g => g.group_id === groupId);
+      const group = allGroups.find(g => g.group_id === groupId);
       return sum + (group?.participants_count || 0);
     }, 0);
 
@@ -140,7 +163,8 @@ const Segments = () => {
     setNewSegmentName('');
     setSelectedGroupIds([]);
     setEditingSegment(null);
-    setSearchQuery(''); // איפוס חיפוש
+    setSearchQuery('');
+    setShowOnlyAdminGroups(false);
   };
 
   const clearSearch = () => {
@@ -149,7 +173,7 @@ const Segments = () => {
 
   const getGroupNames = (groupIds: string[]) => {
     return groupIds.map(id => {
-      const group = groups.find(g => g.group_id === id);
+      const group = allGroups.find(g => g.group_id === id);
       return group?.name || 'קבוצה לא ידועה';
     });
   };
@@ -179,7 +203,7 @@ const Segments = () => {
             <DialogTrigger asChild>
               <Button 
                 className="bg-green-600 hover:bg-green-700"
-                disabled={groups.length === 0}
+                disabled={allGroups.length === 0}
               >
                 <Plus className="h-4 w-4 ml-2" />
                 צור קטגוריה
@@ -206,8 +230,23 @@ const Segments = () => {
                 <div>
                   <Label>בחר קבוצות</Label>
                   
-                  {/* 🔍 שדה חיפוש קבוצות */}
-                  <div className="mt-2 mb-4">
+                  {/* פילטרים */}
+                  <div className="mt-3 space-y-3">
+                    {/* 👑 טוגל קבוצות מנהל */}
+                    <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-2">
+                        <Crown className="h-4 w-4 text-amber-600" />
+                        <span className="text-sm font-medium text-amber-900">
+                          הצג רק קבוצות שאני מנהל ({groupStats.adminGroups} מתוך {groupStats.totalGroups})
+                        </span>
+                      </div>
+                      <Switch
+                        checked={showOnlyAdminGroups}
+                        onCheckedChange={setShowOnlyAdminGroups}
+                      />
+                    </div>
+                    
+                    {/* 🔍 שדה חיפוש */}
                     <div className="relative">
                       <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
@@ -226,19 +265,26 @@ const Segments = () => {
                       )}
                     </div>
                     
-                    {/* מידע על תוצאות החיפוש */}
-                    {searchQuery && (
-                      <div className="mt-2 text-sm text-gray-600">
-                        {filteredGroups.length === 0 
+                    {/* מידע על תוצאות */}
+                    <div className="text-sm text-gray-600">
+                      {showOnlyAdminGroups && searchQuery ? (
+                        filteredGroups.length === 0 
+                          ? `לא נמצאו קבוצות מנהל עבור "${searchQuery}"`
+                          : `נמצאו ${filteredGroups.length} קבוצות מנהל מתוך ${groupStats.adminGroups}`
+                      ) : showOnlyAdminGroups ? (
+                        `מציג ${filteredGroups.length} קבוצות שאתה מנהל בהן`
+                      ) : searchQuery ? (
+                        filteredGroups.length === 0 
                           ? `לא נמצאו קבוצות עבור "${searchQuery}"`
-                          : `נמצאו ${filteredGroups.length} קבוצות מתוך ${groups.length}`
-                        }
-                      </div>
-                    )}
+                          : `נמצאו ${filteredGroups.length} קבוצות מתוך ${allGroups.length}`
+                      ) : (
+                        `מציג ${filteredGroups.length} קבוצות זמינות`
+                      )}
+                    </div>
                   </div>
                   
-                  <div className="space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
-                    {groups.length === 0 ? (
+                  <div className="mt-4 space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
+                    {allGroups.length === 0 ? (
                       <div className="text-center py-4 text-gray-500">
                         אין קבוצות זמינות. אנא סנכרן את הקבוצות שלך תחילה.
                       </div>
@@ -247,12 +293,24 @@ const Segments = () => {
                         <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                         לא נמצאו קבוצות התואמות לחיפוש
                         <br />
-                        <button 
-                          onClick={clearSearch}
-                          className="text-blue-600 hover:text-blue-700 text-sm mt-1"
-                        >
-                          נקה חיפוש
-                        </button>
+                        <div className="flex justify-center gap-2 mt-2">
+                          {searchQuery && (
+                            <button 
+                              onClick={clearSearch}
+                              className="text-blue-600 hover:text-blue-700 text-sm"
+                            >
+                              נקה חיפוש
+                            </button>
+                          )}
+                          {showOnlyAdminGroups && (
+                            <button 
+                              onClick={() => setShowOnlyAdminGroups(false)}
+                              className="text-blue-600 hover:text-blue-700 text-sm"
+                            >
+                              הצג כל הקבוצות
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       filteredGroups.map((group) => (
@@ -263,21 +321,28 @@ const Segments = () => {
                             onCheckedChange={() => handleGroupToggle(group.group_id)}
                           />
                           <div className="flex-1">
-                            <label htmlFor={group.group_id} className="text-sm font-medium cursor-pointer">
-                              {/* הדגשת טקסט החיפוש */}
-                              {searchQuery ? (
-                                <span dangerouslySetInnerHTML={{
-                                  __html: group.name.replace(
-                                    new RegExp(searchQuery, 'gi'),
-                                    '<mark class="bg-yellow-200">$&</mark>'
-                                  )
-                                }} />
-                              ) : (
-                                group.name
+                            <div className="flex items-center gap-2">
+                              <label htmlFor={group.group_id} className="text-sm font-medium cursor-pointer">
+                                {/* הדגשת טקסט החיפוש */}
+                                {searchQuery ? (
+                                  <span dangerouslySetInnerHTML={{
+                                    __html: group.name.replace(
+                                      new RegExp(searchQuery, 'gi'),
+                                      '<mark class="bg-yellow-200">$&</mark>'
+                                    )
+                                  }} />
+                                ) : (
+                                  group.name
+                                )}
+                              </label>
+                              {/* 👑 אייקון מנהל */}
+                              {group.is_admin && (
+                                <Crown className="h-3 w-3 text-amber-500" title="אתה מנהל בקבוצה זו" />
                               )}
-                            </label>
+                            </div>
                             <p className="text-xs text-gray-500">
                               {group.description || 'ללא תיאור'} • {group.participants_count || 0} חברים
+                              {group.is_admin && ' • מנהל'}
                             </p>
                           </div>
                         </div>
@@ -298,7 +363,7 @@ const Segments = () => {
                     </div>
                     <p className="text-sm text-green-700 mt-2">
                       סך הכל חברים: {selectedGroupIds.reduce((sum, groupId) => {
-                        const group = groups.find(g => g.group_id === groupId);
+                        const group = allGroups.find(g => g.group_id === groupId);
                         return sum + (group?.participants_count || 0);
                       }, 0)}
                     </p>
@@ -315,7 +380,7 @@ const Segments = () => {
                   <Button
                     onClick={editingSegment ? handleUpdateSegment : handleCreateSegment}
                     className="bg-green-600 hover:bg-green-700"
-                    disabled={groups.length === 0}
+                    disabled={allGroups.length === 0}
                   >
                     {editingSegment ? 'עדכן קטגוריה' : 'צור קטגוריה'}
                   </Button>
@@ -326,7 +391,7 @@ const Segments = () => {
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
@@ -348,8 +413,22 @@ const Segments = () => {
                   <MessageSquare className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">קבוצות זמינות</p>
-                  <p className="text-2xl font-bold">{groups.length}</p>
+                  <p className="text-sm text-gray-600">כל הקבוצות</p>
+                  <p className="text-2xl font-bold">{groupStats.totalGroups}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-50 rounded-lg">
+                  <Crown className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">קבוצות מנהל</p>
+                  <p className="text-2xl font-bold">{groupStats.adminGroups}</p>
                 </div>
               </div>
             </CardContent>
@@ -364,7 +443,7 @@ const Segments = () => {
                 <div>
                   <p className="text-sm text-gray-600">סך חברים</p>
                   <p className="text-2xl font-bold">
-                    {groups.reduce((sum, group) => sum + (group.participants_count || 0), 0)}
+                    {allGroups.reduce((sum, group) => sum + (group.participants_count || 0), 0)}
                   </p>
                 </div>
               </div>
@@ -373,7 +452,7 @@ const Segments = () => {
         </div>
 
         {/* Groups Info */}
-        {groups.length === 0 && (
+        {allGroups.length === 0 && (
           <Card>
             <CardContent className="p-12 text-center">
               <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -385,7 +464,7 @@ const Segments = () => {
 
         {/* Segments List */}
         <div className="space-y-4">
-          {segments.length === 0 && groups.length > 0 ? (
+          {segments.length === 0 && allGroups.length > 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
