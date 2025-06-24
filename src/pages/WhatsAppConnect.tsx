@@ -272,7 +272,7 @@ const WhatsAppConnect = () => {
             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
         }`}
       >
-        {isGettingQR() ? 'מקבל קוד QR...' : 'קבל קוד QR'}
+        {isGettingQR ? 'מקבל קוד QR...' : 'קבל קוד QR'}
       </button>
     </div>
   </div>
