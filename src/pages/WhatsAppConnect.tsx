@@ -1,4 +1,4 @@
-
+import { toast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -101,21 +101,52 @@ const WhatsAppConnect = () => {
   };
 
   // Handle QR code request
-  const handleGetQR = async () => {
-    try {
-      const result = await getQRCode.mutateAsync();
-      
-      if (result.already_connected) {
-        await refetchProfile();
-      } else if (result.qr_code_url) {
-        setQrCode(result.qr_code_url);
-      } else if (result.qr_code) {
-        setQrCode(result.qr_code);
-      }
-    } catch (error) {
-      console.error('❌ QR code failed:', error);
-    }
-  };
+  // Handle QR code request with enhanced debugging
+      const handleGetQR = async () => {
+        try {
+          console.log('🔲 Requesting QR code...');
+          const result = await getQRCode.mutateAsync();
+          
+          console.log('📤 QR result received:', {
+            success: result.success,
+            alreadyConnected: result.already_connected,
+            hasQrCode: !!(result.qr_code || result.qr_code_url || result.base64 || result.qr || result.image),
+            resultKeys: Object.keys(result)
+          });
+          
+          if (result.already_connected) {
+            console.log('✅ Already connected, refreshing profile...');
+            await refetchProfile();
+          } else {
+            // Check multiple possible QR field names
+            const qrData = result.qr_code_url || result.qr_code || result.base64 || result.qr || result.image;
+            
+            if (qrData) {
+              console.log('✅ Setting QR code, length:', qrData.length);
+              
+              // Ensure proper data URL format
+              let formattedQR = qrData;
+              if (formattedQR && !formattedQR.startsWith('data:image')) {
+                formattedQR = `data:image/png;base64,${formattedQR}`;
+              }
+              
+              setQrCode(formattedQR);
+            } else {
+              console.error('❌ No QR data found in any expected field');
+              console.log('📊 Available fields:', Object.keys(result));
+              
+              // Show user-friendly error
+              toast({
+                title: "שגיאה",
+                description: "לא התקבל קוד QR מהשרת, נסה שוב",
+                variant: "destructive",
+              });
+            }
+          }
+        } catch (error) {
+          console.error('❌ QR code failed:', error);
+        }
+      };
 
   return (
     <Layout>

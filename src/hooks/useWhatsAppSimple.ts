@@ -1,4 +1,3 @@
-
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,7 +43,7 @@ export const useWhatsAppSimple = () => {
     }
   });
 
-  // Get QR code with retry logic
+  // Get QR code with enhanced response handling
   const getQRCode = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
@@ -55,13 +54,58 @@ export const useWhatsAppSimple = () => {
         body: { userId: user.id }
       });
       
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        console.error('❌ Supabase function error:', error);
+        throw error;
+      }
       
-      return data;
+      if (data?.error) {
+        console.error('❌ Function returned error:', data.error);
+        throw new Error(data.error);
+      }
+      
+      // Enhanced debugging of response data
+      console.log('📤 Full QR response:', JSON.stringify(data, null, 2));
+      
+      // Check all possible QR field names
+      const qrCode = data.qr_code || data.qr_code_url || data.base64 || data.qr || data.image;
+      const qrCodeUrl = data.qr_code_url || data.qr_code || data.base64 || data.qr || data.image;
+      
+      console.log('🔍 QR field analysis:', {
+        hasQrCode: !!data.qr_code,
+        hasQrCodeUrl: !!data.qr_code_url,
+        hasBase64: !!data.base64,
+        hasQr: !!data.qr,
+        hasImage: !!data.image,
+        finalQrCode: !!qrCode,
+        finalQrCodeUrl: !!qrCodeUrl,
+        alreadyConnected: data.already_connected
+      });
+      
+      // Return enhanced data with multiple field options
+      return {
+        ...data,
+        qr_code: qrCode,
+        qr_code_url: qrCodeUrl,
+        // Add debug info
+        _debug: {
+          originalResponse: data,
+          detectedQrField: qrCode ? 'found' : 'not_found',
+          availableFields: Object.keys(data)
+        }
+      };
     },
     onSuccess: (data) => {
-      console.log('✅ QR code received:', { hasQR: !!data.qr_code, alreadyConnected: data.already_connected });
+      // Enhanced logging
+      const qrCode = data.qr_code || data.qr_code_url || data.base64 || data.qr || data.image;
+      
+      console.log('✅ QR mutation success:', {
+        hasQrCode: !!qrCode,
+        hasQrCodeUrl: !!data.qr_code_url,
+        alreadyConnected: data.already_connected,
+        responseKeys: Object.keys(data),
+        debugInfo: data._debug
+      });
       
       if (data.already_connected) {
         queryClient.invalidateQueries({ queryKey: ['user-profile'] });
@@ -69,20 +113,40 @@ export const useWhatsAppSimple = () => {
         
         toast({
           title: "כבר מחובר!",
-          description: "הוואטסאפ שלך כבר מחובר ומוכן לשימוש",
+          description: `הוואטסאפ שלך כבר מחובר: ${data.phone || 'מספר לא זמין'}`,
         });
-      } else if (data.qr_code) {
+      } else if (qrCode) {
         toast({
           title: "קוד QR מוכן",
           description: "סרוק את הקוד עם הוואטסאפ שלך",
+        });
+      } else {
+        console.warn('⚠️ No QR code found in successful response');
+        toast({
+          title: "שגיאה",
+          description: "לא התקבל קוד QR מהשרת",
+          variant: "destructive",
         });
       }
     },
     onError: (error: any) => {
       console.error('❌ QR code failed:', error);
+      
+      // Enhanced error handling
+      let errorMessage = error.message || "שגיאה לא ידועה";
+      let description = "נסה שוב בעוד כמה שניות";
+      
+      if (errorMessage.includes('still initializing')) {
+        description = "הערוץ עדיין נטען, נסה שוב בעוד 30 שניות";
+      } else if (errorMessage.includes('Token invalid')) {
+        description = "יש ליצור ערוץ חדש";
+      } else if (errorMessage.includes('timeout')) {
+        description = "פג זמן הבקשה, נסה שוב";
+      }
+      
       toast({
         title: "שגיאה בקבלת קוד QR",
-        description: error.message || "נסה שוב בעוד כמה שניות",
+        description: description,
         variant: "destructive",
       });
     }
