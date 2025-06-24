@@ -1,4 +1,3 @@
-
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,40 +32,40 @@ export const useWhatsAppConnection = () => {
           
           if (error) {
             console.error('❌ Status check error:', error);
-            continue; // Continue polling even if one check fails
+          } else {
+            console.log(`📊 Status check result:`, data);
+            
+            // 🔧 ENHANCED DEBUG: Let's see exactly what we're getting
+            console.log('🔍 Debug connection check:', {
+              dataConnected: data?.connected,
+              dataConnectedType: typeof data?.connected,
+              strictCheck: data?.connected === true,
+              dataStatus: data?.status,
+              dataPhone: data?.phone
+            });
+            
+            if (data?.connected === true) {
+              console.log('✅ Connection detected! Stopping polling...');
+              return {
+                connected: true,
+                phone: data.phone || 'Connected',
+                status: data.status || 'connected',
+                message: 'WhatsApp connected successfully!'
+              };
+            }
           }
-          
-          console.log(`📊 Status check result:`, data);
-          
-          // 🔧 ENHANCED DEBUG: Let's see exactly what we're getting
-          console.log('🔍 Debug connection check:', {
-            dataConnected: data?.connected,
-            dataConnectedType: typeof data?.connected,
-            strictCheck: data?.connected === true,
-            dataStatus: data?.status,
-            dataPhone: data?.phone
-          });
-          
-          if (data?.connected === true) {
-            console.log('✅ Connection detected! Stopping polling...');
-            return {
-              connected: true,
-              phone: data.phone || 'Connected',
-              status: data.status || 'connected',
-              message: 'WhatsApp connected successfully!'
-            };
-          }
-                  
         } catch (checkError) {
           console.error(`❌ Check attempt ${attempt} failed:`, checkError);
         }
         
-        // Wait before next attempt (MOVED OUTSIDE try/catch)
+        // Wait before next attempt (only if not the last attempt)
         if (attempt < 40) {
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
+      }
       
       // If we get here, polling timed out
+      console.log('❌ Polling completed - no connection detected in 40 attempts');
       throw new Error('Connection timeout - WhatsApp was not connected within 2 minutes');
     },
     onSuccess: (data) => {
