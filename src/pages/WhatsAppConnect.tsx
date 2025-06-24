@@ -1,4 +1,3 @@
-import { toast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
@@ -12,6 +11,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
+import { toast } from '@/hooks/use-toast';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
@@ -22,6 +22,8 @@ const WhatsAppConnect = () => {
   
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [qrCountdown, setQrCountdown] = useState(0); // NEW: QR waiting countdown
+  const [channelCreatedAt, setChannelCreatedAt] = useState<Date | null>(null); // NEW: Track when channel was created
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
@@ -29,7 +31,8 @@ const WhatsAppConnect = () => {
     profileLoading,
     profileStatus: profile?.instance_status,
     hasInstanceId: !!profile?.instance_id,
-    hasToken: !!profile?.whapi_token
+    hasToken: !!profile?.whapi_token,
+    qrCountdown
   });
 
   // Countdown for channel creation (90 seconds)
@@ -44,6 +47,35 @@ const WhatsAppConnect = () => {
       if (interval) clearInterval(interval);
     };
   }, [countdown]);
+
+  // NEW: QR countdown (120 seconds = 2 minutes as recommended by WHAPI)
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (qrCountdown > 0) {
+      interval = setInterval(() => {
+        setQrCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [qrCountdown]);
+
+  // NEW: Check if enough time has passed since channel creation
+  const canRequestQR = () => {
+    if (!channelCreatedAt) return true; // If we don't know when it was created, allow it
+    const timeSinceCreation = Date.now() - channelCreatedAt.getTime();
+    const twoMinutes = 2 * 60 * 1000; // 2 minutes in milliseconds
+    return timeSinceCreation >= twoMinutes;
+  };
+
+  // NEW: Calculate remaining wait time
+  const getRemainingWaitTime = () => {
+    if (!channelCreatedAt) return 0;
+    const timeSinceCreation = Date.now() - channelCreatedAt.getTime();
+    const twoMinutes = 2 * 60 * 1000;
+    return Math.max(0, Math.ceil((twoMinutes - timeSinceCreation) / 1000));
+  };
 
   // Show loading only when auth is not ready or profile is loading
   if (!isAuthReady || (profileLoading && !profileError)) {
@@ -78,6 +110,10 @@ const WhatsAppConnect = () => {
           try {
             await deleteInstance.mutateAsync();
             await refetchProfile();
+            // Reset states
+            setChannelCreatedAt(null);
+            setQrCode(null);
+            setQrCountdown(0);
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
           }
@@ -88,65 +124,94 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Handle channel creation
+  // Handle channel creation with timing tracking
   const handleCreateChannel = async () => {
     try {
       setCountdown(90); // Visual countdown for user
-      await createChannel.mutateAsync();
+      const result = await createChannel.mutateAsync();
+      
+      // NEW: Track when channel was created and start QR countdown
+      const createdAt = new Date();
+      setChannelCreatedAt(createdAt);
+      setQrCountdown(120); // 2 minutes countdown for QR readiness
+      
+      console.log('✅ Channel created at:', createdAt.toISOString());
+      
       await refetchProfile();
     } catch (error) {
       console.error('❌ Channel creation failed:', error);
       setCountdown(0);
+      setQrCountdown(0);
     }
   };
 
-  // Handle QR code request
-  // Handle QR code request with enhanced debugging
-      const handleGetQR = async () => {
-        try {
-          console.log('🔲 Requesting QR code...');
-          const result = await getQRCode.mutateAsync();
+  // Handle QR code request with timing validation
+  const handleGetQR = async () => {
+    // NEW: Check if enough time has passed
+    if (!canRequestQR()) {
+      const remainingTime = getRemainingWaitTime();
+      toast({
+        title: "יש להמתין עוד",
+        description: `WHAPI ממליץ להמתין 2 דקות לאחר יצירת הערוץ. נותרו ${remainingTime} שניות`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('🔲 Requesting QR code...');
+      const result = await getQRCode.mutateAsync();
+      
+      console.log('📤 QR result received:', {
+        success: result.success,
+        alreadyConnected: result.already_connected,
+        hasQrCode: !!(result.qr_code || result.qr_code_url || result.base64 || result.qr || result.image),
+        resultKeys: Object.keys(result)
+      });
+      
+      if (result.already_connected) {
+        console.log('✅ Already connected, refreshing profile...');
+        await refetchProfile();
+      } else {
+        // Check multiple possible QR field names
+        const qrData = result.qr_code_url || result.qr_code || result.base64 || result.qr || result.image;
+        
+        if (qrData && qrData.trim() !== '') { // NEW: Check for empty string
+          console.log('✅ Setting QR code, length:', qrData.length);
           
-          console.log('📤 QR result received:', {
-            success: result.success,
-            alreadyConnected: result.already_connected,
-            hasQrCode: !!(result.qr_code || result.qr_code_url || result.base64 || result.qr || result.image),
-            resultKeys: Object.keys(result)
-          });
-          
-          if (result.already_connected) {
-            console.log('✅ Already connected, refreshing profile...');
-            await refetchProfile();
-          } else {
-            // Check multiple possible QR field names
-            const qrData = result.qr_code_url || result.qr_code || result.base64 || result.qr || result.image;
-            
-            if (qrData) {
-              console.log('✅ Setting QR code, length:', qrData.length);
-              
-              // Ensure proper data URL format
-              let formattedQR = qrData;
-              if (formattedQR && !formattedQR.startsWith('data:image')) {
-                formattedQR = `data:image/png;base64,${formattedQR}`;
-              }
-              
-              setQrCode(formattedQR);
-            } else {
-              console.error('❌ No QR data found in any expected field');
-              console.log('📊 Available fields:', Object.keys(result));
-              
-              // Show user-friendly error
-              toast({
-                title: "שגיאה",
-                description: "לא התקבל קוד QR מהשרת, נסה שוב",
-                variant: "destructive",
-              });
-            }
+          // Ensure proper data URL format
+          let formattedQR = qrData;
+          if (formattedQR && !formattedQR.startsWith('data:image')) {
+            formattedQR = `data:image/png;base64,${formattedQR}`;
           }
-        } catch (error) {
-          console.error('❌ QR code failed:', error);
+          
+          setQrCode(formattedQR);
+          setQrCountdown(0); // Stop countdown since QR is ready
+        } else {
+          console.error('❌ QR data is empty or not found');
+          console.log('📊 Available fields:', Object.keys(result));
+          
+          // NEW: Suggest waiting more if QR is empty
+          const remainingTime = getRemainingWaitTime();
+          if (remainingTime > 0) {
+            toast({
+              title: "הערוץ עדיין לא מוכן",
+              description: `נסה שוב בעוד ${remainingTime} שניות`,
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "שגיאה",
+              description: "הערוץ לא מחזיר קוד QR. נסה שוב או צור ערוץ חדש",
+              variant: "destructive",
+            });
+          }
         }
-      };
+      }
+    } catch (error) {
+      console.error('❌ QR code failed:', error);
+    }
+  };
 
   return (
     <Layout>
@@ -168,9 +233,33 @@ const WhatsAppConnect = () => {
           <WhatsAppChannelCreating countdown={countdown} />
         )}
 
+        {/* NEW: Step 2.5: Channel created but waiting for QR readiness */}
+        {profile?.instance_id && qrCountdown > 0 && !qrCode && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+            <div className="text-yellow-800">
+              <h3 className="text-lg font-semibold mb-2">הערוץ נוצר! ממתין לקוד QR...</h3>
+              <p className="text-sm mb-4">
+                WHAPI ממליץ להמתין 2 דקות לאחר יצירת הערוץ לפני בקשת קוד QR
+              </p>
+              <div className="text-2xl font-mono text-yellow-600">
+                {Math.floor(qrCountdown / 60)}:{(qrCountdown % 60).toString().padStart(2, '0')}
+              </div>
+              <p className="text-xs mt-2">זמן המתנה נותר</p>
+            </div>
+          </div>
+        )}
+
         {/* Step 3: Channel ready for QR - Handle multiple statuses */}
-        {profile?.instance_id && ['unauthorized', 'qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && !qrCode && (
-          <WhatsAppQRReady onGetQR={handleGetQR} isGettingQR={isGettingQR} />
+        {profile?.instance_id && 
+         ['unauthorized', 'qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && 
+         !qrCode && 
+         qrCountdown === 0 && (
+          <WhatsAppQRReady 
+            onGetQR={handleGetQR} 
+            isGettingQR={isGettingQR}
+            canRequest={canRequestQR()}
+            waitTimeRemaining={getRemainingWaitTime()}
+          />
         )}
 
         {/* Step 4: Show QR Code */}
