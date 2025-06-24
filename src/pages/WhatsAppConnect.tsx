@@ -7,6 +7,7 @@ import WhatsAppInitialState from '@/components/WhatsAppInitialState';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { toast } from '@/hooks/use-toast';
 
 const WhatsAppConnect = () => {
@@ -17,11 +18,11 @@ const WhatsAppConnect = () => {
   const { 
     createChannel, 
     getQRCode, 
-    checkInstanceStatus,  // ← Changed from checkStatus
+    checkStatus, 
     startConnectionPolling,
     isCreatingChannel, 
     isGettingQR 
-  } = useWhatsAppInstance();
+  } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -162,7 +163,7 @@ const WhatsAppConnect = () => {
 
   const handleManualCheck = async () => {
     try {
-      const result = await checkInstanceStatus.mutateAsync();
+      const result = await checkStatus.mutateAsync();
       
       if (result.connected) {
         if (pollingCleanupRef.current) {
@@ -194,11 +195,10 @@ const WhatsAppConnect = () => {
         </div>
 
         {/* No channel */}
-        {!profile?.instance_id && (
-          <WhatsAppInitialState 
-            onCreateChannel={handleCreateChannel}
-            isCreating={isCreatingChannel}
-          />
+              {!profile?.instance_id && (
+              <WhatsAppInitialState 
+              onCreateChannel={handleCreateChannel}
+              />
         )}
 
         {/* Channel creating */}
@@ -299,10 +299,10 @@ const WhatsAppConnect = () => {
                   </button>
                   <button
                     onClick={handleManualCheck}
-                    disabled={checkInstanceStatus.isPending}
+                    disabled={checkStatus.isPending}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                   >
-                    {checkInstanceStatus.isPending ? '🔍 בודק...' : '✅ בדוק חיבור'}
+                    {checkStatus.isPending ? '🔍 בודק...' : '✅ בדוק חיבור'}
                   </button>
                 </div>
                 
