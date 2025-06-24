@@ -35,21 +35,63 @@ export const useWhatsAppConnection = () => {
           } else {
             console.log(`📊 Status check result:`, data);
             
-            // 🔧 ENHANCED DEBUG: Let's see exactly what we're getting
-            console.log('🔍 Debug connection check:', {
-              dataConnected: data?.connected,
-              dataConnectedType: typeof data?.connected,
-              strictCheck: data?.connected === true,
-              dataStatus: data?.status,
-              dataPhone: data?.phone
+            // 🔧 ENHANCED DEBUG: Let's see the raw data structure
+            console.log('🔍 Raw data inspection:', {
+              dataType: typeof data,
+              dataKeys: data ? Object.keys(data) : 'no data',
+              rawData: JSON.stringify(data, null, 2)
             });
             
-            if (data?.connected === true) {
+            // 🔧 MULTIPLE WAYS TO CHECK CONNECTION
+            const isConnectedStrict = data?.connected === true;
+            const isConnectedLoose = data?.connected == true;
+            const isConnectedString = data?.connected === "true";
+            const isConnectedByStatus = data?.status === "connected" && data?.phone;
+            const hasValidData = data && (data.connected !== undefined || data.status === "connected");
+            
+            console.log('🔍 Connection analysis:', {
+              dataConnected: data?.connected,
+              dataConnectedType: typeof data?.connected,
+              dataStatus: data?.status,
+              dataPhone: data?.phone,
+              isConnectedStrict,
+              isConnectedLoose,
+              isConnectedString,
+              isConnectedByStatus,
+              hasValidData
+            });
+            
+            // 🔧 ROBUST CONNECTION CHECK - Multiple detection methods
+            if (isConnectedStrict || isConnectedLoose || isConnectedString || isConnectedByStatus) {
               console.log('✅ Connection detected! Stopping polling...');
               return {
                 connected: true,
-                phone: data.phone || 'Connected',
-                status: data.status || 'connected',
+                phone: data?.phone || 'Connected',
+                status: data?.status || 'connected',
+                message: 'WhatsApp connected successfully!'
+              };
+            }
+            
+            // Additional check: If we have phone and status, consider it connected
+            if (data?.phone && data?.phone !== "Connected" && data?.status === "connected") {
+              console.log('✅ Connection detected via phone+status! Stopping polling...');
+              return {
+                connected: true,
+                phone: data.phone,
+                status: data.status,
+                message: 'WhatsApp connected successfully!'
+              };
+            }
+            
+            // Fallback: Check if the raw JSON contains connection indicators
+            const dataString = JSON.stringify(data || {});
+            if (dataString.includes('"connected":true') || 
+                (dataString.includes('"status":"connected"') && dataString.includes('"phone":'))) {
+              console.log('✅ Connection detected via JSON parsing! Stopping polling...');
+              return {
+                connected: true,
+                phone: data?.phone || 'Connected',
+                status: data?.status || 'connected',
                 message: 'WhatsApp connected successfully!'
               };
             }
@@ -114,11 +156,20 @@ export const useWhatsAppConnection = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       
+      // Use the same robust connection detection
+      const isConnected = (
+        data?.connected === true ||
+        data?.connected == true ||
+        data?.connected === "true" ||
+        (data?.status === "connected" && data?.phone) ||
+        JSON.stringify(data || {}).includes('"connected":true')
+      );
+      
       return {
-        connected: data.connected || false,
-        phone: data.phone,
-        status: data.status,
-        message: data.message || 'Status checked'
+        connected: isConnected,
+        phone: data?.phone,
+        status: data?.status,
+        message: data?.message || 'Status checked'
       };
     },
     onSuccess: (data) => {
