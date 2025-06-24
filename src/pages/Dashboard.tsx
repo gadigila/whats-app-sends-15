@@ -1,4 +1,3 @@
-
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -11,7 +10,7 @@ import { useUserProfile } from '@/hooks/useUserProfile';
 const Dashboard = () => {
   const { user } = useAuth();
   const { stats, isLoading: statsLoading } = useMessageStats();
-  const { userProfile, isLoading: profileLoading } = useUserProfile();
+  const { data: userProfile, isLoading: profileLoading } = useUserProfile();
   
   const isWhatsAppConnected = userProfile?.instance_status === 'connected';
   const hasPaidPlan = userProfile?.payment_plan !== 'trial' && userProfile?.payment_plan !== 'free';
