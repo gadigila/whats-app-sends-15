@@ -50,9 +50,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🔧 FIXED: Use correct /health endpoint
-    console.log('📊 Checking health endpoint...')
-    const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+    // 🔧 FIXED: Use /users/profile endpoint to detect connection properly
+    console.log('📊 Checking users/profile endpoint...')
+    const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${profile.whapi_token}`,
@@ -60,34 +60,34 @@ Deno.serve(async (req) => {
       }
     })
 
-    if (!healthResponse.ok) {
-      console.log('❌ Health endpoint failed:', healthResponse.status)
+    console.log('📊 Profile response status:', profileResponse.status)
+
+    if (!profileResponse.ok) {
+      console.log('❌ Profile endpoint failed:', profileResponse.status)
       return new Response(
         JSON.stringify({
           connected: false,
           status: 'unauthorized',
           message: 'WhatsApp not connected',
-          http_status: healthResponse.status
+          http_status: profileResponse.status
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    const healthData = await healthResponse.json()
-    console.log('📊 Health response:', JSON.stringify(healthData, null, 2))
+    const profileData = await profileResponse.json()
+    console.log('📊 Profile response:', JSON.stringify(profileData, null, 2))
 
-    // 🔧 FIXED: Check for connection based on WHAPI health response format
-    // According to WHAPI docs, when connected the response includes user info
+    // 🔧 FIXED: Check for connection based on user profile response
+    // If we get a successful response with phone number, user is connected
     const isConnected = !!(
-      healthData.me?.phone || 
-      healthData.phone || 
-      healthData.user?.phone ||
-      (healthData.status === 'connected') ||
-      (healthData.health?.status?.text === 'CONNECTED')
+      profileData.phone || 
+      profileData.id ||
+      profileData.name
     )
 
     if (isConnected) {
-      const phoneNumber = healthData.me?.phone || healthData.phone || healthData.user?.phone || 'Unknown'
+      const phoneNumber = profileData.phone || profileData.id || 'Connected'
       console.log('✅ User is connected:', phoneNumber)
       
       // Update database status
@@ -105,22 +105,21 @@ Deno.serve(async (req) => {
           status: 'connected',
           phone: phoneNumber,
           message: 'WhatsApp is connected',
-          health_data: healthData // Include for debugging
+          profile_data: profileData // Include for debugging
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    // Not connected - check specific status
-    const healthStatus = healthData.health?.status?.text || healthData.status || 'unknown'
-    console.log('📊 Health status:', healthStatus)
+    // Not connected
+    console.log('📊 No connection detected from profile response')
 
     return new Response(
       JSON.stringify({
         connected: false,
-        status: healthStatus.toLowerCase(),
-        message: `WhatsApp status: ${healthStatus}`,
-        health_data: healthData // Include for debugging
+        status: 'unauthorized',
+        message: 'WhatsApp not connected',
+        profile_data: profileData // Include for debugging
       }),
       { status: 200, headers: corsHeaders }
     )
