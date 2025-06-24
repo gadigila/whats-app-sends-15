@@ -337,7 +337,9 @@ const Segments = () => {
                               </label>
                               {/* ⭐ אייקון מנהל */}
                               {group.is_admin && (
-                                <Star className="h-3 w-3 text-amber-500" title="אתה מנהל בקבוצה זו" />
+                                <div title="אתה מנהל בקבוצה זו">
+                                  <Star className="h-3 w-3 text-amber-500" />
+                                </div>
                               )}
                             </div>
                             <p className="text-xs text-gray-500">
