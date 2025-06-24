@@ -38,21 +38,21 @@ export const useWhatsAppConnection = () => {
           
           console.log(`📊 Status check result:`, data);
           
-          if (data?.connected) {
-            console.log('✅ Connection detected!');
-            return {
-              connected: true,
-              phone: data.phone,
-              status: data.status,
-              message: 'WhatsApp connected successfully!'
-            };
-          }
-          
-          // If not connected yet, wait before next attempt
-          if (attempt < 40) {
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          }
-          
+             if (data?.connected === true) {
+          console.log('✅ Connection detected! Stopping polling...');
+          return {
+            connected: true,
+            phone: data.phone || 'Connected',
+            status: data.status || 'connected',
+            message: 'WhatsApp connected successfully!'
+          };
+        }
+        
+        // If not connected yet, wait before next attempt
+        if (attempt < 40) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+                  
         } catch (checkError) {
           console.error(`❌ Check attempt ${attempt} failed:`, checkError);
           // Continue polling even if one attempt fails
