@@ -8,7 +8,6 @@ import WhatsAppInitialState from '@/components/WhatsAppInitialState';
 import WhatsAppChannelCreating from '@/components/WhatsAppChannelCreating';
 import WhatsAppQRReady from '@/components/WhatsAppQRReady';
 import WhatsAppQRDisplay from '@/components/WhatsAppQRDisplay';
-import WhatsAppInitializing from '@/components/WhatsAppInitializing';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
@@ -102,22 +101,21 @@ const WhatsAppConnect = () => {
   };
 
   // Handle QR code request
-       const handleGetQR = async () => {
-        try {
-          const result = await getQRCode.mutateAsync();
-          
-          if (result.already_connected) {
-            await refetchProfile();
-          } else if (result.qr_code_url) {
-            setQrCode(result.qr_code_url); // אם קיים URL
-          } else if (result.qr_code) {
-            setQrCode(result.qr_code); // תמיכה גם ב-base64 למקרה הצורך
-          }
-        } catch (error) {
-          console.error('❌ QR code failed:', error);
-        }
-      };
-
+  const handleGetQR = async () => {
+    try {
+      const result = await getQRCode.mutateAsync();
+      
+      if (result.already_connected) {
+        await refetchProfile();
+      } else if (result.qr_code_url) {
+        setQrCode(result.qr_code_url);
+      } else if (result.qr_code) {
+        setQrCode(result.qr_code);
+      }
+    } catch (error) {
+      console.error('❌ QR code failed:', error);
+    }
+  };
 
   return (
     <Layout>
@@ -140,7 +138,7 @@ const WhatsAppConnect = () => {
         )}
 
         {/* Step 3: Channel ready for QR - Handle multiple statuses */}
-        {profile?.instance_id && ['unauthorized', 'qr', 'active', 'ready'].includes(profile?.instance_status || '') && !qrCode && (
+        {profile?.instance_id && ['unauthorized', 'qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && !qrCode && (
           <WhatsAppQRReady onGetQR={handleGetQR} isGettingQR={isGettingQR} />
         )}
 
@@ -151,16 +149,6 @@ const WhatsAppConnect = () => {
             onRefreshQR={handleGetQR} 
             isRefreshing={isGettingQR}
           />
-        )}
-
-        {/* Channel still initializing */}
-        {profile?.instance_status === 'initializing' && !isCreatingChannel && (
-          <WhatsAppInitializing onTryGetQR={handleGetQR} isTrying={isGettingQR} />
-        )}
-
-        {/* Fallback for unknown statuses */}
-        {profile?.instance_id && !['connected', 'unauthorized', 'qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && (
-          <WhatsAppInitializing onTryGetQR={handleGetQR} isTrying={isGettingQR} />
         )}
       </div>
     </Layout>
