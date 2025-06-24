@@ -5,78 +5,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle, XCircle, Clock, Users, Search, Filter } from 'lucide-react';
-
-interface SentMessage {
-  id: string;
-  message: string;
-  groups: string[];
-  sentAt: Date;
-  status: 'delivered' | 'failed' | 'pending';
-  recipients: number;
-  delivered: number;
-  hasAttachment: boolean;
-}
+import { CheckCircle, XCircle, Clock, Users, Search, Filter, MessageSquare } from 'lucide-react';
+import { useSentMessages } from '@/hooks/useSentMessages';
+import { useAuth } from '@/contexts/AuthContext';
 
 const SentMessages = () => {
+  const { user } = useAuth();
+  const { sentMessages, isLoading } = useSentMessages();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  
-  const [messages] = useState<SentMessage[]>([
-    {
-      id: '1',
-      message: 'התראת מבצק מבזק! 🚨 קבלו 70% הנחה על כל התוכניות הפרימיום ל-24 השעות הבאות בלבד. אל תפספסו!',
-      groups: ['צוות שיווק', 'לקוחות VIP'],
-      sentAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      status: 'delivered',
-      recipients: 150,
-      delivered: 147,
-      hasAttachment: true,
-    },
-    {
-      id: '2',
-      message: 'בוקר טוב צוות! הזכרה לפגישת הסטנדאפ היומית. אנא הצטרפו בשעה 9:00.',
-      groups: ['צוות מכירות'],
-      sentAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-      status: 'delivered',
-      recipients: 25,
-      delivered: 25,
-      hasAttachment: false,
-    },
-    {
-      id: '3',
-      message: 'תחזוקת מערכת מתוכננת הלילה בין 23:00 ל-02:00. אנא תכננו בהתאם.',
-      groups: ['כל הקבוצות'],
-      sentAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-      status: 'pending',
-      recipients: 200,
-      delivered: 180,
-      hasAttachment: false,
-    },
-    {
-      id: '4',
-      message: 'ברוכים הבאים לשירות הפרימיום שלנו! הנה המדריך להתחלה שלכם.',
-      groups: ['לקוחות VIP'],
-      sentAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-      status: 'failed',
-      recipients: 50,
-      delivered: 0,
-      hasAttachment: true,
-    },
-    {
-      id: '5',
-      message: 'תודה על הרכישה! הזמנה מספר 12345 אושרה ותישלח בקרוב.',
-      groups: ['צוות שיווק'],
-      sentAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-      status: 'delivered',
-      recipients: 75,
-      delivered: 73,
-      hasAttachment: false,
-    },
-  ]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'sent':
       case 'delivered':
         return (
           <Badge variant="outline" className="text-green-600 border-green-600">
@@ -103,7 +44,8 @@ const SentMessages = () => {
     }
   };
 
-  const formatDateTime = (date: Date) => {
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
     
@@ -121,20 +63,27 @@ const SentMessages = () => {
     }
   };
 
-  const getDeliveryRate = (delivered: number, recipients: number) => {
-    return recipients > 0 ? Math.round((delivered / recipients) * 100) : 0;
-  };
-
-  const filteredMessages = messages.filter((message) => {
+  const filteredMessages = sentMessages.filter((message) => {
     const matchesSearch = message.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         message.groups.some(group => group.toLowerCase().includes(searchTerm.toLowerCase()));
+                         (message.group_names && message.group_names.some(group => group.toLowerCase().includes(searchTerm.toLowerCase())));
     const matchesStatus = statusFilter === 'all' || message.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const totalMessages = messages.length;
-  const deliveredMessages = messages.filter(msg => msg.status === 'delivered').length;
-  const failedMessages = messages.filter(msg => msg.status === 'failed').length;
+  const totalMessages = sentMessages.length;
+  const deliveredMessages = sentMessages.filter(msg => msg.status === 'sent' || msg.status === 'delivered').length;
+  const failedMessages = sentMessages.filter(msg => msg.status === 'failed').length;
+  const pendingMessages = sentMessages.filter(msg => msg.status === 'pending').length;
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-lg">טוען הודעות...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -150,7 +99,7 @@ const SentMessages = () => {
             <CardContent className="p-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-blue-600" />
+                  <MessageSquare className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">סך נשלחו</p>
@@ -223,6 +172,7 @@ const SentMessages = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">כל ההודעות</SelectItem>
+              <SelectItem value="sent">נמסרו</SelectItem>
               <SelectItem value="delivered">נמסרו</SelectItem>
               <SelectItem value="pending">ממתינות</SelectItem>
               <SelectItem value="failed">נכשלו</SelectItem>
@@ -235,9 +185,16 @@ const SentMessages = () => {
           {filteredMessages.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
-                <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">לא נמצאו הודעות</h3>
-                <p className="text-gray-600">נסה לתקן את החיפוש או הסינון.</p>
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {sentMessages.length === 0 ? 'עדיין לא נשלחו הודעות' : 'לא נמצאו הודעות'}
+                </h3>
+                <p className="text-gray-600">
+                  {sentMessages.length === 0 
+                    ? 'כשתשלח את ההודעה הראשונה שלך, היא תופיע כאן'
+                    : 'נסה לתקן את החיפוש או הסינון.'
+                  }
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -256,13 +213,13 @@ const SentMessages = () => {
                       <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
-                          <span>{formatDateTime(message.sentAt)}</span>
+                          <span>{formatDateTime(message.updated_at)}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Users className="h-4 w-4" />
-                          <span>{message.groups.join(', ')}</span>
+                          <span>{message.group_names?.join(', ') || 'קבוצות לא זמינות'}</span>
                         </div>
-                        {message.hasAttachment && (
+                        {message.media_url && (
                           <Badge variant="secondary" className="text-xs">
                             יש קובץ מצורף
                           </Badge>
@@ -272,13 +229,14 @@ const SentMessages = () => {
                     
                     <div className="flex flex-col items-end text-left">
                       <div className="text-sm text-gray-600 mb-1">
-                        {message.delivered} / {message.recipients} נמסרו
+                        {message.total_groups || 0} קבוצות
                       </div>
                       <div className={`text-lg font-semibold ${
-                        message.status === 'delivered' ? 'text-green-600' : 
+                        message.status === 'sent' || message.status === 'delivered' ? 'text-green-600' : 
                         message.status === 'failed' ? 'text-red-600' : 'text-blue-600'
                       }`}>
-                        {getDeliveryRate(message.delivered, message.recipients)}%
+                        {message.status === 'sent' || message.status === 'delivered' ? '100%' : 
+                         message.status === 'failed' ? '0%' : '...'}
                       </div>
                     </div>
                   </div>

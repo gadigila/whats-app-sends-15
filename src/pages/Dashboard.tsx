@@ -5,46 +5,49 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users, Calendar, CheckCircle, AlertTriangle, Crown, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useMessageStats } from '@/hooks/useMessageStats';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { stats, isLoading: statsLoading } = useMessageStats();
+  const { userProfile, isLoading: profileLoading } = useUserProfile();
   
-  // For now, we'll simulate the user state - in real app this would come from user profile
-  const isWhatsAppConnected = false; // This should come from user's profile/instance status
-  const hasPaidPlan = false; // This should come from user's billing status
+  const isWhatsAppConnected = userProfile?.instance_status === 'connected';
+  const hasPaidPlan = userProfile?.payment_plan !== 'trial' && userProfile?.payment_plan !== 'free';
 
-  const stats = [
+  const statsData = [
     {
       title: 'הודעות שנשלחו',
-      value: '0',
+      value: statsLoading ? '...' : stats.totalSent.toString(),
       icon: MessageSquare,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
-      description: 'כל ההודעות שלך יוצגו כאן',
+      description: statsLoading ? 'טוען...' : stats.totalSent > 0 ? 'הודעות שנשלחו בהצלחה' : 'עדיין לא נשלחו הודעות',
     },
     {
       title: 'קבוצות מחוברות',
-      value: '0',
+      value: statsLoading ? '...' : stats.totalGroups.toString(),
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
-      description: 'כל קבוצות הוואטסאפ שלך',
+      description: statsLoading ? 'טוען...' : stats.totalGroups > 0 ? 'קבוצות וואטסאפ זמינות' : 'עדיין לא סונכרנו קבוצות',
     },
     {
       title: 'מתוזמנות',
-      value: '0',
+      value: statsLoading ? '...' : stats.totalScheduled.toString(),
       icon: Calendar,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
-      description: 'הודעות שמחכות לשליחה',
+      description: statsLoading ? 'טוען...' : stats.totalScheduled > 0 ? 'הודעות שמחכות לשליחה' : 'אין הודעות מתוזמנות',
     },
     {
       title: 'אחוז הצלחה',
-      value: '100%',
+      value: statsLoading ? '...' : `${stats.successRate}%`,
       icon: CheckCircle,
       color: 'text-emerald-600',
       bgColor: 'bg-emerald-50',
-      description: 'שיעור הצלחת השליחה',
+      description: statsLoading ? 'טוען...' : 'שיעור הצלחת השליחה',
     },
   ];
 
@@ -89,7 +92,7 @@ const Dashboard = () => {
 
           {/* Stats Preview - Always show for visual context */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat) => {
+            {statsData.map((stat) => {
               const Icon = stat.icon;
               return (
                 <Card key={stat.title} className="relative">
@@ -100,10 +103,10 @@ const Dashboard = () => {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">{stat.title}</p>
-                        <p className="text-2xl font-bold text-gray-400">{stat.value}</p>
+                        <p className="text-2xl font-bold text-gray-400">0</p>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">{stat.description}</p>
+                    <p className="text-xs text-gray-500 mt-2">יהיה זמין לאחר החיבור</p>
                   </CardContent>
                   {!hasPaidPlan && (
                     <div className="absolute inset-0 bg-gray-50/80 rounded-lg flex items-center justify-center">
@@ -282,7 +285,7 @@ const Dashboard = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => {
+          {statsData.map((stat) => {
             const Icon = stat.icon;
             return (
               <Card key={stat.title}>
@@ -296,6 +299,7 @@ const Dashboard = () => {
                       <p className="text-2xl font-bold">{stat.value}</p>
                     </div>
                   </div>
+                  <p className="text-xs text-gray-500 mt-2">{stat.description}</p>
                 </CardContent>
               </Card>
             );
@@ -345,11 +349,11 @@ const Dashboard = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">תוכנית נוכחית</span>
-                  <span className="font-medium">Premium</span>
+                  <span className="font-medium">{userProfile?.payment_plan || 'Free'}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">פעילות אחרונה</span>
-                  <span className="font-medium">זמין</span>
+                  <span className="text-sm text-gray-600">קבוצות זמינות</span>
+                  <span className="font-medium">{stats.totalGroups}</span>
                 </div>
               </div>
             </CardContent>

@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -9,12 +10,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Clock, Send, Upload, Image, FileText } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
+import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
 import LockedFeature from '@/components/LockedFeature';
 import SuccessDialog from '@/components/SuccessDialog';
 
 const MessageComposer = () => {
   const [message, setMessage] = useState('');
-  const [selectedGroups, setSelectedGroups] = useState('');
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -24,15 +27,9 @@ const MessageComposer = () => {
   }>({ isOpen: false, type: 'sent' });
   
   const { trialStatus, isLoading } = useTrialStatus();
+  const { groups, isLoadingGroups } = useWhatsAppGroups();
+  const { sendImmediateMessage, scheduleMessage } = useWhatsAppMessages();
   
-  const groups = [
-    { id: 'all', name: 'כל הקבוצות (8)' },
-    { id: 'marketing', name: 'צוות שיווק' },
-    { id: 'sales', name: 'צוות מכירות' },
-    { id: 'support', name: 'שירות לקוחות' },
-    { id: 'vip', name: 'לקוחות VIP' },
-  ];
-
   // Check if user has access to features
   const hasAccess = !isLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
 
@@ -69,7 +66,7 @@ const MessageComposer = () => {
       return;
     }
     
-    if (!selectedGroups) {
+    if (selectedGroups.length === 0) {
       toast({
         title: "בחר קבוצות",
         description: "אנא בחר קבוצות לשליחת ההודעה.",
@@ -78,19 +75,25 @@ const MessageComposer = () => {
       return;
     }
 
-    // Show success dialog instead of toast
-    setSuccessDialog({ isOpen: true, type: 'sent' });
-    
-    // Clear form
-    setMessage('');
-    setSelectedGroups('');
-    setAttachedFile(null);
+    sendImmediateMessage.mutate({
+      groupIds: selectedGroups,
+      message,
+      mediaUrl: attachedFile ? URL.createObjectURL(attachedFile) : undefined
+    }, {
+      onSuccess: () => {
+        setSuccessDialog({ isOpen: true, type: 'sent' });
+        // Clear form
+        setMessage('');
+        setSelectedGroups([]);
+        setAttachedFile(null);
+      }
+    });
   };
 
   const handleSchedule = () => {
     if (!hasAccess) return;
     
-    if (!message.trim() || !selectedGroups || !scheduleDate || !scheduleTime) {
+    if (!message.trim() || selectedGroups.length === 0 || !scheduleDate || !scheduleTime) {
       toast({
         title: "חסר מידע",
         description: "אנא מלא את כל השדות כדי לתזמן הודעה.",
@@ -99,15 +102,24 @@ const MessageComposer = () => {
       return;
     }
 
-    // Show success dialog instead of toast
-    setSuccessDialog({ isOpen: true, type: 'scheduled' });
-    
-    // Clear form
-    setMessage('');
-    setSelectedGroups('');
-    setScheduleDate('');
-    setScheduleTime('');
-    setAttachedFile(null);
+    const sendAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+
+    scheduleMessage.mutate({
+      groupIds: selectedGroups,
+      message,
+      mediaUrl: attachedFile ? URL.createObjectURL(attachedFile) : undefined,
+      sendAt
+    }, {
+      onSuccess: () => {
+        setSuccessDialog({ isOpen: true, type: 'scheduled' });
+        // Clear form
+        setMessage('');
+        setSelectedGroups([]);
+        setScheduleDate('');
+        setScheduleTime('');
+        setAttachedFile(null);
+      }
+    });
   };
 
   if (isLoading) {
@@ -216,18 +228,36 @@ const MessageComposer = () => {
               <CardContent>
                 <div>
                   <Label htmlFor="groups">בחר קבוצות</Label>
-                  <Select value={selectedGroups} onValueChange={setSelectedGroups}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="בחר קבוצות לשליחה..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups.map((group) => (
-                        <SelectItem key={group.id} value={group.name}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isLoadingGroups ? (
+                    <div className="mt-1 p-3 border rounded-lg text-gray-500">
+                      טוען קבוצות...
+                    </div>
+                  ) : groups.length === 0 ? (
+                    <div className="mt-1 p-3 border rounded-lg text-gray-500">
+                      אין קבוצות זמינות. אנא סנכרן את הקבוצות שלך תחילה.
+                    </div>
+                  ) : (
+                    <Select 
+                      value={selectedGroups.join(',')} 
+                      onValueChange={(value) => setSelectedGroups(value ? value.split(',') : [])}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="בחר קבוצות לשליחה..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groups.map((group) => (
+                          <SelectItem key={group.group_id} value={group.group_id}>
+                            {group.name} ({group.participants_count || 0} חברים)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {selectedGroups.length > 0 && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      נבחרו {selectedGroups.length} קבוצות
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -304,9 +334,10 @@ const MessageComposer = () => {
                   onClick={handleSendNow}
                   className="w-full bg-green-600 hover:bg-green-700"
                   size="lg"
+                  disabled={sendImmediateMessage.isPending}
                 >
                   <Send className="h-4 w-4 ml-2" />
-                  שלח עכשיו
+                  {sendImmediateMessage.isPending ? 'שולח...' : 'שלח עכשיו'}
                 </Button>
                 
                 <Button
@@ -314,10 +345,10 @@ const MessageComposer = () => {
                   variant="outline"
                   className="w-full"
                   size="lg"
-                  disabled={!scheduleDate || !scheduleTime}
+                  disabled={!scheduleDate || !scheduleTime || scheduleMessage.isPending}
                 >
                   <Clock className="h-4 w-4 ml-2" />
-                  תזמן הודעה
+                  {scheduleMessage.isPending ? 'מתזמן...' : 'תזמן הודעה'}
                 </Button>
               </CardContent>
             </Card>
