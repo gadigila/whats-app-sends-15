@@ -258,16 +258,16 @@ const WhatsAppConnect = () => {
     <div className="text-blue-800">
       <h3 className="text-lg font-semibold mb-2">ערוץ מוכן לקוד QR!</h3>
       <p className="text-sm mb-4">
-        {!canRequestQR() 
-          ? `יש להמתין עוד ${getRemainingWaitTime()} שניות לפני בקשת קוד QR`
+       {!canRequestQR() 
+  ? `יש להמתין עוד ${getRemainingWaitTime()} שניות לפני בקשת קוד QR`
           : 'כעת תוכל לקבל קוד QR לחיבור הוואטסאפ'
         }
       </p>
       <button
         onClick={handleGetQR}
-        disabled={isGettingQR || !canRequestQR}
+       disabled={isGettingQR || !canRequestQR()}
         className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-          canRequestQR() && !isGettingQR()
+          canRequestQR() && !isGettingQR
             ? 'bg-blue-600 text-white hover:bg-blue-700'
             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
         }`}
