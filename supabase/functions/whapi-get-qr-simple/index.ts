@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -13,7 +12,6 @@ interface GetQRRequest {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { 
       status: 200,
@@ -22,7 +20,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🔲 WHAPI Get QR - Enhanced Version with Better Retry Logic')
+    console.log('🔲 WHAPI Get QR - Corrected to Match Documentation')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -46,28 +44,13 @@ Deno.serve(async (req) => {
       .eq('id', userId)
       .single()
 
-    console.log('📋 Loaded profile:', profile)
-    console.log('🪪 WHAPI Token:', profile?.whapi_token)
-
-
-    if (profileError || !profile) {
+    if (profileError || !profile?.whapi_token) {
       console.error('❌ Profile error:', profileError)
       return new Response(
-        JSON.stringify({ error: 'User profile not found' }),
+        JSON.stringify({ error: 'User profile not found or no token' }),
         { status: 400, headers: corsHeaders }
       )
     }
-
-      // ⏳ Optional delay if just created
-           const bootingStatuses = ['initializing', 'starting', 'booting'] // ❌ remove 'ready'
-            if (bootingStatuses.includes(profile.instance_status)) {
-            console.log(`⏳ Channel is still booting (${profile.instance_status}), waiting 90 seconds before QR...`)
-            await new Promise(resolve => setTimeout(resolve, 90000))
-    }
-
-
-
-
     
     if (!profile.instance_id || !profile.whapi_token) {
       console.error('❌ No channel found for user')
@@ -82,35 +65,39 @@ Deno.serve(async (req) => {
 
     console.log('📊 Channel status:', profile.instance_status)
 
-    // Enhanced QR retrieval with comprehensive retry logic
-    async function getQRWithEnhancedRetry(token: string, retryCount = 0, maxRetries = 5) {
+    // Enhanced QR retrieval function
+    async function getQRWithRetry(token: string, retryCount = 0, maxRetries = 3) {
       try {
-        console.log(`🔍 Enhanced QR attempt ${retryCount + 1}/${maxRetries + 1}...`)
+        console.log(`🔍 QR attempt ${retryCount + 1}/${maxRetries + 1}...`)
         
-        // Step 1: Health check first
+        // Step 1: Check health status first
+        console.log('📊 Checking channel health...')
         const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json'
           },
-          signal: AbortSignal.timeout(15000)
+          signal: AbortSignal.timeout(10000)
         })
 
         if (!healthResponse.ok) {
           if (healthResponse.status === 401) {
-            throw new Error('Token invalid or expired')
+            console.error('❌ Token is invalid or expired')
+            throw new Error('Token invalid - channel needs to be recreated')
           }
+          console.error('❌ Health check failed:', healthResponse.status)
           throw new Error(`Health check failed: ${healthResponse.status}`)
         }
 
         const healthData = await healthResponse.json()
-        console.log('📊 Detailed health status:', JSON.stringify(healthData, null, 2))
+        console.log('📊 Health data:', JSON.stringify(healthData, null, 2))
 
-        // If already connected, update DB and return success
-        if (healthData.status === 'connected' || healthData.me) {
+        // Check if already connected
+        if (healthData.status === 'connected' || healthData.me?.phone) {
           console.log('✅ Already connected to WhatsApp!')
           
+          // Update database status
           await supabase
             .from('profiles')
             .update({
@@ -127,74 +114,73 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Process health status - handle both string and object formats
-        const statusValue = (typeof healthData.status === 'object' ? healthData.status.text : healthData.status || '').toLowerCase()
-        console.log('📊 Processed health status:', statusValue)
+        // Process health status
+        const status = (typeof healthData.status === 'object' ? healthData.status.text : healthData.status || '').toLowerCase()
+        console.log('📊 Processed status:', status)
         
-        const readyStatuses = ['qr', 'unauthorized']
-
-          
-          if (!readyStatuses.includes(statusValue)) {
-            // proceed with retry or error
-          }
-
-        const initializingStatuses = ['initializing', 'starting', 'booting']
+        // Check if channel is ready for QR
+        const readyStatuses = ['unauthorized', 'qr', 'ready']
+        const initializingStatuses = ['initializing', 'starting', 'booting', 'launching', 'created']
         
-        if (!readyStatuses.includes(statusValue)) {
-          if (initializingStatuses.includes(statusValue)) {
-            console.log(`⏳ Channel still initializing (${statusValue}), will retry...`)
-            
+        if (!readyStatuses.includes(status)) {
+          if (initializingStatuses.includes(status)) {
+            console.log(`⏳ Channel still initializing (${status})`)
             if (retryCount < maxRetries) {
-              const retryDelay = Math.min(15000, 3000 * Math.pow(1.5, retryCount)) // Progressive backoff
-              console.log(`🔄 Retrying in ${retryDelay/1000} seconds...`)
-              await new Promise(resolve => setTimeout(resolve, retryDelay))
-              return getQRWithEnhancedRetry(token, retryCount + 1, maxRetries)
+              const delay = Math.min(15000, 5000 + (retryCount * 3000)) // Progressive delay
+              console.log(`🔄 Retrying in ${delay/1000} seconds...`)
+              await new Promise(resolve => setTimeout(resolve, delay))
+              return getQRWithRetry(token, retryCount + 1, maxRetries)
             } else {
-              throw new Error(`Channel still initializing after ${maxRetries + 1} attempts. Status: ${statusValue}`)
+              throw new Error(`Channel still initializing after ${maxRetries + 1} attempts. Current status: ${status}`)
             }
           } else {
-            throw new Error(`Channel not ready for QR. Status: ${statusValue}`)
+            throw new Error(`Channel not ready for QR. Status: ${status}`)
           }
         }
 
-        // Step 3: Get QR code using correct endpoint
-        console.log(`🔲 Health check passed, getting QR code from /users/login with wakeup=true...`)
+        // Step 2: Get QR code using the EXACT endpoint from documentation
+        console.log('🔲 Getting QR code from /users/login with wakeup=true...')
         
-             const qrResponse = await fetch(`https://gate.whapi.cloud/users/login/image?wakeup=true&size=400&width=400`, {
-              method: 'GET',
-              headers: {
-              'Authorization': `Bearer ${token}`,
-              'Accept': 'image/png'
-            },
-            signal: AbortSignal.timeout(30000)
-          })
+        // EXACT endpoint from WHAPI documentation
+        const qrResponse = await fetch(`https://gate.whapi.cloud/users/login?wakeup=true&size=400&width=400`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          },
+          signal: AbortSignal.timeout(30000) // 30 second timeout for QR
+        })
 
-
+        console.log('📤 QR Response status:', qrResponse.status)
 
         if (!qrResponse.ok) {
-        let errorText: string
-        try {
-          const errorJson = await qrResponse.json()
-          errorText = JSON.stringify(errorJson)
-        } catch {
-          errorText = await qrResponse.text()
-        }
-        console.error(`❌ QR request failed (${qrResponse.status}):`, errorText)
-
+          const errorText = await qrResponse.text()
+          console.error(`❌ QR request failed (${qrResponse.status}):`, errorText)
           
           if (qrResponse.status === 401) {
             throw new Error('Token invalid or expired')
+          }
+          
+          if (qrResponse.status === 408 || errorText.includes('timeout') || errorText.includes('TIMEOUT')) {
+            console.log('⏰ QR request timed out')
+            if (retryCount < maxRetries) {
+              console.log(`🔄 Timeout retry in 5 seconds...`)
+              await new Promise(resolve => setTimeout(resolve, 5000))
+              return getQRWithRetry(token, retryCount + 1, maxRetries)
+            } else {
+              throw new Error('QR generation timed out after multiple attempts')
+            }
           }
           
           throw new Error(`QR request failed: ${errorText}`)
         }
 
         const qrData = await qrResponse.json()
-        console.log('📤 WHAPI QR Response:', JSON.stringify(qrData, null, 2))
-        console.log('📊 Detailed QR response:', JSON.stringify(qrData, null, 2))
+        console.log('📤 QR Response keys:', Object.keys(qrData))
+        console.log('📤 QR Response status:', qrData.status)
 
-        // Step 4: Check if connected during QR request
-        if (qrData.status === 'connected' || qrData.me) {
+        // Step 3: Check if connected during QR request
+        if (qrData.status === 'connected' || qrData.me?.phone) {
           console.log('✅ Connected during QR request!')
           
           await supabase
@@ -213,96 +199,89 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Step 5: Handle TIMEOUT status with enhanced retry
-        if (qrData.status === 'TIMEOUT') {
-          console.log('⏰ QR generation timed out, will retry with longer delay...')
-          
+        // Step 4: Handle QR response formats - try all possible fields
+        let qrCode = null
+        
+        // According to WHAPI docs, it should return base64 image
+        if (qrData.base64) {
+          qrCode = qrData.base64
+          console.log('✅ Found QR in base64 field')
+        } else if (qrData.qr) {
+          qrCode = qrData.qr
+          console.log('✅ Found QR in qr field')
+        } else if (qrData.image) {
+          qrCode = qrData.image
+          console.log('✅ Found QR in image field')
+        } else if (qrData.qrCode) {
+          qrCode = qrData.qrCode
+          console.log('✅ Found QR in qrCode field')
+        }
+
+        // Handle special cases
+        if (!qrCode && qrData.status === 'TIMEOUT') {
+          console.log('⏰ QR generation timed out, retrying...')
           if (retryCount < maxRetries) {
-            const timeoutDelay = Math.min(20000, 5000 * Math.pow(1.8, retryCount)) // Longer delays for timeouts
-            console.log(`🔄 Timeout retry in ${timeoutDelay/1000} seconds...`)
-            await new Promise(resolve => setTimeout(resolve, timeoutDelay))
-            return getQRWithEnhancedRetry(token, retryCount + 1, maxRetries)
+            await new Promise(resolve => setTimeout(resolve, 3000))
+            return getQRWithRetry(token, retryCount + 1, maxRetries)
           } else {
             throw new Error('QR generation timed out after multiple attempts')
           }
         }
 
-        // Step 6: Validate QR code presence
-        if (!qrData.base64 && !qrData.qr) {
-          console.error('❌ No QR data in response:', Object.keys(qrData))
+        if (!qrCode) {
+          console.error('❌ No QR code in response. Full response:', JSON.stringify(qrData, null, 2))
           
           if (retryCount < maxRetries) {
-            console.log('🔄 No QR data, retrying...')
-            await new Promise(resolve => setTimeout(resolve, 3000))
-            return getQRWithEnhancedRetry(token, retryCount + 1, maxRetries)
+            console.log('🔄 No QR data found, retrying...')
+            await new Promise(resolve => setTimeout(resolve, 2000))
+            return getQRWithRetry(token, retryCount + 1, maxRetries)
           } else {
             throw new Error('QR code not available in response after multiple attempts')
           }
         }
 
-     // Step 7: Return successful QR response
-    const qrBase64 = qrData.base64 || qrData.qr || qrData.image || qrData.qrCode
-    console.log('✅ QR code received successfully, length:', qrBase64?.length || 0)
-
-    // Make sure QR has proper format
-    let formattedQR = qrBase64
-    if (formattedQR && !formattedQR.startsWith('data:image')) {
-      formattedQR = `data:image/png;base64,${formattedQR}`
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        qr_code: qrBase64,
-        qr_code_url: formattedQR,
-        status: qrData.status,
-        message: 'QR code ready for scanning',
-        expires_in: qrData.expire ? `${qrData.expire} seconds` : '60 seconds',
-        attempt: retryCount + 1,
-        debug_info: {
-          response_keys: Object.keys(qrData),
-          had_base64: !!qrData.base64,
-          had_qr: !!qrData.qr,
-          had_image: !!qrData.image
+        // Step 5: Format QR code for display
+        let formattedQR = qrCode
+        if (formattedQR && !formattedQR.startsWith('data:image')) {
+          formattedQR = `data:image/png;base64,${formattedQR}`
         }
-      }),
-      { status: 200, headers: corsHeaders }
-    )
+
+        console.log('✅ QR code received successfully, length:', qrCode.length)
+
+        return {
+          success: true,
+          qr_code: qrCode,
+          qr_code_url: formattedQR,
+          status: qrData.status || 'qr_ready',
+          message: 'QR code ready for scanning',
+          expires_in: qrData.expire ? `${qrData.expire} seconds` : '60 seconds',
+          attempt: retryCount + 1
+        }
 
       } catch (error) {
         console.error(`❌ QR attempt ${retryCount + 1} failed:`, error.message)
         
-        // Handle token invalidity immediately
-            if (error.message.includes('Token invalid') || error.message.includes('401')) {
-            console.log('🧹 Token invalid, cleaning up profile...')
-            
-            await supabase
-              .from('profiles')
-              .update({
-                instance_id: null,
-                whapi_token: null,
-                instance_status: 'disconnected',
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', userId)
+        // Handle token invalidity immediately - clean up database
+        if (error.message.includes('Token invalid') || error.message.includes('401')) {
+          console.log('🧹 Token invalid, cleaning up profile...')
           
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: 'Token invalid - cleaned up',
-                message: 'הטוקן לא תקין, נוקה מהמערכת. צור ערוץ חדש',
-                token_cleaned: true,
-                requires_new_channel: true
-              }),
-              { status: 401, headers: corsHeaders }
-            )
-          }
-
+          await supabase
+            .from('profiles')
+            .update({
+              instance_id: null,
+              whapi_token: null,
+              instance_status: 'disconnected',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+          
+          throw new Error('Token invalid - channel cleaned up. Please create a new channel.')
+        }
         
-        // Retry logic for recoverable errors
+        // Retry for recoverable errors
         const retryableErrors = [
           'timeout', 'TIMEOUT', 'not available', 'still initializing', 
-          'network', 'fetch', 'connection'
+          'network', 'fetch', 'connection', 'ECONNRESET'
         ]
         
         const isRetryable = retryableErrors.some(keyword => 
@@ -310,51 +289,52 @@ Deno.serve(async (req) => {
         )
         
         if (isRetryable && retryCount < maxRetries) {
-          const retryDelay = Math.min(25000, 4000 * Math.pow(1.6, retryCount))
-          console.log(`🔄 Retryable error, trying again in ${retryDelay/1000} seconds...`)
-          await new Promise(resolve => setTimeout(resolve, retryDelay))
-          return getQRWithEnhancedRetry(token, retryCount + 1, maxRetries)
+          const delay = Math.min(20000, 4000 * Math.pow(1.5, retryCount)) // Exponential backoff
+          console.log(`🔄 Retryable error, trying again in ${delay/1000} seconds...`)
+          await new Promise(resolve => setTimeout(resolve, delay))
+          return getQRWithRetry(token, retryCount + 1, maxRetries)
         }
         
+        // Not retryable or max retries reached
         throw error
       }
     }
 
-    // Execute the enhanced QR retrieval
-    const result = await getQRWithEnhancedRetry(profile.whapi_token)
+    // Execute QR retrieval with retry logic
+    const result = await getQRWithRetry(profile.whapi_token)
 
     return new Response(
       JSON.stringify(result),
       { 
-        status: result.success ? 200 : 400, 
+        status: 200, 
         headers: corsHeaders 
       }
     )
 
   } catch (error) {
-    console.error('💥 Final QR Error:', error.message, error.stack)
+    console.error('💥 Final QR Error:', error.message)
     
+    // Provide helpful error messages
     let errorMessage = 'Failed to get QR code'
-    let suggestion = 'Try again or create a new channel if the problem persists'
+    let suggestion = 'Try again or create a new channel'
     
     if (error.message.includes('still initializing')) {
-      errorMessage = 'Channel is still initializing. This can take up to 2 minutes.'
-      suggestion = 'Please wait a moment and try again'
+      errorMessage = 'Channel is still starting up (can take up to 2 minutes)'
+      suggestion = 'Please wait 30 seconds and try again'
     } else if (error.message.includes('timed out')) {
-      errorMessage = 'QR generation timed out. The service may be busy.'
-      suggestion = 'Wait a few seconds and try again, or create a new channel'
+      errorMessage = 'QR generation timed out. WHAPI service may be busy.'
+      suggestion = 'Wait a few seconds and try again'
     } else if (error.message.includes('Token invalid')) {
-      errorMessage = 'Token invalid. Channel needs to be recreated.'
-      suggestion = 'Go back and create a new channel'
-    } else if (error.message.includes('not available')) {
-      errorMessage = 'QR code not available. Channel may need more time.'
-      suggestion = 'Wait 30 seconds and try again'
+      errorMessage = 'Channel token expired'
+      suggestion = 'Create a new channel to get a fresh token'
+    } else if (error.message.includes('not ready')) {
+      errorMessage = 'Channel not ready for QR code'
+      suggestion = 'Wait for channel to finish initializing'
     }
-
-      console.log('📤 Final QR error details:', error)
     
     return new Response(
       JSON.stringify({ 
+        success: false,
         error: errorMessage,
         details: error.message,
         suggestion: suggestion,
