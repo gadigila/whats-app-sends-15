@@ -67,41 +67,52 @@ export const useWhatsAppSimple = () => {
       // FIXED: Enhanced debugging of response data
       console.log('📤 Raw QR response from backend:', JSON.stringify(data, null, 2));
       
-      // FIXED: The real issue - your logs show the QR is at the ROOT level of response
-      // Not nested in data.qr_code, but directly as data which IS the qr_code
+      // FIXED: Parse stringified JSON response
+      let parsedData = data;
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+          console.log('✅ Successfully parsed JSON string response');
+        } catch (e) {
+          console.log('⚠️ Data is string but not valid JSON, treating as raw data');
+          parsedData = data;
+        }
+      }
+      
       let qrCode = null;
       let qrCodeUrl = null;
       
-      // Check if data itself is the QR string (which your logs suggest)
-      if (typeof data === 'string' && data.startsWith('data:image')) {
-        qrCode = data;
-        qrCodeUrl = data;
+      // Check if parsedData itself is the QR string
+      if (typeof parsedData === 'string' && parsedData.startsWith('data:image')) {
+        qrCode = parsedData;
+        qrCodeUrl = parsedData;
         console.log('✅ Found QR as direct string response');
       }
-      // Check if data has qr_code field
-      else if (data?.qr_code) {
-        qrCode = data.qr_code;
-        qrCodeUrl = data.qr_code;
+      // Check if parsedData has qr_code field
+      else if (parsedData?.qr_code) {
+        qrCode = parsedData.qr_code;
+        qrCodeUrl = parsedData.qr_code;
         console.log('✅ Found QR in qr_code field');
       }
       // Check other possible fields
-      else if (data?.qr_code_url) {
-        qrCode = data.qr_code_url;
-        qrCodeUrl = data.qr_code_url;
+      else if (parsedData?.qr_code_url) {
+        qrCode = parsedData.qr_code_url;
+        qrCodeUrl = parsedData.qr_code_url;
         console.log('✅ Found QR in qr_code_url field');
       }
-      else if (data?.base64) {
-        qrCode = data.base64;
-        qrCodeUrl = data.base64;
+      else if (parsedData?.base64) {
+        qrCode = parsedData.base64;
+        qrCodeUrl = parsedData.base64;
         console.log('✅ Found QR in base64 field');
       }
       
       console.log('🔍 FINAL QR detection:', {
         dataType: typeof data,
-        dataKeys: typeof data === 'object' ? Object.keys(data || {}) : 'not object',
+        dataKeys: typeof parsedData === 'object' ? Object.keys(parsedData || {}) : 'not object',
         foundQrCode: !!qrCode,
         qrLength: qrCode?.length || 0,
-        dataPreview: typeof data === 'string' ? data.substring(0, 50) + '...' : 'not string'
+        dataPreview: typeof data === 'string' ? data.substring(0, 100) + '...' : 'not string',
+        parsedDataType: typeof parsedData
       });
       
       // Return enhanced data with guaranteed QR fields
@@ -109,13 +120,15 @@ export const useWhatsAppSimple = () => {
         success: !!qrCode,
         qr_code: qrCode,
         qr_code_url: qrCodeUrl,
-        already_connected: data?.already_connected || false,
+        already_connected: parsedData?.already_connected || false,
         // Preserve original response for debugging
         _original: data,
+        _parsed: parsedData,
         _debug: {
           detectedQrField: qrCode ? 'found' : 'not_found',
           dataType: typeof data,
-          responseKeys: typeof data === 'object' ? Object.keys(data || {}) : []
+          parsedDataType: typeof parsedData,
+          responseKeys: typeof parsedData === 'object' ? Object.keys(parsedData || {}) : []
         }
       };
     },
