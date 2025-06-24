@@ -1,3 +1,4 @@
+
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -176,7 +177,7 @@ export const useWhatsAppSimple = () => {
           title: "כבר מחובר!",
           description: "הוואטסאפ שלך כבר מחובר ומוכן לשימוש",
         });
-            } else if (data.qr_code) {
+      } else if (data.qr_code) {
         toast({
           title: "קוד QR מוכן",
           description: "סרוק את הקוד עם הוואטסאפ שלך",
@@ -227,3 +228,4 @@ export const useWhatsAppSimple = () => {
     isGettingQR: getQRCode.isPending,
     isPollingConnection: pollForConnection.isPending
   };
+};
