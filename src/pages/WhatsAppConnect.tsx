@@ -7,7 +7,6 @@ import WhatsAppInitialState from '@/components/WhatsAppInitialState';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
-import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { toast } from '@/hooks/use-toast';
 
 const WhatsAppConnect = () => {
@@ -18,11 +17,11 @@ const WhatsAppConnect = () => {
   const { 
     createChannel, 
     getQRCode, 
-    checkStatus, 
+    checkInstanceStatus,  // ← Changed from checkStatus
     startConnectionPolling,
     isCreatingChannel, 
     isGettingQR 
-  } = useWhatsAppSimple();
+  } = useWhatsAppInstance();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
@@ -163,7 +162,7 @@ const WhatsAppConnect = () => {
 
   const handleManualCheck = async () => {
     try {
-      const result = await checkStatus.mutateAsync();
+      const result = await checkInstanceStatus.mutateAsync();
       
       if (result.connected) {
         if (pollingCleanupRef.current) {
@@ -300,10 +299,10 @@ const WhatsAppConnect = () => {
                   </button>
                   <button
                     onClick={handleManualCheck}
-                    disabled={checkStatus.isPending}
+                    disabled={checkInstanceStatus.isPending}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
                   >
-                    {checkStatus.isPending ? '🔍 בודק...' : '✅ בדוק חיבור'}
+                    {checkInstanceStatus.isPending ? '🔍 בודק...' : '✅ בדוק חיבור'}
                   </button>
                 </div>
                 
