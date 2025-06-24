@@ -57,7 +57,21 @@ Deno.serve(async (req) => {
 
     console.log('Fetching groups from WHAPI for instance:', profile.instance_id)
 
-    // Fetch groups from WHAPI
+    // STEP 1: Get user's phone number first
+    const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
+      headers: {
+        'Authorization': `Bearer ${profile.whapi_token}`
+      }
+    })
+
+    let userPhoneNumber = null
+    if (profileResponse.ok) {
+      const profileData = await profileResponse.json()
+      userPhoneNumber = profileData.phone || profileData.id
+      console.log('🔍 User phone number:', userPhoneNumber)
+    }
+
+    // STEP 2: Fetch groups from WHAPI
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
       headers: {
         'Authorization': `Bearer ${profile.whapi_token}`
@@ -78,52 +92,33 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${groups.length} groups to sync`)
 
-    // 🔍 DEBUG: Log the first few groups to see the structure
-    console.log('🔍 First 3 groups structure:', JSON.stringify(groups.slice(0, 3), null, 2))
-
-    // Store/update groups in database
+    // STEP 3: Process groups and determine admin status correctly
     const groupsToInsert = groups.map((group: any) => {
-      // 🔍 DEBUG: Check different possible admin field names
-      const possibleAdminFields = {
-        is_admin: group.is_admin,
-        admin: group.admin,
-        isAdmin: group.isAdmin,
-        role: group.role,
-        participant_role: group.participant_role,
-        my_role: group.my_role,
-        user_role: group.user_role
-      }
-      
-      console.log(`🔍 Group "${group.name || group.subject}" admin fields:`, possibleAdminFields)
-      
-      // Try to determine admin status from various possible fields
+      // 🔍 Check if user is admin by looking in participants array
       let isAdmin = false
       
-      if (group.is_admin === true || group.is_admin === 'true') {
-        isAdmin = true
-      } else if (group.admin === true || group.admin === 'true') {
-        isAdmin = true
-      } else if (group.isAdmin === true || group.isAdmin === 'true') {
-        isAdmin = true
-      } else if (group.role === 'admin' || group.role === 'creator') {
-        isAdmin = true
-      } else if (group.participant_role === 'admin' || group.participant_role === 'creator') {
-        isAdmin = true
-      } else if (group.my_role === 'admin' || group.my_role === 'creator') {
-        isAdmin = true
-      } else if (group.user_role === 'admin' || group.user_role === 'creator') {
-        isAdmin = true
+      if (group.participants && Array.isArray(group.participants) && userPhoneNumber) {
+        const userParticipant = group.participants.find((p: any) => 
+          p.id === userPhoneNumber || p.id === userPhoneNumber.replace(/^\+/, '')
+        )
+        
+        if (userParticipant) {
+          isAdmin = userParticipant.rank === 'admin' || userParticipant.rank === 'creator'
+          console.log(`🔍 Group "${group.name}": User rank = ${userParticipant.rank}, isAdmin = ${isAdmin}`)
+        } else {
+          console.log(`🔍 Group "${group.name}": User not found in participants`)
+        }
+      } else {
+        console.log(`🔍 Group "${group.name}": No participants data or no user phone`)
       }
-      
-      console.log(`🔍 Final admin status for "${group.name || group.subject}": ${isAdmin}`)
       
       return {
         user_id: userId,
         group_id: group.id,
         name: group.name || group.subject || 'Unknown Group',
         description: group.description || null,
-        participants_count: group.participants_count || group.size || 0,
-        is_admin: isAdmin, // Use our calculated admin status
+        participants_count: group.participants_count || group.size || (group.participants ? group.participants.length : 0),
+        is_admin: isAdmin, // ✅ Now correctly determined from participants array
         avatar_url: group.avatar_url || null,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -165,6 +160,7 @@ Deno.serve(async (req) => {
         success: true,
         groups_count: groupsToInsert.length,
         admin_groups_count: adminCount,
+        user_phone: userPhoneNumber,
         groups: groupsToInsert,
         message: `Groups synced successfully - ${adminCount} admin groups found`
       }),
