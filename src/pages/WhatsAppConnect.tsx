@@ -16,11 +16,13 @@ const WhatsAppConnect = () => {
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { syncGroups } = useWhatsAppGroups();
-  const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
+  const { createChannel, getQRCode, checkConnectionStatus, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isPollingForQR, setIsPollingForQR] = useState(false);
   const [pollingAttempts, setPollingAttempts] = useState(0);
+  const [isPollingConnection, setIsPollingConnection] = useState(false);
+  const [connectionPollingAttempts, setConnectionPollingAttempts] = useState(0);
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
@@ -29,7 +31,9 @@ const WhatsAppConnect = () => {
     hasInstanceId: !!profile?.instance_id,
     qrCode: !!qrCode,
     isPollingForQR,
-    pollingAttempts
+    pollingAttempts,
+    isPollingConnection,
+    connectionPollingAttempts
   });
 
   // Simplified QR polling
@@ -93,6 +97,54 @@ const WhatsAppConnect = () => {
     }
   };
 
+  // 🆕 NEW: Connection status polling function
+  const pollForConnection = async () => {
+    if (connectionPollingAttempts >= 60) { // Max 60 attempts = 5 minutes
+      console.log('❌ Max connection polling attempts reached');
+      setIsPollingConnection(false);
+      setConnectionPollingAttempts(0);
+      toast({
+        title: "זמן ההמתנה פג",
+        description: "לא זוהה חיבור. נסה לסרוק שוב את הקוד",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log(`🔍 Checking connection status... attempt ${connectionPollingAttempts + 1}/60`);
+      const result = await checkConnectionStatus.mutateAsync();
+      
+      if (result.connected && result.status === 'connected') {
+        console.log('🎉 Connection detected!');
+        setIsPollingConnection(false);
+        setConnectionPollingAttempts(0);
+        setQrCode(null); // Hide QR code
+        await refetchProfile();
+        return;
+      }
+      
+      // Continue polling
+      setConnectionPollingAttempts(prev => prev + 1);
+      setTimeout(() => {
+        if (isPollingConnection) {
+          pollForConnection();
+        }
+      }, 5000); // Check every 5 seconds
+      
+    } catch (error) {
+      console.error('❌ Connection polling error:', error);
+      setConnectionPollingAttempts(prev => prev + 1);
+      
+      // Retry on error
+      setTimeout(() => {
+        if (isPollingConnection && connectionPollingAttempts < 60) {
+          pollForConnection();
+        }
+      }, 5000);
+    }
+  };
+
   // Start polling when channel is ready
   useEffect(() => {
     const shouldPoll = 
@@ -112,6 +164,21 @@ const WhatsAppConnect = () => {
       }, 2000);
     }
   }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR]);
+
+  // 🆕 NEW: Start connection polling when QR is displayed
+  useEffect(() => {
+    // Start connection polling when QR is displayed
+    if (qrCode && !isPollingConnection && profile?.instance_status !== 'connected') {
+      console.log('🚀 Starting connection status polling...');
+      setIsPollingConnection(true);
+      setConnectionPollingAttempts(0);
+      
+      // Start polling after showing QR
+      setTimeout(() => {
+        pollForConnection();
+      }, 3000);
+    }
+  }, [qrCode, isPollingConnection, profile?.instance_status]);
 
   // Loading states
   if (!isAuthReady || (profileLoading && !profileError)) {
@@ -148,6 +215,9 @@ const WhatsAppConnect = () => {
             setQrCode(null);
             setIsPollingForQR(false);
             setPollingAttempts(0);
+            // 🆕 NEW: Also stop connection polling
+            setIsPollingConnection(false);
+            setConnectionPollingAttempts(0);
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
           }
@@ -173,6 +243,9 @@ const WhatsAppConnect = () => {
     setQrCode(null);
     setIsPollingForQR(true);
     setPollingAttempts(0);
+    // 🆕 NEW: Stop connection polling when refreshing QR
+    setIsPollingConnection(false);
+    setConnectionPollingAttempts(0);
     pollForQR();
   };
 
@@ -236,11 +309,34 @@ const WhatsAppConnect = () => {
 
         {/* QR Code Display */}
         {qrCode && (
-          <WhatsAppQRDisplay 
-            qrCode={qrCode} 
-            onRefreshQR={handleRefreshQR}
-            isRefreshing={isPollingForQR}
-          />
+          <div>
+            <WhatsAppQRDisplay 
+              qrCode={qrCode} 
+              onRefreshQR={handleRefreshQR}
+              isRefreshing={isPollingForQR}
+            />
+            
+            {/* 🆕 NEW: Connection status indicator */}
+            {isPollingConnection && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                <div className="flex items-center justify-center space-x-2 mb-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span className="text-blue-800 font-medium">
+                    מחכה לחיבור... ({connectionPollingAttempts + 1}/60)
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600">
+                  לאחר סריקת הקוד, החיבור יזוהה אוטומטית בעוד {Math.max(0, 5 - (connectionPollingAttempts % 5))} שניות
+                </p>
+                <div className="mt-2 bg-blue-100 rounded-full h-1 w-full">
+                  <div 
+                    className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                    style={{ width: `${(connectionPollingAttempts / 60) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </Layout>

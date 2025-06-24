@@ -114,6 +114,46 @@ export const useWhatsAppSimple = () => {
         dataPreview: typeof data === 'string' ? data.substring(0, 100) + '...' : 'not string',
         parsedDataType: typeof parsedData
       });
+
+
+        // 🆕 ADD THIS NEW MUTATION HERE (after getQRCode, before the return statement)
+        const checkConnectionStatus = useMutation({
+          mutationFn: async () => {
+            if (!user?.id) throw new Error('No user ID');
+            
+            const { data, error } = await supabase.functions.invoke('whapi-check-status', {
+              body: { userId: user.id }
+            });
+            
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+            
+            return data;
+          },
+          onSuccess: (data) => {
+            if (data.connected && data.status === 'connected') {
+              console.log('✅ WhatsApp connected!', data.phone);
+              queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+              queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+              
+              toast({
+                title: "וואטסאפ מחובר!",
+                description: `חובר בהצלחה למספר: ${data.phone}`,
+              });
+            }
+          }
+        });
+        
+        // Add to your return statement
+        return {
+          createChannel,
+          getQRCode,
+          checkConnectionStatus, // Add this
+          isCreatingChannel: createChannel.isPending,
+          isGettingQR: getQRCode.isPending
+        };
+
+
       
       // Return enhanced data with guaranteed QR fields
       return {
