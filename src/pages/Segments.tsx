@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Users, Plus, Edit, Trash2, MessageSquare } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, MessageSquare, Search, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 
@@ -28,6 +27,20 @@ const Segments = () => {
   const [newSegmentName, setNewSegmentName] = useState('');
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null);
+  
+  // 🔍 חיפוש קבוצות
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // סינון קבוצות לפי חיפוש
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return groups;
+    
+    const query = searchQuery.toLowerCase().trim();
+    return groups.filter(group => 
+      group.name.toLowerCase().includes(query) ||
+      (group.description && group.description.toLowerCase().includes(query))
+    );
+  }, [groups, searchQuery]);
 
   const handleCreateSegment = () => {
     if (!newSegmentName.trim()) {
@@ -127,6 +140,11 @@ const Segments = () => {
     setNewSegmentName('');
     setSelectedGroupIds([]);
     setEditingSegment(null);
+    setSearchQuery(''); // איפוס חיפוש
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
   };
 
   const getGroupNames = (groupIds: string[]) => {
@@ -187,14 +205,58 @@ const Segments = () => {
                 
                 <div>
                   <Label>בחר קבוצות</Label>
-                  <div className="mt-2 space-y-3 max-h-64 overflow-y-auto">
+                  
+                  {/* 🔍 שדה חיפוש קבוצות */}
+                  <div className="mt-2 mb-4">
+                    <div className="relative">
+                      <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="חפש קבוצות..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pr-10 pl-10"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={clearSearch}
+                          className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    {/* מידע על תוצאות החיפוש */}
+                    {searchQuery && (
+                      <div className="mt-2 text-sm text-gray-600">
+                        {filteredGroups.length === 0 
+                          ? `לא נמצאו קבוצות עבור "${searchQuery}"`
+                          : `נמצאו ${filteredGroups.length} קבוצות מתוך ${groups.length}`
+                        }
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
                     {groups.length === 0 ? (
                       <div className="text-center py-4 text-gray-500">
                         אין קבוצות זמינות. אנא סנכרן את הקבוצות שלך תחילה.
                       </div>
+                    ) : filteredGroups.length === 0 ? (
+                      <div className="text-center py-4 text-gray-500">
+                        <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        לא נמצאו קבוצות התואמות לחיפוש
+                        <br />
+                        <button 
+                          onClick={clearSearch}
+                          className="text-blue-600 hover:text-blue-700 text-sm mt-1"
+                        >
+                          נקה חיפוש
+                        </button>
+                      </div>
                     ) : (
-                      groups.map((group) => (
-                        <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse">
+                      filteredGroups.map((group) => (
+                        <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
                           <Checkbox
                             id={group.group_id}
                             checked={selectedGroupIds.includes(group.group_id)}
@@ -202,7 +264,17 @@ const Segments = () => {
                           />
                           <div className="flex-1">
                             <label htmlFor={group.group_id} className="text-sm font-medium cursor-pointer">
-                              {group.name}
+                              {/* הדגשת טקסט החיפוש */}
+                              {searchQuery ? (
+                                <span dangerouslySetInnerHTML={{
+                                  __html: group.name.replace(
+                                    new RegExp(searchQuery, 'gi'),
+                                    '<mark class="bg-yellow-200">$&</mark>'
+                                  )
+                                }} />
+                              ) : (
+                                group.name
+                              )}
                             </label>
                             <p className="text-xs text-gray-500">
                               {group.description || 'ללא תיאור'} • {group.participants_count || 0} חברים
@@ -216,7 +288,7 @@ const Segments = () => {
 
                 {selectedGroupIds.length > 0 && (
                   <div className="p-4 bg-green-50 rounded-lg">
-                    <h4 className="font-medium text-green-900 mb-2">קבוצות נבחרות:</h4>
+                    <h4 className="font-medium text-green-900 mb-2">קבוצות נבחרות ({selectedGroupIds.length}):</h4>
                     <div className="flex flex-wrap gap-2">
                       {getGroupNames(selectedGroupIds).map(name => (
                         <Badge key={name} variant="outline" className="text-green-700 border-green-700">
