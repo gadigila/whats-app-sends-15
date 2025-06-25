@@ -1,4 +1,5 @@
 
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
@@ -10,6 +11,32 @@ interface WhatsAppQRDisplayProps {
 }
 
 const WhatsAppQRDisplay = ({ qrCode, onRefreshQR, isRefreshing }: WhatsAppQRDisplayProps) => {
+  const [cooldownTimer, setCooldownTimer] = useState(0);
+
+  // Start cooldown timer when component mounts (QR is first displayed)
+  useEffect(() => {
+    setCooldownTimer(60);
+  }, []);
+
+  // Handle countdown
+  useEffect(() => {
+    if (cooldownTimer > 0) {
+      const timer = setTimeout(() => {
+        setCooldownTimer(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldownTimer]);
+
+  const handleRefreshClick = async () => {
+    if (cooldownTimer > 0) return;
+    
+    await onRefreshQR();
+    setCooldownTimer(60); // Reset timer after refresh
+  };
+
+  const isButtonDisabled = cooldownTimer > 0 || isRefreshing;
+
   return (
     <Card>
       <CardContent className="p-8 text-center space-y-6">
@@ -41,15 +68,21 @@ const WhatsAppQRDisplay = ({ qrCode, onRefreshQR, isRefreshing }: WhatsAppQRDisp
         </div>
         
         <Button
-          onClick={onRefreshQR}
+          onClick={handleRefreshClick}
           variant="outline"
           size="sm"
-          disabled={isRefreshing}
+          disabled={isButtonDisabled}
         >
           {isRefreshing ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : null}
-          רענן קוד QR
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              מרענן...
+            </>
+          ) : cooldownTimer > 0 ? (
+            `רענן קוד QR (${cooldownTimer})`
+          ) : (
+            'רענן קוד QR'
+          )}
         </Button>
       </CardContent>
     </Card>
