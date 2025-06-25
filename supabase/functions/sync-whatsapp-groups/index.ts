@@ -141,6 +141,7 @@ Deno.serve(async (req) => {
           if (detailData.participants && Array.isArray(detailData.participants)) {
             participantsCount = detailData.participants.length
             console.log(`👥 Group "${basicGroup.name}" has ${participantsCount} participants`)
+            console.log('🔍 Sample participant structure:', JSON.stringify(detailData.participants[0], null, 2))
             
             // Debug: Show first few participants structure
             if (detailData.participants.length > 0) {
