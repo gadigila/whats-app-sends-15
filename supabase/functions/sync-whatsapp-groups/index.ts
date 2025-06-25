@@ -62,28 +62,34 @@ Deno.serve(async (req) => {
       }
     })
 
-    let userPhoneNumbers: string[] = []
-    if (profileResponse.ok) {
-      const profileData = await profileResponse.json()
-      const basePhone = profileData.phone || profileData.id
-      
-      if (basePhone) {
-        // Create multiple phone number formats to handle different cases
-        userPhoneNumbers = [
-          basePhone,                           // Original format
-          basePhone.replace(/^\+/, ''),        // Without +
-          '+' + basePhone.replace(/^\+/, ''),  // With +
-          basePhone.replace(/[^\d]/g, '')      // Only digits
-        ]
-        // Remove duplicates
-        userPhoneNumbers = [...new Set(userPhoneNumbers)]
-        console.log('📞 User phone number variations:', userPhoneNumbers)
+         let userPhoneNumbers: string[] = []
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        console.log('🔍 RAW PROFILE DATA:', JSON.stringify(profileData, null, 2))
+        
+        const basePhone = profileData.phone || profileData.id || profileData.wid
+        
+        if (basePhone) {
+          // Create multiple phone number formats to handle different cases
+          userPhoneNumbers = [
+            basePhone,                           // Original format
+            basePhone.replace(/^\+/, ''),        // Without +
+            '+' + basePhone.replace(/^\+/, ''),  // With +
+            basePhone.replace(/[^\d]/g, ''),     // Only digits
+            basePhone.replace('@s.whatsapp.net', ''), // Remove WhatsApp suffix
+            basePhone.replace('@c.us', ''),      // Remove old WhatsApp suffix
+          ]
+          // Remove duplicates
+          userPhoneNumbers = [...new Set(userPhoneNumbers.filter(phone => phone && phone.length > 5))]
+          console.log('📞 User phone number variations:', userPhoneNumbers)
+        } else {
+          console.error('❌ Could not get user phone number from profile:', profileData)
+        }
       } else {
-        console.error('❌ Could not get user phone number from profile')
+        console.error('❌ Failed to get user profile:', profileResponse.status)
+        const errorText = await profileResponse.text()
+        console.error('❌ Profile error details:', errorText)
       }
-    } else {
-      console.error('❌ Failed to get user profile:', profileResponse.status)
-    }
 
     console.log('📋 Fetching groups list...')
 
@@ -131,21 +137,44 @@ Deno.serve(async (req) => {
         if (detailResponse.ok) {
           const detailData = await detailResponse.json()
           
-          // Check participants for admin status
+                 // Check participants for admin status
           if (detailData.participants && Array.isArray(detailData.participants)) {
             participantsCount = detailData.participants.length
+            console.log(`👥 Group "${basicGroup.name}" has ${participantsCount} participants`)
+            
+            // Debug: Show first few participants structure
+            if (detailData.participants.length > 0) {
+              console.log('🔍 Sample participant structure:', JSON.stringify(detailData.participants[0], null, 2))
+            }
             
             // Check if any of our phone number variations match an admin/creator
+            let foundUser = false
             for (const participant of detailData.participants) {
-              if (userPhoneNumbers.includes(participant.id)) {
-                const rank = participant.rank
-                isAdmin = rank === 'admin' || rank === 'creator'
-                console.log(`👤 Found user in group "${basicGroup.name}": rank=${rank}, isAdmin=${isAdmin}`)
-                break
+              console.log(`👤 Checking participant: id=${participant.id}, rank=${participant.rank}`)
+              
+              for (const phoneVariation of userPhoneNumbers) {
+                if (participant.id === phoneVariation || 
+                    participant.id?.includes(phoneVariation) || 
+                    phoneVariation.includes(participant.id?.replace('@s.whatsapp.net', '').replace('@c.us', ''))) {
+                  
+                  const rank = participant.rank
+                  isAdmin = rank === 'admin' || rank === 'creator'
+                  foundUser = true
+                  console.log(`✅ FOUND USER in group "${basicGroup.name}": participant.id=${participant.id}, phoneVariation=${phoneVariation}, rank=${rank}, isAdmin=${isAdmin}`)
+                  break
+                }
               }
+              if (foundUser) break
+            }
+            
+            if (!foundUser) {
+              console.log(`❌ User NOT FOUND in group "${basicGroup.name}" participants`)
+              console.log(`🔍 Looking for these phone variations:`, userPhoneNumbers)
+              console.log(`🔍 Found these participant IDs:`, detailData.participants.map(p => p.id).slice(0, 5))
             }
           } else {
             console.log(`⚠️ No participants data for group "${basicGroup.name}"`)
+            console.log(`🔍 Group detail response:`, JSON.stringify(detailData, null, 2))
           }
         } else {
           console.log(`⚠️ Could not get detailed info for group "${basicGroup.name}": ${detailResponse.status}`)
