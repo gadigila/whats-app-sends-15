@@ -11,15 +11,12 @@ import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import SelectiveGroupSync from '@/components/SelectiveGroupSync';
-import { Crown } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
-  const { syncGroups, groups } = useWhatsAppGroups();
+  const { syncGroups } = useWhatsAppGroups();
   const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -215,94 +212,37 @@ const WhatsAppConnect = () => {
   }
 
   // Connected state
-if (profile?.instance_status === 'connected') {
-  return (
-    <Layout>
-      <div className="max-w-4xl mx-auto py-8 px-4 space-y-8">
-        {/* WhatsApp Connected Status */}
-        <WhatsAppConnectedView
-          profile={profile}
-          onNavigateToCompose={() => window.location.href = '/compose'}
-          onSyncGroups={async () => {
-            try {
-              await syncGroups.mutateAsync();
-            } catch (error) {
-              console.error('Failed to sync groups:', error);
-            }
-          }}
-          onDisconnect={async () => {
-            try {
-              await deleteInstance.mutateAsync();
-              await refetchProfile();
-              setQrCode(null);
-              setIsPollingForQR(false);
-              setPollingAttempts(0);
-              setIsPollingConnection(false);
-              setConnectionPollingAttempts(0);
-            } catch (error) {
-              console.error('❌ Disconnect failed:', error);
-            }
-          }}
-          isSyncingGroups={syncGroups.isPending}
-          isDisconnecting={deleteInstance.isPending}
-        />
-
-        {/* Selective Group Sync */}
-        <SelectiveGroupSync
-          onSyncAll={async () => {
-            try {
-              await syncGroups.mutateAsync();
-            } catch (error) {
-              console.error('Failed to sync all groups:', error);
-            }
-          }}
-          onSyncAdminOnly={async () => {
-            try {
-              // For now, this does the same as sync all
-              // Later we'll add admin-only sync function
-              await syncGroups.mutateAsync();
-            } catch (error) {
-              console.error('Failed to sync admin groups:', error);
-            }
-          }}
-          isSyncing={syncGroups.isPending}
-          adminGroupsCount={groups?.filter(g => g.is_admin).length || 0}
-          totalGroupsCount={groups?.length || 0}
-        />
-
-        {/* Groups Display */}
-        {groups && groups.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>הקבוצות שלך</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {groups.slice(0, 6).map((group) => (
-                  <div key={group.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                    {group.is_admin && <Crown className="h-4 w-4 text-amber-500" />}
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{group.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {group.participants_count} משתתפים
-                        {group.is_admin && " • מנהל"}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {groups.length > 6 && (
-                <p className="text-center text-sm text-gray-500 mt-4">
-                  ועוד {groups.length - 6} קבוצות...
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </Layout>
-  );
-}
+  if (profile?.instance_status === 'connected') {
+    return (
+      <WhatsAppConnectedView
+        profile={profile}
+        onNavigateToCompose={() => window.location.href = '/compose'}
+        onSyncGroups={async () => {
+          try {
+            await syncGroups.mutateAsync();
+          } catch (error) {
+            console.error('Failed to sync groups:', error);
+          }
+        }}
+        onDisconnect={async () => {
+          try {
+            await deleteInstance.mutateAsync();
+            await refetchProfile();
+            setQrCode(null);
+            setIsPollingForQR(false);
+            setPollingAttempts(0);
+            // 🆕 NEW: Also stop connection polling
+            setIsPollingConnection(false);
+            setConnectionPollingAttempts(0);
+          } catch (error) {
+            console.error('❌ Disconnect failed:', error);
+          }
+        }}
+        isSyncingGroups={syncGroups.isPending}
+        isDisconnecting={deleteInstance.isPending}
+      />
+    );
+  }
 
   // Channel creation
   const handleCreateChannel = async () => {
