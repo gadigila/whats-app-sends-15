@@ -9,8 +9,56 @@ interface SyncGroupsRequest {
   userId: string
 }
 
+// Enhanced phone number matching function
+function createPhoneVariations(phone: string): string[] {
+  if (!phone) return [];
+  
+  const variations = new Set<string>();
+  
+  // Original phone
+  variations.add(phone);
+  
+  // Remove all non-digits and create variations
+  const digitsOnly = phone.replace(/[^\d]/g, '');
+  if (digitsOnly) {
+    variations.add(digitsOnly);
+    variations.add(`+${digitsOnly}`);
+    
+    // If starts with country code, try without it
+    if (digitsOnly.startsWith('972')) {
+      const withoutCountry = digitsOnly.substring(3);
+      variations.add(withoutCountry);
+      variations.add(`0${withoutCountry}`);
+    }
+    
+    // If starts with 0, try with country code
+    if (digitsOnly.startsWith('0')) {
+      const withCountry = `972${digitsOnly.substring(1)}`;
+      variations.add(withCountry);
+      variations.add(`+${withCountry}`);
+    }
+  }
+  
+  // Add/remove + prefix variations
+  if (phone.startsWith('+')) {
+    variations.add(phone.substring(1));
+  } else {
+    variations.add(`+${phone}`);
+  }
+  
+  return Array.from(variations).filter(v => v.length >= 8); // Filter out too short numbers
+}
+
+function isPhoneMatch(phone1: string, phone2: string): boolean {
+  if (!phone1 || !phone2) return false;
+  
+  const variations1 = createPhoneVariations(phone1);
+  const variations2 = createPhoneVariations(phone2);
+  
+  return variations1.some(v1 => variations2.includes(v1));
+}
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -20,7 +68,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('🚀 Sync WhatsApp Groups: Starting with WHAPI documentation approach...')
+    console.log('🚀 Sync WhatsApp Groups: Enhanced admin detection starting...')
 
     const { userId }: SyncGroupsRequest = await req.json()
 
@@ -31,7 +79,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get user's WHAPI token and instance details
+    // Get user's WHAPI token
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status')
@@ -53,10 +101,10 @@ Deno.serve(async (req) => {
       )
     }
 
+    // STEP 1: Get user's phone number
     console.log('📱 Getting user profile for phone number...')
-
-    // STEP 1: Get user's phone number from users/profile endpoint
     let userPhoneNumber = null
+
     try {
       const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
         method: 'GET',
@@ -70,18 +118,18 @@ Deno.serve(async (req) => {
         const profileData = await profileResponse.json()
         userPhoneNumber = profileData.phone || profileData.id
         console.log('📞 User phone number identified:', userPhoneNumber)
+        
+        const phoneVariations = createPhoneVariations(userPhoneNumber)
+        console.log('📞 Phone variations created:', phoneVariations)
       } else {
         console.error('❌ Failed to get user profile:', profileResponse.status)
-        const errorText = await profileResponse.text()
-        console.error('Profile error details:', errorText)
       }
     } catch (profileError) {
       console.error('❌ Error fetching user profile:', profileError)
     }
 
-    console.log('📋 Fetching groups list using WHAPI documentation method...')
-
-    // STEP 2: Get groups list using exact WHAPI documentation endpoint
+    // STEP 2: Get groups list
+    console.log('📋 Fetching groups list...')
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
       method: 'GET',
       headers: {
@@ -92,187 +140,135 @@ Deno.serve(async (req) => {
 
     if (!groupsResponse.ok) {
       const errorText = await groupsResponse.text()
-      console.error('❌ Failed to fetch groups from WHAPI:', groupsResponse.status, errorText)
+      console.error('❌ Failed to fetch groups:', groupsResponse.status, errorText)
       return new Response(
-        JSON.stringify({ 
-          error: 'Failed to fetch WhatsApp groups', 
-          status: groupsResponse.status,
-          details: errorText 
-        }),
+        JSON.stringify({ error: 'Failed to fetch WhatsApp groups', details: errorText }),
         { status: 400, headers: corsHeaders }
       )
     }
 
     const groupsData = await groupsResponse.json()
-    console.log('📊 Groups response structure:', Object.keys(groupsData))
-    
-    // Handle different response structures
     let allGroups = []
+    
     if (Array.isArray(groupsData)) {
       allGroups = groupsData
     } else if (groupsData.groups && Array.isArray(groupsData.groups)) {
       allGroups = groupsData.groups
     } else if (groupsData.data && Array.isArray(groupsData.data)) {
       allGroups = groupsData.data
-    } else {
-      console.error('❌ Unexpected groups response structure:', groupsData)
-      return new Response(
-        JSON.stringify({ error: 'Unexpected response format from WHAPI' }),
-        { status: 400, headers: corsHeaders }
-      )
     }
 
     console.log(`📊 Found ${allGroups.length} groups total`)
 
-    // STEP 3: Process each group and check admin status using WHAPI's suggested approach
+    // STEP 3: Enhanced admin detection for each group
     const groupsToInsert = []
     let adminCount = 0
-    let processedCount = 0
+    let totalMembersCount = 0
 
-    for (const group of allGroups) {
+    for (let i = 0; i < allGroups.length; i++) {
+      const group = allGroups[i]
+      const groupName = group.name || group.subject || `Group ${group.id}`
+      
+      console.log(`🔍 Processing ${i + 1}/${allGroups.length}: ${groupName}`)
+      
+      let isAdmin = false
+      let participantsCount = 0
+
       try {
-        processedCount++
-        const groupName = group.name || group.subject || `Group ${group.id}`
-        console.log(`🔍 Processing ${processedCount}/${allGroups.length}: ${groupName}`)
-        
-        let isAdmin = false
-        let participantsCount = group.participants_count || group.size || 0
-
-        // Check if group already has admins array (from basic groups response)
-        if (group.admins && Array.isArray(group.admins) && userPhoneNumber) {
-          console.log(`👑 Checking admins in basic group data for "${groupName}"`)
-          
-          for (const admin of group.admins) {
-            const adminPhone = admin.id || admin.phone || admin
-            
-            // Multiple phone format matching as suggested by WHAPI support
-            if (adminPhone && userPhoneNumber && (
-              adminPhone === userPhoneNumber ||
-              adminPhone === `+${userPhoneNumber.replace(/^\+/, '')}` ||
-              adminPhone.replace(/^\+/, '') === userPhoneNumber.replace(/^\+/, '') ||
-              `+${adminPhone.replace(/^\+/, '')}` === userPhoneNumber
-            )) {
-              isAdmin = true
-              console.log(`👑 ✅ Found user as admin in "${groupName}": ${adminPhone}`)
-              break
-            }
+        // Get detailed group information
+        const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Content-Type': 'application/json'
           }
-        }
+        })
 
-        // If not found in basic data and we have phone number, get detailed group info
-        if (!isAdmin && userPhoneNumber && group.id) {
-          try {
-            console.log(`🔍 Getting detailed info for "${groupName}"...`)
+        if (detailResponse.ok) {
+          const detailData = await detailResponse.json()
+          
+          // Get accurate participant count
+          if (detailData.participants && Array.isArray(detailData.participants)) {
+            participantsCount = detailData.participants.length
+            console.log(`👥 Group "${groupName}" has ${participantsCount} participants`)
             
-            const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${profile.whapi_token}`,
-                'Content-Type': 'application/json'
-              }
-            })
-
-            if (detailResponse.ok) {
-              const detailData = await detailResponse.json()
-              
-              // Update participants count from detailed data
-              if (detailData.participants && Array.isArray(detailData.participants)) {
-                participantsCount = detailData.participants.length
-              }
-
-              // Check admins array in detailed response
-              if (detailData.admins && Array.isArray(detailData.admins)) {
-                console.log(`👑 Checking ${detailData.admins.length} admins in detailed data`)
+            // Check each participant for admin role
+            if (userPhoneNumber) {
+              for (const participant of detailData.participants) {
+                const participantPhone = participant.id || participant.phone
+                const participantRole = participant.rank || participant.role
                 
-                for (const admin of detailData.admins) {
-                  const adminPhone = admin.id || admin.phone || admin
+                if (participantPhone && isPhoneMatch(userPhoneNumber, participantPhone)) {
+                  console.log(`👤 Found user in "${groupName}": ${participantPhone}, role: ${participantRole}`)
                   
-                  if (adminPhone && userPhoneNumber && (
-                    adminPhone === userPhoneNumber ||
-                    adminPhone === `+${userPhoneNumber.replace(/^\+/, '')}` ||
-                    adminPhone.replace(/^\+/, '') === userPhoneNumber.replace(/^\+/, '') ||
-                    `+${adminPhone.replace(/^\+/, '')}` === userPhoneNumber
-                  )) {
+                  if (participantRole === 'admin' || participantRole === 'creator' || participantRole === 'superadmin') {
                     isAdmin = true
-                    console.log(`👑 ✅ Found user as admin in detailed "${groupName}": ${adminPhone}`)
+                    console.log(`👑 ✅ User is ${participantRole} in "${groupName}"`)
                     break
                   }
                 }
               }
-
-              // Also check participants array for admin/creator roles
-              if (!isAdmin && detailData.participants && Array.isArray(detailData.participants)) {
-                for (const participant of detailData.participants) {
-                  const participantPhone = participant.id || participant.phone
-                  const participantRole = participant.rank || participant.role
-                  
-                  if (participantPhone && userPhoneNumber && (
-                    participantPhone === userPhoneNumber ||
-                    participantPhone === `+${userPhoneNumber.replace(/^\+/, '')}` ||
-                    participantPhone.replace(/^\+/, '') === userPhoneNumber.replace(/^\+/, '') ||
-                    `+${participantPhone.replace(/^\+/, '')}` === userPhoneNumber
-                  )) {
-                    if (participantRole === 'admin' || participantRole === 'creator' || participantRole === 'superadmin') {
-                      isAdmin = true
-                      console.log(`👑 ✅ Found user as ${participantRole} in "${groupName}": ${participantPhone}`)
-                      break
-                    }
-                  }
-                }
-              }
-            } else {
-              console.log(`⚠️ Could not get detailed info for "${groupName}": ${detailResponse.status}`)
             }
-            
-            // Small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100))
-            
-          } catch (detailError) {
-            console.log(`⚠️ Error getting details for "${groupName}":`, detailError.message)
+          } else if (detailData.participants_count || detailData.size) {
+            participantsCount = detailData.participants_count || detailData.size
+            console.log(`👥 Group "${groupName}" has ${participantsCount} participants (from count field)`)
           }
-        }
 
-        if (isAdmin) {
-          adminCount++
-          console.log(`👑 ✅ User is ADMIN in: "${groupName}"`)
+          // Also check admins array if available
+          if (!isAdmin && detailData.admins && Array.isArray(detailData.admins) && userPhoneNumber) {
+            console.log(`👑 Checking ${detailData.admins.length} admins in "${groupName}"`)
+            
+            for (const admin of detailData.admins) {
+              const adminPhone = admin.id || admin.phone || admin
+              
+              if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
+                isAdmin = true
+                console.log(`👑 ✅ Found user as admin in "${groupName}": ${adminPhone}`)
+                break
+              }
+            }
+          }
         } else {
-          console.log(`👤 User is member in: "${groupName}"`)
+          console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
+          // Fallback to basic group data
+          participantsCount = group.participants_count || group.size || 0
         }
 
-        // Add to groups list
-        groupsToInsert.push({
-          user_id: userId,
-          group_id: group.id,
-          name: groupName,
-          description: group.description || null,
-          participants_count: participantsCount,
-          is_admin: isAdmin,
-          avatar_url: group.avatar_url || group.picture || null,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 150))
 
       } catch (error) {
         console.error(`❌ Error processing group ${group.id}:`, error)
-        // Add group with basic info even if processing failed
-        groupsToInsert.push({
-          user_id: userId,
-          group_id: group.id,
-          name: group.name || group.subject || 'Unknown Group',
-          description: group.description || null,
-          participants_count: group.participants_count || group.size || 0,
-          is_admin: false, // Default to false if we can't determine
-          avatar_url: group.avatar_url || group.picture || null,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        participantsCount = group.participants_count || group.size || 0
       }
+
+      if (isAdmin) {
+        adminCount++
+      }
+      
+      totalMembersCount += participantsCount
+
+      // Add to groups list
+      groupsToInsert.push({
+        user_id: userId,
+        group_id: group.id,
+        name: groupName,
+        description: group.description || null,
+        participants_count: participantsCount,
+        is_admin: isAdmin,
+        avatar_url: group.avatar_url || group.picture || null,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+
+      console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
     }
 
-    console.log(`📊 Processing complete: ${adminCount} admin groups found out of ${groupsToInsert.length} total`)
+    console.log(`📊 Final results: ${adminCount} admin groups, ${groupsToInsert.length - adminCount} member groups, ${totalMembersCount} total members`)
 
-    // STEP 4: Save to database (clear old data first)
+    // STEP 4: Save to database
     try {
+      // Clear existing groups
       const { error: deleteError } = await supabase
         .from('whatsapp_groups')
         .delete()
@@ -280,10 +276,9 @@ Deno.serve(async (req) => {
 
       if (deleteError) {
         console.error('❌ Failed to clear existing groups:', deleteError)
-      } else {
-        console.log('✅ Cleared existing groups')
       }
 
+      // Insert new groups
       if (groupsToInsert.length > 0) {
         const { error: insertError } = await supabase
           .from('whatsapp_groups')
@@ -295,46 +290,37 @@ Deno.serve(async (req) => {
             JSON.stringify({ error: 'Failed to save groups to database', details: insertError.message }),
             { status: 500, headers: corsHeaders }
           )
-        } else {
-          console.log('✅ Successfully saved groups to database')
         }
       }
+
+      console.log('✅ Successfully saved groups to database')
+
     } catch (dbError) {
-      console.error('❌ Database operation error:', dbError)
+      console.error('❌ Database error:', dbError)
       return new Response(
         JSON.stringify({ error: 'Database operation failed', details: dbError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
 
-    console.log(`✅ Successfully synced ${groupsToInsert.length} groups (${adminCount} admin groups)`)
-
-    // Return success response with detailed breakdown
-    const adminGroups = groupsToInsert.filter(g => g.is_admin)
-    const memberGroups = groupsToInsert.filter(g => !g.is_admin)
-
+    // Return success with detailed stats
     return new Response(
       JSON.stringify({
         success: true,
         groups_count: groupsToInsert.length,
         admin_groups_count: adminCount,
-        member_groups_count: memberGroups.length,
+        member_groups_count: groupsToInsert.length - adminCount,
+        total_members: totalMembersCount,
         user_phone: userPhoneNumber,
-        admin_groups_sample: adminGroups.slice(0, 3).map(g => ({ id: g.group_id, name: g.name })),
-        member_groups_sample: memberGroups.slice(0, 3).map(g => ({ id: g.group_id, name: g.name })),
-        message: `Groups synced successfully - ${adminCount} admin groups found out of ${groupsToInsert.length} total`
+        message: `Successfully synced ${groupsToInsert.length} groups (${adminCount} admin groups found)`
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Sync WhatsApp Groups Error:', error)
+    console.error('💥 Sync error:', error)
     return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error', 
-        details: error.message,
-        stack: error.stack
-      }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
     )
   }
