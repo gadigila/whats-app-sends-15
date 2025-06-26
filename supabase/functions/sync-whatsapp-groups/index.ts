@@ -9,7 +9,7 @@ interface SyncGroupsRequest {
   userId: string
 }
 
-// Enhanced phone number matching function
+// Enhanced phone number matching with extensive debugging
 function createPhoneVariations(phone: string): string[] {
   if (!phone) return [];
   
@@ -24,18 +24,22 @@ function createPhoneVariations(phone: string): string[] {
     variations.add(digitsOnly);
     variations.add(`+${digitsOnly}`);
     
-    // If starts with country code, try without it
+    // Israeli phone number specific handling
     if (digitsOnly.startsWith('972')) {
       const withoutCountry = digitsOnly.substring(3);
       variations.add(withoutCountry);
       variations.add(`0${withoutCountry}`);
     }
     
-    // If starts with 0, try with country code
     if (digitsOnly.startsWith('0')) {
       const withCountry = `972${digitsOnly.substring(1)}`;
       variations.add(withCountry);
       variations.add(`+${withCountry}`);
+    }
+    
+    // Add common Israeli mobile prefixes
+    if (digitsOnly.length === 9 && !digitsOnly.startsWith('0')) {
+      variations.add(`0${digitsOnly}`);
     }
   }
   
@@ -46,7 +50,7 @@ function createPhoneVariations(phone: string): string[] {
     variations.add(`+${phone}`);
   }
   
-  return Array.from(variations).filter(v => v.length >= 8); // Filter out too short numbers
+  return Array.from(variations).filter(v => v.length >= 8);
 }
 
 function isPhoneMatch(phone1: string, phone2: string): boolean {
@@ -68,7 +72,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('🚀 Sync WhatsApp Groups: Enhanced admin detection starting...')
+    console.log('🚀 Enhanced Sync: Starting with detailed admin detection...')
 
     const { userId }: SyncGroupsRequest = await req.json()
 
@@ -101,9 +105,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    // STEP 1: Get user's phone number
+    // STEP 1: Get user's phone number with detailed logging
     console.log('📱 Getting user profile for phone number...')
     let userPhoneNumber = null
+    let userPhoneVariations: string[] = []
 
     try {
       const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
@@ -117,10 +122,12 @@ Deno.serve(async (req) => {
       if (profileResponse.ok) {
         const profileData = await profileResponse.json()
         userPhoneNumber = profileData.phone || profileData.id
-        console.log('📞 User phone number identified:', userPhoneNumber)
+        userPhoneVariations = createPhoneVariations(userPhoneNumber)
         
-        const phoneVariations = createPhoneVariations(userPhoneNumber)
-        console.log('📞 Phone variations created:', phoneVariations)
+        console.log('📞 ===== USER PHONE DEBUG =====')
+        console.log('📞 Raw phone from WHAPI:', userPhoneNumber)
+        console.log('📞 All phone variations:', userPhoneVariations)
+        console.log('📞 =============================')
       } else {
         console.error('❌ Failed to get user profile:', profileResponse.status)
       }
@@ -128,8 +135,8 @@ Deno.serve(async (req) => {
       console.error('❌ Error fetching user profile:', profileError)
     }
 
-    // STEP 2: Get groups list
-    console.log('📋 Fetching groups list...')
+    // STEP 2: Fetch ALL groups (don't save yet - we'll implement selective sync)
+    console.log('📋 Fetching all available groups...')
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
       method: 'GET',
       headers: {
@@ -158,79 +165,135 @@ Deno.serve(async (req) => {
       allGroups = groupsData.data
     }
 
-    console.log(`📊 Found ${allGroups.length} groups total`)
+    console.log(`📊 Found ${allGroups.length} groups total. Analyzing admin status...`)
 
-    // STEP 3: Enhanced admin detection for each group
-    const groupsToInsert = []
+    // STEP 3: Enhanced admin detection with detailed logging
+    const processedGroups = []
     let adminCount = 0
-    let totalMembersCount = 0
+    let debugInfo = []
 
     for (let i = 0; i < allGroups.length; i++) {
       const group = allGroups[i]
       const groupName = group.name || group.subject || `Group ${group.id}`
       
-      console.log(`🔍 Processing ${i + 1}/${allGroups.length}: ${groupName}`)
+      console.log(`\n🔍 ===== GROUP ${i + 1}/${allGroups.length}: ${groupName} =====`)
       
       let isAdmin = false
       let participantsCount = 0
+      let debugData = {
+        groupName,
+        groupId: group.id,
+        isAdmin: false,
+        adminCheckMethods: [],
+        participantData: null,
+        adminData: null,
+        userFound: false,
+        userRole: null
+      }
 
       try {
-        // Get detailed group information
-        const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-
-        if (detailResponse.ok) {
-          const detailData = await detailResponse.json()
+        // Method 1: Check basic group data first
+        if (group.admins && Array.isArray(group.admins)) {
+          console.log(`👑 Method 1: Checking ${group.admins.length} admins in basic group data`)
+          debugData.adminCheckMethods.push('basic_group_admins')
+          debugData.adminData = group.admins
           
-          // Get accurate participant count
-          if (detailData.participants && Array.isArray(detailData.participants)) {
-            participantsCount = detailData.participants.length
-            console.log(`👥 Group "${groupName}" has ${participantsCount} participants`)
+          for (const admin of group.admins) {
+            const adminPhone = admin.id || admin.phone || admin
+            console.log(`  📞 Admin phone: ${adminPhone}`)
             
-            // Check each participant for admin role
-            if (userPhoneNumber) {
+            if (adminPhone && userPhoneNumber && isPhoneMatch(userPhoneNumber, adminPhone)) {
+              isAdmin = true
+              debugData.isAdmin = true
+              debugData.userFound = true
+              debugData.userRole = 'admin'
+              console.log(`👑 ✅ MATCH! User found as admin: ${adminPhone}`)
+              break
+            }
+          }
+        }
+
+        // Method 2: Get detailed group information
+        if (!isAdmin) {
+          console.log(`🔍 Method 2: Getting detailed group info...`)
+          const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${profile.whapi_token}`,
+              'Content-Type': 'application/json'
+            }
+          })
+
+          if (detailResponse.ok) {
+            const detailData = await detailResponse.json()
+            debugData.adminCheckMethods.push('detailed_group_call')
+            
+            // Check participants for count and roles
+            if (detailData.participants && Array.isArray(detailData.participants)) {
+              participantsCount = detailData.participants.length
+              debugData.participantData = {
+                count: participantsCount,
+                sampleParticipants: detailData.participants.slice(0, 3).map(p => ({
+                  id: p.id || p.phone,
+                  rank: p.rank || p.role
+                }))
+              }
+              
+              console.log(`👥 Found ${participantsCount} participants`)
+              console.log(`👥 Sample participants:`, debugData.participantData.sampleParticipants)
+              
+              // Check each participant
               for (const participant of detailData.participants) {
                 const participantPhone = participant.id || participant.phone
                 const participantRole = participant.rank || participant.role
                 
-                if (participantPhone && isPhoneMatch(userPhoneNumber, participantPhone)) {
-                  console.log(`👤 Found user in "${groupName}": ${participantPhone}, role: ${participantRole}`)
+                if (participantPhone && userPhoneNumber) {
+                  const phoneMatch = isPhoneMatch(userPhoneNumber, participantPhone)
+                  console.log(`  👤 Participant: ${participantPhone}, role: ${participantRole}, match: ${phoneMatch}`)
                   
-                  if (participantRole === 'admin' || participantRole === 'creator' || participantRole === 'superadmin') {
-                    isAdmin = true
-                    console.log(`👑 ✅ User is ${participantRole} in "${groupName}"`)
-                    break
+                  if (phoneMatch) {
+                    debugData.userFound = true
+                    debugData.userRole = participantRole
+                    
+                    if (participantRole === 'admin' || participantRole === 'creator' || participantRole === 'superadmin') {
+                      isAdmin = true
+                      debugData.isAdmin = true
+                      console.log(`👑 ✅ MATCH! User found as ${participantRole}: ${participantPhone}`)
+                      break
+                    } else {
+                      console.log(`👤 User found as member: ${participantPhone}`)
+                    }
                   }
                 }
               }
             }
-          } else if (detailData.participants_count || detailData.size) {
-            participantsCount = detailData.participants_count || detailData.size
-            console.log(`👥 Group "${groupName}" has ${participantsCount} participants (from count field)`)
-          }
 
-          // Also check admins array if available
-          if (!isAdmin && detailData.admins && Array.isArray(detailData.admins) && userPhoneNumber) {
-            console.log(`👑 Checking ${detailData.admins.length} admins in "${groupName}"`)
-            
-            for (const admin of detailData.admins) {
-              const adminPhone = admin.id || admin.phone || admin
+            // Also check detailed admins array
+            if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
+              console.log(`👑 Method 3: Checking ${detailData.admins.length} admins in detailed data`)
+              debugData.adminCheckMethods.push('detailed_group_admins')
               
-              if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
-                isAdmin = true
-                console.log(`👑 ✅ Found user as admin in "${groupName}": ${adminPhone}`)
-                break
+              for (const admin of detailData.admins) {
+                const adminPhone = admin.id || admin.phone || admin
+                console.log(`  📞 Detailed admin phone: ${adminPhone}`)
+                
+                if (adminPhone && userPhoneNumber && isPhoneMatch(userPhoneNumber, adminPhone)) {
+                  isAdmin = true
+                  debugData.isAdmin = true
+                  debugData.userFound = true
+                  debugData.userRole = 'admin'
+                  console.log(`👑 ✅ MATCH! User found in detailed admins: ${adminPhone}`)
+                  break
+                }
               }
             }
+          } else {
+            console.log(`⚠️ Could not get detailed info: ${detailResponse.status}`)
           }
-        } else {
-          console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
-          // Fallback to basic group data
+        }
+
+        // Fallback participant count
+        if (participantsCount === 0) {
           participantsCount = group.participants_count || group.size || 0
         }
 
@@ -239,17 +302,20 @@ Deno.serve(async (req) => {
 
       } catch (error) {
         console.error(`❌ Error processing group ${group.id}:`, error)
-        participantsCount = group.participants_count || group.size || 0
+        debugData.adminCheckMethods.push('error')
       }
 
       if (isAdmin) {
         adminCount++
+        console.log(`👑 ✅ FINAL: User IS admin in "${groupName}"`)
+      } else {
+        console.log(`👤 FINAL: User is ${debugData.userFound ? 'member' : 'not found'} in "${groupName}"`)
       }
-      
-      totalMembersCount += participantsCount
 
-      // Add to groups list
-      groupsToInsert.push({
+      debugInfo.push(debugData)
+
+      // Add to processed groups list
+      processedGroups.push({
         user_id: userId,
         group_id: group.id,
         name: groupName,
@@ -261,12 +327,17 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString()
       })
 
-      console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
+      console.log(`====================================\n`)
     }
 
-    console.log(`📊 Final results: ${adminCount} admin groups, ${groupsToInsert.length - adminCount} member groups, ${totalMembersCount} total members`)
+    console.log(`\n📊 ===== FINAL ANALYSIS =====`)
+    console.log(`📊 Total groups processed: ${processedGroups.length}`)
+    console.log(`📊 Admin groups found: ${adminCount}`)
+    console.log(`📊 Member groups: ${processedGroups.length - adminCount}`)
+    console.log(`📞 User phone: ${userPhoneNumber}`)
+    console.log(`📞 Phone variations tested: ${userPhoneVariations.length}`)
 
-    // STEP 4: Save to database
+    // FOR NOW: Save all groups (we'll implement selective sync in the UI)
     try {
       // Clear existing groups
       const { error: deleteError } = await supabase
@@ -279,10 +350,10 @@ Deno.serve(async (req) => {
       }
 
       // Insert new groups
-      if (groupsToInsert.length > 0) {
+      if (processedGroups.length > 0) {
         const { error: insertError } = await supabase
           .from('whatsapp_groups')
-          .insert(groupsToInsert)
+          .insert(processedGroups)
 
         if (insertError) {
           console.error('❌ Failed to insert groups:', insertError)
@@ -303,22 +374,28 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Return success with detailed stats
+    // Return detailed response with debug info
     return new Response(
       JSON.stringify({
         success: true,
-        groups_count: groupsToInsert.length,
+        groups_count: processedGroups.length,
         admin_groups_count: adminCount,
-        member_groups_count: groupsToInsert.length - adminCount,
-        total_members: totalMembersCount,
+        member_groups_count: processedGroups.length - adminCount,
         user_phone: userPhoneNumber,
-        message: `Successfully synced ${groupsToInsert.length} groups (${adminCount} admin groups found)`
+        user_phone_variations: userPhoneVariations,
+        debug_info: debugInfo.slice(0, 5), // First 5 groups for debugging
+        admin_groups_sample: processedGroups.filter(g => g.is_admin).slice(0, 3).map(g => ({
+          id: g.group_id,
+          name: g.name,
+          participants: g.participants_count
+        })),
+        message: `Enhanced sync completed - ${adminCount} admin groups detected out of ${processedGroups.length} total`
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Sync error:', error)
+    console.error('💥 Enhanced Sync Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
