@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('🚀 Sync WhatsApp Groups: Starting comprehensive sync...')
+    console.log('🚀 Sync WhatsApp Groups: Starting FIXED admin detection...')
 
     const { userId }: SyncGroupsRequest = await req.json()
 
@@ -53,41 +53,39 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('📱 Fetching user profile for phone number...')
+    console.log('📱 Getting user profile to identify phone number...')
 
-    // STEP 1: Get user's phone number
+    // STEP 1: Get user's phone number from profile endpoint
     const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
       headers: {
         'Authorization': `Bearer ${profile.whapi_token}`
       }
     })
 
-    let userPhoneNumbers: string[] = []
+    let userPhoneNumber = null
     if (profileResponse.ok) {
       const profileData = await profileResponse.json()
-      const basePhone = profileData.phone || profileData.id
-      
-      if (basePhone) {
-        // Create multiple phone number formats to handle different cases
-        userPhoneNumbers = [
-          basePhone,                           // Original format
-          basePhone.replace(/^\+/, ''),        // Without +
-          '+' + basePhone.replace(/^\+/, ''),  // With +
-          basePhone.replace(/[^\d]/g, '')      // Only digits
-        ]
-        // Remove duplicates
-        userPhoneNumbers = [...new Set(userPhoneNumbers)]
-        console.log('📞 User phone number variations:', userPhoneNumbers)
-      } else {
-        console.error('❌ Could not get user phone number from profile')
-      }
+      userPhoneNumber = profileData.phone || profileData.id
+      console.log('📞 User phone number identified:', userPhoneNumber)
     } else {
       console.error('❌ Failed to get user profile:', profileResponse.status)
+      return new Response(
+        JSON.stringify({ error: 'Failed to get user profile' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    if (!userPhoneNumber) {
+      console.error('❌ Could not determine user phone number')
+      return new Response(
+        JSON.stringify({ error: 'Could not determine user phone number' }),
+        { status: 400, headers: corsHeaders }
+      )
     }
 
     console.log('📋 Fetching groups list...')
 
-    // STEP 2: Get basic groups list
+    // STEP 2: Get basic groups list using the correct endpoint
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
       headers: {
         'Authorization': `Bearer ${profile.whapi_token}`
@@ -106,9 +104,9 @@ Deno.serve(async (req) => {
     const groupsData = await groupsResponse.json()
     const basicGroups = groupsData.groups || []
 
-    console.log(`📊 Found ${basicGroups.length} groups. Getting detailed info for each...`)
+    console.log(`📊 Found ${basicGroups.length} groups. Checking admin status for each...`)
 
-    // STEP 3: Get detailed info for each group (including participants)
+    // STEP 3: For each group, get detailed info to check admin status
     const groupsToInsert = []
     let adminCount = 0
     let processedCount = 0
@@ -118,7 +116,7 @@ Deno.serve(async (req) => {
         processedCount++
         console.log(`🔍 Processing group ${processedCount}/${basicGroups.length}: ${basicGroup.name || basicGroup.subject}`)
         
-        // Get detailed group info with participants
+        // Get detailed group info using the groups/{id} endpoint
         const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${basicGroup.id}`, {
           headers: {
             'Authorization': `Bearer ${profile.whapi_token}`
@@ -130,22 +128,73 @@ Deno.serve(async (req) => {
         
         if (detailResponse.ok) {
           const detailData = await detailResponse.json()
+          console.log(`📊 Group "${basicGroup.name}" detail keys:`, Object.keys(detailData))
           
           // Check participants for admin status
           if (detailData.participants && Array.isArray(detailData.participants)) {
             participantsCount = detailData.participants.length
+            console.log(`👥 Group has ${participantsCount} participants`)
             
-            // Check if any of our phone number variations match an admin/creator
+            // Look for user in participants and check if admin/creator
             for (const participant of detailData.participants) {
-              if (userPhoneNumbers.includes(participant.id)) {
-                const rank = participant.rank
-                isAdmin = rank === 'admin' || rank === 'creator'
-                console.log(`👤 Found user in group "${basicGroup.name}": rank=${rank}, isAdmin=${isAdmin}`)
+              // Try multiple phone number formats
+              const participantId = participant.id || participant.phone
+              
+              // Check if this participant is the user (multiple format matching)
+              const isUserParticipant = participantId === userPhoneNumber ||
+                                      participantId === `+${userPhoneNumber}` ||
+                                      participantId === userPhoneNumber.replace(/^\+/, '') ||
+                                      `+${participantId}` === userPhoneNumber ||
+                                      participantId.replace(/^\+/, '') === userPhoneNumber.replace(/^\+/, '')
+              
+              if (isUserParticipant) {
+                const rank = participant.rank || participant.role
+                isAdmin = rank === 'admin' || rank === 'creator' || rank === 'superadmin'
+                console.log(`👤 Found user in group "${basicGroup.name}": phone=${participantId}, rank=${rank}, isAdmin=${isAdmin}`)
+                break
+              }
+            }
+          } else if (detailData.admins && Array.isArray(detailData.admins)) {
+            // Alternative: Check admins array directly if participants not available
+            console.log(`👑 Checking admins array with ${detailData.admins.length} admins`)
+            participantsCount = detailData.participants_count || detailData.size || 0
+            
+            for (const admin of detailData.admins) {
+              const adminId = admin.id || admin.phone || admin
+              const isUserAdmin = adminId === userPhoneNumber ||
+                                adminId === `+${userPhoneNumber}` ||
+                                adminId === userPhoneNumber.replace(/^\+/, '') ||
+                                `+${adminId}` === userPhoneNumber ||
+                                adminId.replace(/^\+/, '') === userPhoneNumber.replace(/^\+/, '')
+              
+              if (isUserAdmin) {
+                isAdmin = true
+                console.log(`👑 Found user as admin in group "${basicGroup.name}": ${adminId}`)
                 break
               }
             }
           } else {
-            console.log(`⚠️ No participants data for group "${basicGroup.name}"`)
+            console.log(`⚠️ No participants or admins data for group "${basicGroup.name}"`)
+            // Use basic group data as fallback
+            participantsCount = basicGroup.participants_count || basicGroup.size || 0
+            
+            // If the group has an 'admins' field in basic data, check it
+            if (basicGroup.admins && Array.isArray(basicGroup.admins)) {
+              for (const admin of basicGroup.admins) {
+                const adminId = admin.id || admin.phone || admin
+                const isUserAdmin = adminId === userPhoneNumber ||
+                                  adminId === `+${userPhoneNumber}` ||
+                                  adminId === userPhoneNumber.replace(/^\+/, '') ||
+                                  `+${adminId}` === userPhoneNumber ||
+                                  adminId.replace(/^\+/, '') === userPhoneNumber.replace(/^\+/, '')
+                
+                if (isUserAdmin) {
+                  isAdmin = true
+                  console.log(`👑 Found user as admin in basic group data "${basicGroup.name}": ${adminId}`)
+                  break
+                }
+              }
+            }
           }
         } else {
           console.log(`⚠️ Could not get detailed info for group "${basicGroup.name}": ${detailResponse.status}`)
@@ -155,7 +204,9 @@ Deno.serve(async (req) => {
 
         if (isAdmin) {
           adminCount++
-          console.log(`👑 User is admin in: "${basicGroup.name || basicGroup.subject}"`)
+          console.log(`👑 ✅ User is admin in: "${basicGroup.name || basicGroup.subject}"`)
+        } else {
+          console.log(`👤 User is member in: "${basicGroup.name || basicGroup.subject}"`)
         }
 
         // Add to groups list
@@ -172,7 +223,7 @@ Deno.serve(async (req) => {
         })
 
         // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(resolve => setTimeout(resolve, 200))
 
       } catch (error) {
         console.error(`❌ Error processing group ${basicGroup.id}:`, error)
@@ -219,14 +270,19 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Successfully synced ${groupsToInsert.length} groups (${adminCount} admin groups)`)
 
+    // Return detailed breakdown for debugging
+    const adminGroups = groupsToInsert.filter(g => g.is_admin)
+    const memberGroups = groupsToInsert.filter(g => !g.is_admin)
+
     return new Response(
       JSON.stringify({
         success: true,
         groups_count: groupsToInsert.length,
         admin_groups_count: adminCount,
-        user_phone_variations: userPhoneNumbers,
-        processed_groups: processedCount,
-        groups: groupsToInsert.slice(0, 5), // Return first 5 for debugging
+        member_groups_count: memberGroups.length,
+        user_phone: userPhoneNumber,
+        admin_groups: adminGroups.map(g => ({ id: g.group_id, name: g.name })),
+        member_groups: memberGroups.slice(0, 5).map(g => ({ id: g.group_id, name: g.name })), // First 5 for debugging
         message: `Groups synced successfully - ${adminCount} admin groups found out of ${groupsToInsert.length} total`
       }),
       { status: 200, headers: corsHeaders }
