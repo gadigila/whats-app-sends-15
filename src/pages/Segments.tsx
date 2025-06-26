@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Star, Sync, CheckCircle } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Star, RefreshCw, CheckCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { supabase } from '@/integrations/supabase/client';
@@ -469,7 +469,7 @@ const Segments = () => {
               disabled={fetchAvailableGroups.isPending}
               className="bg-blue-600 hover:bg-blue-700"
             >
-              <Sync className="h-4 w-4 ml-2" />
+              <RefreshCw className="h-4 w-4 ml-2" />
               {fetchAvailableGroups.isPending ? 'טוען קבוצות...' : 'סנכרן קבוצות'}
             </Button>
             
@@ -631,7 +631,7 @@ const Segments = () => {
           <DialogContent className="max-w-4xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Sync className="h-5 w-5" />
+                <RefreshCw className="h-5 w-5" />
                 בחר קבוצות לסנכרון
               </DialogTitle>
             </DialogHeader>
@@ -876,7 +876,7 @@ const Segments = () => {
                 disabled={fetchAvailableGroups.isPending}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                <Sync className="h-4 w-4 ml-2" />
+                <RefreshCw className="h-4 w-4 ml-2" />
                 {fetchAvailableGroups.isPending ? 'טוען...' : 'סנכרן קבוצות'}
               </Button>
             </CardContent>
