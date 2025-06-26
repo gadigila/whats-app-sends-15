@@ -209,7 +209,6 @@ const Segments = () => {
       total_members: totalMembers
     });
 
-    // Reset form
     setNewSegmentName('');
     setSelectedGroupIds([]);
     setIsCreateDialogOpen(false);
@@ -237,7 +236,6 @@ const Segments = () => {
       total_members: totalMembers
     });
 
-    // Reset form
     setNewSegmentName('');
     setSelectedGroupIds([]);
     setEditingSegment(null);
@@ -327,9 +325,7 @@ const Segments = () => {
                 <div>
                   <Label>בחר קבוצות</Label>
                   
-                  {/* Filters */}
                   <div className="mt-3 space-y-3">
-                    {/* Admin groups toggle */}
                     <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
                       <div className="flex items-center gap-2">
                         <Star className="h-4 w-4 text-amber-600" />
@@ -343,7 +339,6 @@ const Segments = () => {
                       />
                     </div>
                     
-                    {/* Search field */}
                     <div className="relative">
                       <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
@@ -362,52 +357,15 @@ const Segments = () => {
                       )}
                     </div>
                     
-                    {/* Results info */}
                     <div className="text-sm text-gray-600">
-                      {showOnlyAdminGroups && searchQuery ? (
-                        filteredGroups.length === 0 
-                          ? `לא נמצאו קבוצות מנהל עבור "${searchQuery}"`
-                          : `נמצאו ${filteredGroups.length} קבוצות מנהל מתוך ${groupStats.adminGroups}`
-                      ) : showOnlyAdminGroups ? (
-                        `מציג ${filteredGroups.length} קבוצות שאתה מנהל בהן`
-                      ) : searchQuery ? (
-                        filteredGroups.length === 0 
-                          ? `לא נמצאו קבוצות עבור "${searchQuery}"`
-                          : `נמצאו ${filteredGroups.length} קבוצות מתוך ${allGroups.length}`
-                      ) : (
-                        `מציג ${filteredGroups.length} קבוצות זמינות`
-                      )}
+                      מציג {filteredGroups.length} קבוצות זמינות
                     </div>
                   </div>
                   
                   <div className="mt-4 space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
-                    {allGroups.length === 0 ? (
+                    {filteredGroups.length === 0 ? (
                       <div className="text-center py-4 text-gray-500">
-                        אין קבוצות זמינות. אנא סנכרן את הקבוצות שלך תחילה.
-                      </div>
-                    ) : filteredGroups.length === 0 ? (
-                      <div className="text-center py-4 text-gray-500">
-                        <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
                         לא נמצאו קבוצות התואמות לחיפוש
-                        <br />
-                        <div className="flex justify-center gap-2 mt-2">
-                          {searchQuery && (
-                            <button 
-                              onClick={clearSearch}
-                              className="text-blue-600 hover:text-blue-700 text-sm"
-                            >
-                              נקה חיפוש
-                            </button>
-                          )}
-                          {showOnlyAdminGroups && (
-                            <button 
-                              onClick={() => setShowOnlyAdminGroups(false)}
-                              className="text-blue-600 hover:text-blue-700 text-sm"
-                            >
-                              הצג כל הקבוצות
-                            </button>
-                          )}
-                        </div>
                       </div>
                     ) : (
                       filteredGroups.map((group) => (
@@ -420,27 +378,14 @@ const Segments = () => {
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <label htmlFor={group.group_id} className="text-sm font-medium cursor-pointer">
-                                {/* Highlight search text */}
-                                {searchQuery ? (
-                                  <span dangerouslySetInnerHTML={{
-                                    __html: group.name.replace(
-                                      new RegExp(searchQuery, 'gi'),
-                                      '<mark class="bg-yellow-200">                צור קט</mark>'
-                                    )
-                                  }} />
-                                ) : (
-                                  group.name
-                                )}
+                                {group.name}
                               </label>
-                              {/* Admin icon */}
                               {group.is_admin && (
-                                <div title="אתה מנהל בקבוצה זו">
-                                  <Star className="h-3 w-3 text-amber-500" />
-                                </div>
+                                <Star className="h-3 w-3 text-amber-500" title="אתה מנהל בקבוצה זו" />
                               )}
                             </div>
                             <p className="text-xs text-gray-500">
-                              {group.description || 'ללא תיאור'} • {group.participants_count || 0} חברים
+                              {group.participants_count || 0} חברים
                               {group.is_admin && ' • מנהל'}
                             </p>
                           </div>
@@ -479,7 +424,7 @@ const Segments = () => {
                   <Button
                     onClick={editingSegment ? handleUpdateSegment : handleCreateSegment}
                     className="bg-green-600 hover:bg-green-700"
-                    disabled={allGroups.length === 0 || createSegmentMutation.isPending || updateSegmentMutation.isPending}
+                    disabled={createSegmentMutation.isPending || updateSegmentMutation.isPending}
                   >
                     {editingSegment ? 'עדכן קטגוריה' : 'צור קטגוריה'}
                   </Button>
@@ -548,17 +493,6 @@ const Segments = () => {
           </Card>
         </div>
 
-        {/* Groups Info */}
-        {allGroups.length === 0 && (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">אין קבוצות זמינות</h3>
-              <p className="text-gray-600 mb-6">כדי ליצור קטגוריות, תחילה סנכרן את קבוצות הוואטסאפ שלך.</p>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Segments List */}
         <div className="space-y-4">
           {segments.length === 0 && allGroups.length > 0 ? (
@@ -567,14 +501,6 @@ const Segments = () => {
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">לא נוצרו קטגוריות</h3>
                 <p className="text-gray-600 mb-6">צור את הקטגוריה הראשונה שלך כדי לארגן את הקבוצות שלך להודעות ממוקדות.</p>
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-green-600 hover:bg-green-700">
-                      <Plus className="h-4 w-4 ml-2" />
-                      צור את הקטגוריה הראשונה
-                    </Button>
-                  </DialogTrigger>
-                </Dialog>
               </CardContent>
             </Card>
           ) : (
@@ -599,11 +525,7 @@ const Segments = () => {
                       </div>
                       
                       <p className="text-sm text-gray-600">
-                        נוצר ב-{new Date(segment.created_at).toLocaleDateString('he-IL', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
+                        נוצר ב-{new Date(segment.created_at).toLocaleDateString('he-IL')}
                       </p>
                     </div>
                     
