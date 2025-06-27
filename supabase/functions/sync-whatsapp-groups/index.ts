@@ -10,8 +10,6 @@ interface SyncGroupsRequest {
 }
 
 // Enhanced phone number matching function
-// Replace your createPhoneVariations function with this MORE AGGRESSIVE version:
-
 function createPhoneVariations(phone: string): string[] {
   if (!phone) return [];
   
@@ -148,43 +146,43 @@ Deno.serve(async (req) => {
       )
     }
 
-            // STEP 1: Enhanced user phone number detection
-        console.log('📱 Getting user profile for phone number...')
-        let userPhoneNumber = null
-        
-        try {
-          const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${profile.whapi_token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-        
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json()
-            // Try multiple fields for phone number
-            userPhoneNumber = profileData.phone || 
-                             profileData.id || 
-                             profileData.wid ||
-                             profileData.jid ||
-                             (profileData.me && profileData.me.phone) ||
-                             (profileData.user && profileData.user.phone)
-            
-            console.log('📞 User phone number identified:', userPhoneNumber)
-            console.log('📞 Profile data fields:', Object.keys(profileData))
-            
-            if (userPhoneNumber) {
-              const phoneVariations = createPhoneVariations(userPhoneNumber)
-              console.log('📞 Phone variations created:', phoneVariations)
-            }
-          } else {
-            console.error('❌ Failed to get user profile:', profileResponse.status)
-          }
-        } catch (profileError) {
-          console.error('❌ Error fetching user profile:', profileError)
-        }
+    // STEP 1: Enhanced user phone number detection
+    console.log('📱 Getting user profile for phone number...')
+    let userPhoneNumber = null
     
+    try {
+      const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${profile.whapi_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+    
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        // Try multiple fields for phone number
+        userPhoneNumber = profileData.phone || 
+                         profileData.id || 
+                         profileData.wid ||
+                         profileData.jid ||
+                         (profileData.me && profileData.me.phone) ||
+                         (profileData.user && profileData.user.phone)
+        
+        console.log('📞 User phone number identified:', userPhoneNumber)
+        console.log('📞 Profile data fields:', Object.keys(profileData))
+        
+        if (userPhoneNumber) {
+          const phoneVariations = createPhoneVariations(userPhoneNumber)
+          console.log('📞 Phone variations created:', phoneVariations.slice(0, 5), '...') // Show first 5
+        }
+      } else {
+        console.error('❌ Failed to get user profile:', profileResponse.status)
+      }
+    } catch (profileError) {
+      console.error('❌ Error fetching user profile:', profileError)
+    }
+
     // STEP 2: Get groups list
     console.log('📋 Fetching groups list...')
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
@@ -218,252 +216,357 @@ Deno.serve(async (req) => {
     console.log(`📊 Found ${allGroups.length} groups total`)
 
     // STEP 3: Enhanced admin detection for each group
-// STEP 3: Enhanced admin detection for each group
-const groupsToInsert = []
-let adminCount = 0
-let totalMembersCount = 0
+    const groupsToInsert = []
+    let adminCount = 0
+    let totalMembersCount = 0
 
-for (let i = 0; i < allGroups.length; i++) {
-  const group = allGroups[i]
-  const groupName = group.name || group.subject || `Group ${group.id}`
-  
-  console.log(`🔍 Processing ${i + 1}/${allGroups.length}: ${groupName}`)
-  
-  let isAdmin = false
-  let participantsCount = 0
+    for (let i = 0; i < allGroups.length; i++) {
+      const group = allGroups[i]
+      const groupName = group.name || group.subject || `Group ${group.id}`
+      
+      console.log(`🔍 Processing ${i + 1}/${allGroups.length}: ${groupName}`)
+      
+      let isAdmin = false
+      let participantsCount = 0
 
-  try {
-    // Get detailed group information with retry logic
-    let detailData = null
-    let retryCount = 0
-    const maxRetries = 2
-
-    while (!detailData && retryCount <= maxRetries) {
       try {
-        const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Content-Type': 'application/json'
-          }
-        })
+        // Get detailed group information with retry logic
+        let detailData = null
+        let retryCount = 0
+        const maxRetries = 2
 
-        if (detailResponse.ok) {
-          detailData = await detailResponse.json()
-          break
-        } else if (detailResponse.status === 429) {
-          // Rate limited, wait longer
-          console.log(`⏳ Rate limited for "${groupName}", waiting...`)
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          retryCount++
+        while (!detailData && retryCount <= maxRetries) {
+          try {
+            const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${profile.whapi_token}`,
+                'Content-Type': 'application/json'
+              }
+            })
+
+            if (detailResponse.ok) {
+              detailData = await detailResponse.json()
+              break
+            } else if (detailResponse.status === 429) {
+              console.log(`⏳ Rate limited for "${groupName}", waiting...`)
+              await new Promise(resolve => setTimeout(resolve, 2000))
+              retryCount++
+            } else {
+              console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
+              break
+            }
+          } catch (fetchError) {
+            console.log(`⚠️ Fetch error for "${groupName}": ${fetchError.message}`)
+            retryCount++
+            if (retryCount <= maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+            }
+          }
+        }
+
+        if (detailData) {
+          // 🔍 FULL DEBUG: Log the complete response structure (only for first 3 groups)
+          if (i < 3) {
+            console.log(`🔍 COMPLETE GROUP DATA for "${groupName}":`, JSON.stringify(detailData, null, 2));
+          }
+          
+          // Get participant count
+          participantsCount = detailData.participants?.length || 
+                             detailData.participants_count || 
+                             detailData.size || 0;
+
+          console.log(`👥 Group "${groupName}" has ${participantsCount} participants`);
+
+          // ENHANCED ADMIN DETECTION with extensive logging
+          if (userPhoneNumber) {
+            const userPhoneClean = userPhoneNumber.replace(/[^\d]/g, '');
+            console.log(`📞 User phone: ${userPhoneNumber} | Clean: ${userPhoneClean}`);
+
+            // Method 1: Check participants array with ENHANCED matching
+            if (detailData.participants && Array.isArray(detailData.participants)) {
+              console.log(`👥 Checking ${detailData.participants.length} participants for admin roles`);
+              
+              for (const participant of detailData.participants) {
+                const participantPhone = participant.id || participant.phone;
+                const participantRole = participant.rank || participant.role;
+                
+                if (participantPhone) {
+                  const participantClean = participantPhone.replace(/[^\d]/g, '');
+                  
+                  // ENHANCED MATCHING: Multiple approaches
+                  let isMatch = false;
+                  
+                  // 1. Exact match after cleaning
+                  if (participantClean === userPhoneClean) {
+                    isMatch = true;
+                  }
+                  
+                  // 2. Last 9 digits match (Israeli mobile numbers)
+                  if (!isMatch && participantClean.length >= 9 && userPhoneClean.length >= 9) {
+                    if (participantClean.slice(-9) === userPhoneClean.slice(-9)) {
+                      isMatch = true;
+                    }
+                  }
+                  
+                  // 3. Handle country code variations (972 vs 0)
+                  if (!isMatch) {
+                    if (participantClean.startsWith('972') && userPhoneClean.startsWith('0')) {
+                      if (participantClean.substring(3) === userPhoneClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    } else if (userPhoneClean.startsWith('972') && participantClean.startsWith('0')) {
+                      if (userPhoneClean.substring(3) === participantClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    }
+                  }
+                  
+                  if (i < 3) { // Debug for first 3 groups
+                    console.log(`  📱 Participant: ${participantPhone} | Role: ${participantRole} | Match: ${isMatch}`);
+                  }
+                  
+                  // Check if matched user has admin role
+                  if (isMatch && participantRole) {
+                    const roleCheck = participantRole.toLowerCase();
+                    if (roleCheck === 'admin' || roleCheck === 'creator' || roleCheck === 'owner' || roleCheck === 'superadmin') {
+                      isAdmin = true;
+                      console.log(`👑 ✅ User is ${participantRole} in "${groupName}" (matched: ${participantPhone})`);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Method 2: Check admins array with ENHANCED matching
+            if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
+              console.log(`👑 Checking ${detailData.admins.length} admins in admins array`);
+              
+              for (const admin of detailData.admins) {
+                const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone);
+                
+                if (adminPhone) {
+                  const adminClean = adminPhone.replace(/[^\d]/g, '');
+                  
+                  // ENHANCED MATCHING: Same logic as above
+                  let isMatch = false;
+                  
+                  // 1. Exact match
+                  if (adminClean === userPhoneClean) {
+                    isMatch = true;
+                  }
+                  
+                  // 2. Last 9 digits match
+                  if (!isMatch && adminClean.length >= 9 && userPhoneClean.length >= 9) {
+                    if (adminClean.slice(-9) === userPhoneClean.slice(-9)) {
+                      isMatch = true;
+                    }
+                  }
+                  
+                  // 3. Country code variations
+                  if (!isMatch) {
+                    if (adminClean.startsWith('972') && userPhoneClean.startsWith('0')) {
+                      if (adminClean.substring(3) === userPhoneClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    } else if (userPhoneClean.startsWith('972') && adminClean.startsWith('0')) {
+                      if (userPhoneClean.substring(3) === adminClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    }
+                  }
+                  
+                  if (i < 3) { // Debug for first 3 groups
+                    console.log(`  👑 Admin: ${adminPhone} | Match: ${isMatch}`);
+                  }
+                  
+                  if (isMatch) {
+                    isAdmin = true;
+                    console.log(`👑 ✅ FOUND USER in admins array: ${adminPhone} matches ${userPhoneNumber}`);
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Method 3: Check owner with ENHANCED matching
+            if (!isAdmin && detailData.owner) {
+              const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone);
+              
+              if (ownerPhone) {
+                const ownerClean = ownerPhone.replace(/[^\d]/g, '');
+                
+                // ENHANCED MATCHING: Same logic as above
+                let isMatch = false;
+                
+                // 1. Exact match
+                if (ownerClean === userPhoneClean) {
+                  isMatch = true;
+                }
+                
+                // 2. Last 9 digits match
+                if (!isMatch && ownerClean.length >= 9 && userPhoneClean.length >= 9) {
+                  if (ownerClean.slice(-9) === userPhoneClean.slice(-9)) {
+                    isMatch = true;
+                  }
+                }
+                
+                // 3. Country code variations
+                if (!isMatch) {
+                  if (ownerClean.startsWith('972') && userPhoneClean.startsWith('0')) {
+                    if (ownerClean.substring(3) === userPhoneClean.substring(1)) {
+                      isMatch = true;
+                    }
+                  } else if (userPhoneClean.startsWith('972') && ownerClean.startsWith('0')) {
+                    if (userPhoneClean.substring(3) === ownerClean.substring(1)) {
+                      isMatch = true;
+                    }
+                  }
+                }
+                
+                if (i < 3) { // Debug for first 3 groups
+                  console.log(`👤 Owner: ${ownerPhone} | Match: ${isMatch}`);
+                }
+                
+                if (isMatch) {
+                  isAdmin = true;
+                  console.log(`👑 ✅ FOUND USER as owner: ${ownerPhone} matches ${userPhoneNumber}`);
+                }
+              }
+            }
+
+            // Method 4: Additional check for creator field (sometimes separate from owner)
+            if (!isAdmin && detailData.creator) {
+              const creatorPhone = typeof detailData.creator === 'string' ? detailData.creator : (detailData.creator.id || detailData.creator.phone);
+              
+              if (creatorPhone) {
+                const creatorClean = creatorPhone.replace(/[^\d]/g, '');
+                
+                let isMatch = false;
+                
+                if (creatorClean === userPhoneClean) {
+                  isMatch = true;
+                } else if (creatorClean.length >= 9 && userPhoneClean.length >= 9) {
+                  if (creatorClean.slice(-9) === userPhoneClean.slice(-9)) {
+                    isMatch = true;
+                  }
+                }
+                
+                if (isMatch) {
+                  isAdmin = true;
+                  console.log(`👑 ✅ FOUND USER as creator: ${creatorPhone}`);
+                }
+              }
+            }
+
+            // DEBUGGING: Show what we found for first few groups
+            if (i < 5) {
+              console.log(`🔍 DEBUG for "${groupName}":`);
+              console.log(`  - User phone (clean): ${userPhoneClean}`);
+              console.log(`  - Participants count: ${detailData.participants?.length || 0}`);
+              console.log(`  - Admins count: ${detailData.admins?.length || 0}`);
+              console.log(`  - Owner: ${detailData.owner}`);
+              console.log(`  - Creator: ${detailData.creator}`);
+              console.log(`  - Final admin status: ${isAdmin}`);
+            }
+          }
+
+          console.log(`${isAdmin ? '👑' : '👤'} RESULT: "${groupName}" - admin: ${isAdmin}, members: ${participantsCount}`);
+          
         } else {
-          console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
-          break
+          // Fallback to basic group data
+          console.log(`⚠️ Using fallback data for "${groupName}"`)
+          participantsCount = group.participants_count || group.size || 0
+          
+          // Check if basic group data has admin info
+          if (group.admins && Array.isArray(group.admins) && userPhoneNumber) {
+            for (const admin of group.admins) {
+              const adminPhone = admin.id || admin.phone || admin
+              if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
+                isAdmin = true
+                console.log(`👑 ✅ Found user as admin in "${groupName}" (fallback)`)
+                break
+              }
+            }
+          }
         }
-      } catch (fetchError) {
-        console.log(`⚠️ Fetch error for "${groupName}": ${fetchError.message}`)
-        retryCount++
-        if (retryCount <= maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        }
-      }
-    }
 
-if (detailData) {
-      // 🔍 FULL DEBUG: Log the complete response structure (only for first 3 groups)
-      if (i < 3) {
-        console.log(`🔍 COMPLETE GROUP DATA for "${groupName}":`, JSON.stringify(detailData, null, 2));
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200))
+
+      } catch (error) {
+        console.error(`❌ Error processing group ${group.id}:`, error)
+        participantsCount = group.participants_count || group.size || 0
+      }
+
+      if (isAdmin) {
+        adminCount++
       }
       
-      // Get participant count
-      participantsCount = detailData.participants?.length || 
-                         detailData.participants_count || 
-                         detailData.size || 0;
+      totalMembersCount += participantsCount
 
-      console.log(`👥 Group "${groupName}" has ${participantsCount} participants`);
+      // Add to groups list
+      groupsToInsert.push({
+        user_id: userId,
+        group_id: group.id,
+        name: groupName,
+        description: group.description || null,
+        participants_count: participantsCount,
+        is_admin: isAdmin,
+        avatar_url: group.avatar_url || group.picture || null,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
 
-      // ADMIN DETECTION with extensive logging
-      if (userPhoneNumber) {
-        const userPhoneClean = userPhoneNumber.replace(/[^\d]/g, '');
-        console.log(`📞 User phone: ${userPhoneNumber} | Clean: ${userPhoneClean}`);
+      console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
+    } // <- CLOSING BRACE FOR THE FOR LOOP
 
-        // Method 1: Check participants array
-        if (detailData.participants && Array.isArray(detailData.participants)) {
-          console.log(`👥 Checking ${detailData.participants.length} participants for admin roles`);
-          
-          for (const participant of detailData.participants) {
-            const participantPhone = participant.id || participant.phone;
-            const participantRole = participant.rank || participant.role;
-            
-            if (participantPhone) {
-              const participantClean = participantPhone.replace(/[^\d]/g, '');
-              const isMatch = participantClean.includes(userPhoneClean.slice(-9)) || 
-                             userPhoneClean.includes(participantClean.slice(-9));
-              
-              if (i < 3) { // Debug for first 3 groups
-                console.log(`  📱 Participant: ${participantPhone} | Role: ${participantRole} | Match: ${isMatch}`);
-              }
-              
-              if (isMatch && participantRole && (
-                participantRole.toLowerCase().includes('admin') || 
-                participantRole.toLowerCase().includes('creator') || 
-                participantRole.toLowerCase().includes('owner')
-              )) {
-                isAdmin = true;
-                console.log(`👑 ✅ User is ${participantRole} in "${groupName}"`);
-                break;
-              }
-            }
-          }
-        }
+    // Enhanced logging - AFTER THE LOOP
+    console.log(`📊 Final results: ${adminCount} admin groups, ${groupsToInsert.length - adminCount} member groups, ${totalMembersCount} total members`)
 
-        // Method 2: Check admins array
-        if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
-          console.log(`👑 Checking ${detailData.admins.length} admins in admins array`);
-          
-          for (const admin of detailData.admins) {
-            const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone);
-            
-            if (adminPhone) {
-              const adminClean = adminPhone.replace(/[^\d]/g, '');
-              const isMatch = adminClean.includes(userPhoneClean.slice(-9)) || 
-                             userPhoneClean.includes(adminClean.slice(-9));
-              
-              if (i < 3) { // Debug for first 3 groups
-                console.log(`  👑 Admin: ${adminPhone} | Match: ${isMatch}`);
-              }
-              
-              if (isMatch) {
-                isAdmin = true;
-                console.log(`👑 ✅ FOUND USER in admins array: ${adminPhone}`);
-                break;
-              }
-            }
-          }
-        }
+    const adminGroups = groupsToInsert.filter(g => g.is_admin)
+    const memberGroups = groupsToInsert.filter(g => !g.is_admin)
 
-        // Method 3: Check owner
-        if (!isAdmin && detailData.owner) {
-          const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone);
-          
-          if (ownerPhone) {
-            const ownerClean = ownerPhone.replace(/[^\d]/g, '');
-            const isMatch = ownerClean.includes(userPhoneClean.slice(-9)) || 
-                           userPhoneClean.includes(ownerClean.slice(-9));
-            
-            if (i < 3) { // Debug for first 3 groups
-              console.log(`👤 Owner: ${ownerPhone} | Match: ${isMatch}`);
-            }
-            
-            if (isMatch) {
-              isAdmin = true;
-              console.log(`👑 ✅ FOUND USER as owner: ${ownerPhone}`);
-            }
-          }
-        }
+    console.log('👑 Admin groups:', adminGroups.map(g => `${g.name} (${g.participants_count} members)`))
+    console.log('👤 Member groups:', memberGroups.map(g => `${g.name} (${g.participants_count} members)`))
 
-        // TEMPORARY TEST: Mark known groups
-        if (!isAdmin && (groupName.includes('מינקורטיסיות') || groupName.includes('דילים'))) {
-          console.log(`🧪 TEST: Force marking known group as admin: ${groupName}`);
-          isAdmin = true;
+    // STEP 4: Save to database
+    try {
+      // Clear existing groups
+      const { error: deleteError } = await supabase
+        .from('whatsapp_groups')
+        .delete()
+        .eq('user_id', userId)
+
+      if (deleteError) {
+        console.error('❌ Failed to clear existing groups:', deleteError)
+      }
+
+      // Insert new groups
+      if (groupsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('whatsapp_groups')
+          .insert(groupsToInsert)
+
+        if (insertError) {
+          console.error('❌ Failed to insert groups:', insertError)
+          return new Response(
+            JSON.stringify({ error: 'Failed to save groups to database', details: insertError.message }),
+            { status: 500, headers: corsHeaders }
+          )
         }
       }
 
-      console.log(`${isAdmin ? '👑' : '👤'} RESULT: "${groupName}" - admin: ${isAdmin}, members: ${participantsCount}`);
-      
-    } else {
-      // Fallback to basic group data
-      console.log(`⚠️ Using fallback data for "${groupName}"`)
-      participantsCount = group.participants_count || group.size || 0
-      
-      // Check if basic group data has admin info
-      if (group.admins && Array.isArray(group.admins) && userPhoneNumber) {
-        for (const admin of group.admins) {
-          const adminPhone = admin.id || admin.phone || admin
-          if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
-            isAdmin = true
-            console.log(`👑 ✅ Found user as admin in "${groupName}" (fallback)`)
-            break
-          }
-        }
-      }
-    }
+      console.log('✅ Successfully saved groups to database')
 
-    // Small delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 200))
-
-  } catch (error) {
-    console.error(`❌ Error processing group ${group.id}:`, error)
-    participantsCount = group.participants_count || group.size || 0
-  }
-
-  if (isAdmin) {
-    adminCount++
-  }
-  
-  totalMembersCount += participantsCount
-
-  // Add to groups list - THIS SHOULD ONLY APPEAR ONCE HERE
-  groupsToInsert.push({
-    user_id: userId,
-    group_id: group.id,
-    name: groupName,
-    description: group.description || null,
-    participants_count: participantsCount,
-    is_admin: isAdmin,
-    avatar_url: group.avatar_url || group.picture || null,
-    last_synced_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  })
-
-  console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
-} // <- CLOSING BRACE FOR THE FOR LOOP
-
-// Enhanced logging - MOVE THIS HERE, AFTER THE LOOP
-console.log(`📊 Final results: ${adminCount} admin groups, ${groupsToInsert.length - adminCount} member groups, ${totalMembersCount} total members`)
-
-const adminGroups = groupsToInsert.filter(g => g.is_admin)
-const memberGroups = groupsToInsert.filter(g => !g.is_admin)
-
-console.log('👑 Admin groups:', adminGroups.map(g => `${g.name} (${g.participants_count} members)`))
-console.log('👤 Member groups:', memberGroups.map(g => `${g.name} (${g.participants_count} members)`))
-
-// STEP 4: Save to database
-try {
-  // Clear existing groups
-  const { error: deleteError } = await supabase
-    .from('whatsapp_groups')
-    .delete()
-    .eq('user_id', userId)
-
-  if (deleteError) {
-    console.error('❌ Failed to clear existing groups:', deleteError)
-  }
-
-  // Insert new groups
-  if (groupsToInsert.length > 0) {
-    const { error: insertError } = await supabase
-      .from('whatsapp_groups')
-      .insert(groupsToInsert)
-
-    if (insertError) {
-      console.error('❌ Failed to insert groups:', insertError)
+    } catch (dbError) {
+      console.error('❌ Database error:', dbError)
       return new Response(
-        JSON.stringify({ error: 'Failed to save groups to database', details: insertError.message }),
+        JSON.stringify({ error: 'Database operation failed', details: dbError.message }),
         { status: 500, headers: corsHeaders }
       )
     }
-  }
-
-  console.log('✅ Successfully saved groups to database')
-
-} catch (dbError) {
-  console.error('❌ Database error:', dbError)
-  return new Response(
-    JSON.stringify({ error: 'Database operation failed', details: dbError.message }),
-    { status: 500, headers: corsHeaders }
-  )
-}
 
     // Return success with detailed stats
     return new Response(
