@@ -98,11 +98,6 @@ const MessageRecipientsSelector = ({
     onSegmentsChange(newSelection);
   };
 
-  const clearAll = () => {
-    onGroupsChange([]);
-    onSegmentsChange([]);
-  };
-
   const getGroupName = (groupId: string) => {
     const group = groups.find(g => g.group_id === groupId);
     return group?.name || 'קבוצה לא ידועה';
@@ -120,17 +115,6 @@ const MessageRecipientsSelector = ({
     <div className="space-y-4 text-right" dir="rtl">
       <div className="flex items-center justify-between">
         <Label className="text-base font-medium">בחר נמענים</Label>
-        {(selectedGroupIds.length > 0 || selectedSegmentIds.length > 0) && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearAll}
-            className="text-red-600 border-red-600 hover:bg-red-50"
-          >
-            <X className="h-4 w-4 ml-1" />
-            נקה הכל
-          </Button>
-        )}
       </div>
 
       <Tabs defaultValue="segments" className="w-full">
@@ -166,7 +150,7 @@ const MessageRecipientsSelector = ({
             </div>
           </div>
 
-          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2" dir="rtl">
             {segments.length === 0 ? (
               <div className="text-center py-4 text-gray-500">
                 <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
@@ -179,24 +163,25 @@ const MessageRecipientsSelector = ({
               </div>
             ) : (
               filteredSegments.map((segment) => (
-                <div key={segment.id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
-                  <Checkbox
-                    checked={selectedSegmentIds.includes(segment.id)}
-                    onCheckedChange={() => handleSegmentToggle(segment.id)}
-                  />
-                  <div className="flex-1">
+                <div key={segment.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                  <div className="flex-1 text-right">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">
-                        {segment.name}
-                      </span>
                       <Badge variant="outline" className="text-xs">
                         {segment.total_members} חברים
                       </Badge>
+                      <span className="text-sm font-medium">
+                        {segment.name}
+                      </span>
                     </div>
                     <p className="text-xs text-gray-500">
                       {segment.group_ids.length} קבוצות
                     </p>
                   </div>
+                  <Checkbox
+                    checked={selectedSegmentIds.includes(segment.id)}
+                    onCheckedChange={() => handleSegmentToggle(segment.id)}
+                    className="mr-3"
+                  />
                 </div>
               ))
             )}
@@ -237,32 +222,33 @@ const MessageRecipientsSelector = ({
             </div>
           </div>
 
-          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2" dir="rtl">
             {filteredGroups.length === 0 ? (
               <div className="text-center py-4 text-gray-500">
                 לא נמצאו קבוצות התואמות לחיפוש
               </div>
             ) : (
               filteredGroups.map((group) => (
-                <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
-                  <Checkbox
-                    checked={selectedGroupIds.includes(group.group_id)}
-                    onCheckedChange={() => handleGroupToggle(group.group_id)}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
-                        {group.name}
-                      </span>
+                <div key={group.group_id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                  <div className="flex-1 text-right">
+                    <div className="flex items-center gap-2 justify-end">
                       {group.is_admin && (
                         <Star className="h-3 w-3 text-amber-500" />
                       )}
+                      <span className="text-sm font-medium">
+                        {group.name}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 text-right">
                       {group.participants_count || 0} חברים
                       {group.is_admin && ' • מנהל'}
                     </p>
                   </div>
+                  <Checkbox
+                    checked={selectedGroupIds.includes(group.group_id)}
+                    onCheckedChange={() => handleGroupToggle(group.group_id)}
+                    className="mr-3"
+                  />
                 </div>
               ))
             )}
@@ -278,18 +264,18 @@ const MessageRecipientsSelector = ({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between text-sm">
-              <span>סך קבוצות:</span>
               <span className="font-bold">{totalStats.totalGroups}</span>
+              <span>סך קבוצות:</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span>סך חברים:</span>
               <span className="font-bold">{totalStats.totalMembers}</span>
+              <span>סך חברים:</span>
             </div>
             
             {selectedSegmentIds.length > 0 && (
               <div className="pt-2 border-t">
-                <p className="text-xs text-gray-600 mb-2">קטגוריות נבחרות:</p>
-                <div className="flex flex-wrap gap-1">
+                <p className="text-xs text-gray-600 mb-2 text-right">קטגוריות נבחרות:</p>
+                <div className="flex flex-wrap gap-1 justify-end">
                   {selectedSegmentIds.map(segmentId => {
                     const segment = segments.find(s => s.id === segmentId);
                     return segment ? (
@@ -304,8 +290,8 @@ const MessageRecipientsSelector = ({
             
             {selectedGroupIds.length > 0 && (
               <div className="pt-2 border-t">
-                <p className="text-xs text-gray-600 mb-2">קבוצות נבחרות:</p>
-                <div className="flex flex-wrap gap-1">
+                <p className="text-xs text-gray-600 mb-2 text-right">קבוצות נבחרות:</p>
+                <div className="flex flex-wrap gap-1 justify-end">
                   {selectedGroupIds.map(groupId => (
                     <Badge key={groupId} variant="outline" className="text-xs">
                       {getGroupName(groupId)}
