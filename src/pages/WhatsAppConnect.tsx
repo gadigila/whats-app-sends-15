@@ -225,19 +225,19 @@ const WhatsAppConnect = () => {
           }
         }}
         onDisconnect={async () => {
-          try {
-            await deleteInstance.mutateAsync();
-            await refetchProfile();
-            setQrCode(null);
-            setIsPollingForQR(false);
-            setPollingAttempts(0);
-            // 🆕 NEW: Also stop connection polling
-            setIsPollingConnection(false);
-            setConnectionPollingAttempts(0);
-          } catch (error) {
-            console.error('❌ Disconnect failed:', error);
-          }
-        }}
+  // This is now just a fallback - the main disconnect uses the dialog
+  try {
+    await deleteInstance.mutateAsync();
+    await refetchProfile();
+    setQrCode(null);
+    setIsPollingForQR(false);
+    setPollingAttempts(0);
+    setIsPollingConnection(false);
+    setConnectionPollingAttempts(0);
+  } catch (error) {
+    console.error('❌ Disconnect failed:', error);
+  }
+}}
         isSyncingGroups={syncGroups.isPending}
         isDisconnecting={deleteInstance.isPending}
       />

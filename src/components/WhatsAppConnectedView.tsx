@@ -1,7 +1,7 @@
-
 import Layout from '@/components/Layout';
 import WhatsAppConnectionStatus from '@/components/WhatsAppConnectionStatus';
 import WhatsAppConnectionDetails from '@/components/WhatsAppConnectionDetails';
+import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 
 interface Profile {
   payment_plan?: string;
@@ -25,6 +25,15 @@ const WhatsAppConnectedView = ({
   isSyncingGroups,
   isDisconnecting
 }: WhatsAppConnectedViewProps) => {
+  // NEW: Use the hard disconnect hook
+  const {
+    showDisconnectDialog,
+    openDisconnectDialog,
+    closeDisconnectDialog,
+    confirmHardDisconnect,
+    isHardDisconnecting
+  } = useWhatsAppInstance();
+
   return (
     <Layout>
       <div className="max-w-2xl mx-auto space-y-6">
@@ -39,6 +48,12 @@ const WhatsAppConnectedView = ({
           onDisconnect={onDisconnect}
           isSyncingGroups={isSyncingGroups}
           isDisconnecting={isDisconnecting}
+          // NEW: Pass hard disconnect props
+          showDisconnectDialog={showDisconnectDialog}
+          onOpenDisconnectDialog={openDisconnectDialog}
+          onCloseDisconnectDialog={closeDisconnectDialog}
+          onConfirmHardDisconnect={confirmHardDisconnect}
+          isHardDisconnecting={isHardDisconnecting}
         />
         
         <WhatsAppConnectionDetails profile={profile} />
