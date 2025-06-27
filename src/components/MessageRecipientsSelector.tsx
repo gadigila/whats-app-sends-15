@@ -226,7 +226,11 @@ const MessageRecipientsSelector = ({
               </div>
             ) : (
               filteredGroups.map((group) => (
-                <div key={group.group_id} className="flex items-center p-2 hover:bg-gray-50 rounded-lg">
+                <div 
+                  key={group.group_id} 
+                  className="flex items-center p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                  onClick={() => handleGroupToggle(group.group_id)}
+                >
                   <Checkbox
                     checked={selectedGroupIds.includes(group.group_id)}
                     onCheckedChange={() => handleGroupToggle(group.group_id)}
