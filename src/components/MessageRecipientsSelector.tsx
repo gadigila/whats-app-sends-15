@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, X, Users, MessageSquare, CheckSquare, Square, Star } from 'lucide-react';
+import { Search, X, Users, MessageSquare, Star } from 'lucide-react';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useSegments } from '@/hooks/useSegments';
 
@@ -98,24 +98,6 @@ const MessageRecipientsSelector = ({
     onSegmentsChange(newSelection);
   };
 
-  const handleSelectAllGroups = () => {
-    const allGroupIds = filteredGroups.map(g => g.group_id);
-    onGroupsChange(allGroupIds);
-  };
-
-  const handleDeselectAllGroups = () => {
-    onGroupsChange([]);
-  };
-
-  const handleSelectAllSegments = () => {
-    const allSegmentIds = filteredSegments.map(s => s.id);
-    onSegmentsChange(allSegmentIds);
-  };
-
-  const handleDeselectAllSegments = () => {
-    onSegmentsChange([]);
-  };
-
   const clearAll = () => {
     onGroupsChange([]);
     onSegmentsChange([]);
@@ -135,7 +117,7 @@ const MessageRecipientsSelector = ({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 text-right" dir="rtl">
       <div className="flex items-center justify-between">
         <Label className="text-base font-medium">בחר נמענים</Label>
         {(selectedGroupIds.length > 0 || selectedSegmentIds.length > 0) && (
@@ -151,17 +133,75 @@ const MessageRecipientsSelector = ({
         )}
       </div>
 
-      <Tabs defaultValue="groups" className="w-full">
+      <Tabs defaultValue="segments" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="groups" className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            קבוצות ({groups.length})
-          </TabsTrigger>
           <TabsTrigger value="segments" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             קטגוריות ({segments.length})
           </TabsTrigger>
+          <TabsTrigger value="groups" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            קבוצות ({groups.length})
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="segments" className="space-y-4">
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="חפש קטגוריות..."
+                value={segmentSearchQuery}
+                onChange={(e) => setSegmentSearchQuery(e.target.value)}
+                className="pr-10 pl-10"
+              />
+              {segmentSearchQuery && (
+                <button
+                  onClick={() => setSegmentSearchQuery('')}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+            {segments.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p>לא נוצרו קטגוריות</p>
+                <p className="text-xs">צור קטגוריות בעמוד הקטגוריות</p>
+              </div>
+            ) : filteredSegments.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                לא נמצאו קטגוריות התואמות לחיפוש
+              </div>
+            ) : (
+              filteredSegments.map((segment) => (
+                <div key={segment.id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
+                  <Checkbox
+                    checked={selectedSegmentIds.includes(segment.id)}
+                    onCheckedChange={() => handleSegmentToggle(segment.id)}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        {segment.name}
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {segment.total_members} חברים
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {segment.group_ids.length} קבוצות
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
 
         <TabsContent value="groups" className="space-y-4">
           <div className="space-y-3">
@@ -195,27 +235,6 @@ const MessageRecipientsSelector = ({
                 </button>
               )}
             </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelectAllGroups}
-                disabled={filteredGroups.length === 0}
-              >
-                <CheckSquare className="h-4 w-4 ml-1" />
-                בחר הכל
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDeselectAllGroups}
-                disabled={selectedGroupIds.length === 0}
-              >
-                <Square className="h-4 w-4 ml-1" />
-                בטל בחירה
-              </Button>
-            </div>
           </div>
 
           <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
@@ -242,85 +261,6 @@ const MessageRecipientsSelector = ({
                     <p className="text-xs text-gray-500">
                       {group.participants_count || 0} חברים
                       {group.is_admin && ' • מנהל'}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="segments" className="space-y-4">
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="חפש קטגוריות..."
-                value={segmentSearchQuery}
-                onChange={(e) => setSegmentSearchQuery(e.target.value)}
-                className="pr-10 pl-10"
-              />
-              {segmentSearchQuery && (
-                <button
-                  onClick={() => setSegmentSearchQuery('')}
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelectAllSegments}
-                disabled={filteredSegments.length === 0}
-              >
-                <CheckSquare className="h-4 w-4 ml-1" />
-                בחר הכל
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDeselectAllSegments}
-                disabled={selectedSegmentIds.length === 0}
-              >
-                <Square className="h-4 w-4 ml-1" />
-                בטל בחירה
-              </Button>
-            </div>
-          </div>
-
-          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
-            {segments.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
-                <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p>לא נוצרו קטגוריות</p>
-                <p className="text-xs">צור קטגוריות בעמוד הקטגוריות</p>
-              </div>
-            ) : filteredSegments.length === 0 ? (
-              <div className="text-center py-4 text-gray-500">
-                לא נמצאו קטגוריות התואמות לחיפוש
-              </div>
-            ) : (
-              filteredSegments.map((segment) => (
-                <div key={segment.id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
-                  <Checkbox
-                    checked={selectedSegmentIds.includes(segment.id)}
-                    onCheckedChange={() => handleSegmentToggle(segment.id)}
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">
-                        {segment.name}
-                      </span>
-                      <Badge variant="outline" className="text-xs">
-                        {segment.total_members} חברים
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      {segment.group_ids.length} קבוצות
                     </p>
                   </div>
                 </div>
