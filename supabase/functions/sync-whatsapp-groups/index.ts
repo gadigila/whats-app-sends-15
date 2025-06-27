@@ -270,56 +270,90 @@ for (let i = 0; i < allGroups.length; i++) {
     }
 
     if (detailData) {
- 
-      // METHOD 1: Check participants array for admin roles
-      if (detailData.participants && Array.isArray(detailData.participants)) {
-        participantsCount = detailData.participants.length
-        console.log(`👥 Group "${groupName}" has ${participantsCount} participants`)
+  // Log what we got
+  console.log(`📊 Processing "${groupName}" - has participants: ${!!detailData.participants}, has admins: ${!!detailData.admins}`);
+  
+  // Get participant count
+  participantsCount = detailData.participants?.length || 
+                     detailData.participants_count || 
+                     detailData.size || 0;
+
+  console.log(`👥 Group "${groupName}" has ${participantsCount} participants`);
+
+  // SIMPLE ADMIN DETECTION - Check all possible admin sources
+  if (userPhoneNumber) {
+    const userPhoneClean = userPhoneNumber.replace(/[^\d]/g, '');
+    console.log(`📞 Looking for user phone: ${userPhoneNumber} (clean: ${userPhoneClean})`);
+
+    // Method 1: Check participants array with ranks
+    if (detailData.participants && Array.isArray(detailData.participants)) {
+      console.log(`👥 Checking ${detailData.participants.length} participants`);
+      
+      for (const participant of detailData.participants) {
+        const participantPhone = participant.id || participant.phone;
+        const participantRole = participant.rank || participant.role;
         
-        if (userPhoneNumber) {
-          for (const participant of detailData.participants) {
-            const participantPhone = participant.id || participant.phone || participant.wid
-            const participantRole = participant.rank || participant.role || participant.type
+        if (participantPhone) {
+          const participantClean = participantPhone.replace(/[^\d]/g, '');
+          
+          // Simple phone matching - check if numbers contain each other
+          if (participantClean.includes(userPhoneClean.slice(-9)) || 
+              userPhoneClean.includes(participantClean.slice(-9))) {
             
-            if (participantPhone && isPhoneMatch(userPhoneNumber, participantPhone)) {
-              console.log(`👤 Found user in "${groupName}": ${participantPhone}, role: ${participantRole}`)
-              
-              if (participantRole === 'admin' || 
-                  participantRole === 'creator' || 
-                  participantRole === 'superadmin' ||
-                  participantRole === 'owner') {
-                isAdmin = true
-                console.log(`👑 ✅ User is ${participantRole} in "${groupName}"`)
-                break
-              }
+            console.log(`👤 Found user in participants: ${participantPhone}, role: ${participantRole}`);
+            
+            if (participantRole === 'admin' || participantRole === 'creator' || participantRole === 'owner') {
+              isAdmin = true;
+              console.log(`👑 ✅ User is ${participantRole} in "${groupName}"`);
+              break;
             }
           }
         }
       }
+    }
 
-      // METHOD 2: Check admins array (as WHAPI support suggested)
-      if (!isAdmin && detailData.admins && Array.isArray(detailData.admins) && userPhoneNumber) {
-        console.log(`👑 Checking ${detailData.admins.length} admins in "${groupName}"`)
+    // Method 2: Check admins array 
+    if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
+      console.log(`👑 Checking ${detailData.admins.length} admins array`);
+      
+      for (const admin of detailData.admins) {
+        const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone);
         
-        for (const admin of detailData.admins) {
-          const adminPhone = admin.id || admin.phone || admin.wid || admin
+        if (adminPhone) {
+          const adminClean = adminPhone.replace(/[^\d]/g, '');
           
-          if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
-            isAdmin = true
-            console.log(`👑 ✅ Found user as admin in "${groupName}": ${adminPhone}`)
-            break
+          // Simple phone matching
+          if (adminClean.includes(userPhoneClean.slice(-9)) || 
+              userPhoneClean.includes(adminClean.slice(-9))) {
+            
+            isAdmin = true;
+            console.log(`👑 ✅ Found user in admins array: ${adminPhone}`);
+            break;
           }
         }
       }
+    }
 
-      // METHOD 3: Check if user is group creator/owner
-      if (!isAdmin && detailData.owner && userPhoneNumber) {
-        const ownerPhone = detailData.owner.id || detailData.owner.phone || detailData.owner
-        if (ownerPhone && isPhoneMatch(userPhoneNumber, ownerPhone)) {
-          isAdmin = true
-          console.log(`👑 ✅ User is owner of "${groupName}"`)
+    // Method 3: Check owner
+    if (!isAdmin && detailData.owner) {
+      const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone);
+      
+      if (ownerPhone) {
+        const ownerClean = ownerPhone.replace(/[^\d]/g, '');
+        
+        if (ownerClean.includes(userPhoneClean.slice(-9)) || 
+            userPhoneClean.includes(ownerClean.slice(-9))) {
+          
+          isAdmin = true;
+          console.log(`👑 ✅ User is owner: ${ownerPhone}`);
         }
       }
+    }
+
+    
+
+  console.log(`${isAdmin ? '👑' : '👤'} RESULT: "${groupName}" - admin: ${isAdmin}, members: ${participantsCount}`);
+}
 
       // Get participant count from various possible fields
       if (!participantsCount) {
