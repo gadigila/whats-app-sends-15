@@ -233,8 +233,8 @@ const MessageRecipientsSelector = ({
                 >
                   <Checkbox
                     checked={selectedGroupIds.includes(group.group_id)}
-                    onCheckedChange={() => handleGroupToggle(group.group_id)}
-                    className="ml-3"
+                    readOnly
+                    className="ml-3 pointer-events-none"
                   />
                   <div className="flex items-center gap-2 mr-3">
                     <span className="text-sm font-medium">
