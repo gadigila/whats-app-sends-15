@@ -382,27 +382,39 @@ export default async function handler(req: Request) {
       )
     }
 
-    // STEP 3: Process each group with enhanced admin detection
+    // STEP 3: Process groups with timeout protection
     const groupsToInsert = []
     let adminCount = 0
     let totalMembersCount = 0
-    const debugMode = true // Set to false in production
+    const debugMode = false // Set to true only for debugging
+    const maxProcessingTime = 25000 // 25 seconds max (leave 5s buffer for DB operations)
+    const startTime = Date.now()
 
-    for (let i = 0; i < allGroups.length; i++) {
-      const group = allGroups[i]
+    // Limit to first 50 groups to avoid timeout
+    const groupsToProcess = allGroups.slice(0, 50)
+    console.log(`📊 Processing ${groupsToProcess.length} groups (limited for performance)`)
+
+    for (let i = 0; i < groupsToProcess.length; i++) {
+      // Check if we're running out of time
+      if (Date.now() - startTime > maxProcessingTime) {
+        console.log(`⏰ Timeout protection: Stopping at group ${i + 1}/${groupsToProcess.length}`)
+        break
+      }
+
+      const group = groupsToProcess[i]
       const groupName = group.name || group.subject || `Group ${group.id}`
       
-      console.log(`🔍 Processing ${i + 1}/${allGroups.length}: ${groupName}`)
+      console.log(`🔍 Processing ${i + 1}/${groupsToProcess.length}: ${groupName}`)
       
       let isAdmin = false
       let participantsCount = 0
 
-      // Get detailed group information
-      const detailData = await getGroupDetails(group.id, profile.whapi_token)
+      // Get detailed group information with shorter timeout
+      const detailData = await getGroupDetails(group.id, profile.whapi_token, 1) // Only 1 retry
 
       if (detailData) {
-        // Log complete structure for first 3 groups in debug mode
-        if (debugMode && i < 3) {
+        // Log complete structure for first 2 groups in debug mode only
+        if (debugMode && i < 2) {
           console.log(`🔍 COMPLETE GROUP DATA for "${groupName}":`, JSON.stringify(detailData, null, 2))
         }
 
@@ -412,7 +424,7 @@ export default async function handler(req: Request) {
                           detailData.size || 0
 
         // Check if user is admin
-        isAdmin = checkIfUserIsAdmin(userPhoneNumber, detailData, groupName, debugMode && i < 5)
+        isAdmin = checkIfUserIsAdmin(userPhoneNumber, detailData, groupName, debugMode && i < 3)
 
       } else {
         // Fallback to basic group data
@@ -453,8 +465,8 @@ export default async function handler(req: Request) {
 
       console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
 
-      // Rate limiting - wait 1 second between requests
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Shorter delay to prevent timeout
+      await new Promise(resolve => setTimeout(resolve, 300)) // Reduced from 1000ms to 300ms
     }
 
     // Enhanced logging
@@ -511,17 +523,23 @@ export default async function handler(req: Request) {
     }
 
     // Return detailed success response
+    const timeElapsed = Date.now() - startTime
     return new Response(
       JSON.stringify({
         success: true,
         groups_count: groupsToInsert.length,
+        total_groups_found: allGroups.length,
+        groups_processed: groupsToProcess.length,
         admin_groups_count: adminCount,
         member_groups_count: groupsToInsert.length - adminCount,
         total_members: totalMembersCount,
         user_phone: userPhoneNumber,
         phone_variations_count: phoneVariations.length,
         admin_groups: adminGroups.map(g => ({ name: g.name, participants: g.participants_count })),
-        message: `Successfully synced ${groupsToInsert.length} groups (${adminCount} admin groups found)`,
+        processing_time_ms: timeElapsed,
+        message: `Successfully synced ${groupsToInsert.length} groups (${adminCount} admin groups found)${
+          allGroups.length > 50 ? ` - Limited to first 50 groups for performance` : ''
+        }`,
         debug_info: {
           user_phone_clean: userPhoneNumber.replace(/[^\d]/g, ''),
           first_phone_variation: phoneVariations[0],
