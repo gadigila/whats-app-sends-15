@@ -108,6 +108,36 @@ export type Database = {
         }
         Relationships: []
       }
+      segments: {
+        Row: {
+          created_at: string
+          group_ids: string[]
+          id: string
+          name: string
+          total_members: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_ids?: string[]
+          id?: string
+          name: string
+          total_members?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_ids?: string[]
+          id?: string
+          name?: string
+          total_members?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       whatsapp_groups: {
         Row: {
           avatar_url: string | null
