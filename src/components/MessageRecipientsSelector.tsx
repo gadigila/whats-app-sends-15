@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -163,7 +162,12 @@ const MessageRecipientsSelector = ({
               </div>
             ) : (
               filteredSegments.map((segment) => (
-                <div key={segment.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
+                <div key={segment.id} className="flex items-center p-2 hover:bg-gray-50 rounded-lg">
+                  <Checkbox
+                    checked={selectedSegmentIds.includes(segment.id)}
+                    onCheckedChange={() => handleSegmentToggle(segment.id)}
+                    className="ml-3"
+                  />
                   <div className="flex-1 text-right">
                     <div className="flex items-center justify-between">
                       <Badge variant="outline" className="text-xs">
@@ -177,11 +181,6 @@ const MessageRecipientsSelector = ({
                       {segment.group_ids.length} קבוצות
                     </p>
                   </div>
-                  <Checkbox
-                    checked={selectedSegmentIds.includes(segment.id)}
-                    onCheckedChange={() => handleSegmentToggle(segment.id)}
-                    className="mr-3"
-                  />
                 </div>
               ))
             )}
@@ -229,26 +228,32 @@ const MessageRecipientsSelector = ({
               </div>
             ) : (
               filteredGroups.map((group) => (
-                <div key={group.group_id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
-                  <div className="flex-1 text-right">
-                    <div className="flex items-center gap-2 justify-end">
-                      {group.is_admin && (
-                        <Star className="h-3 w-3 text-amber-500" />
-                      )}
-                      <span className="text-sm font-medium">
-                        {group.name}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 text-right">
-                      {group.participants_count || 0} חברים
-                      {group.is_admin && ' • מנהל'}
-                    </p>
-                  </div>
+                <div key={group.group_id} className="flex items-center p-2 hover:bg-gray-50 rounded-lg">
                   <Checkbox
                     checked={selectedGroupIds.includes(group.group_id)}
                     onCheckedChange={() => handleGroupToggle(group.group_id)}
-                    className="mr-3"
+                    className="ml-3"
                   />
+                  <div className="flex-1 text-right">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500">
+                        {group.participants_count || 0} חברים
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {group.name}
+                        </span>
+                        {group.is_admin && (
+                          <Star className="h-3 w-3 text-amber-500" />
+                        )}
+                      </div>
+                    </div>
+                    {group.is_admin && (
+                      <p className="text-xs text-gray-500 text-right">
+                        מנהל
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))
             )}
@@ -300,7 +305,7 @@ const MessageRecipientsSelector = ({
                 </div>
               </div>
             )}
-          </CardContent>
+          </Content>
         </Card>
       )}
     </div>
