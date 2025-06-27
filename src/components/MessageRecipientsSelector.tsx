@@ -305,7 +305,7 @@ const MessageRecipientsSelector = ({
                 </div>
               </div>
             )}
-          </Content>
+          </CardContent>
         </Card>
       )}
     </div>
