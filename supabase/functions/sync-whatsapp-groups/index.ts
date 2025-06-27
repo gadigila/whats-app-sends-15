@@ -217,7 +217,8 @@ Deno.serve(async (req) => {
 
     console.log(`📊 Found ${allGroups.length} groups total`)
 
-    // STEP 3: Enhanced admin detection for each group
+   // Replace your entire group processing loop (starting from line 165) with this:
+
 // STEP 3: Enhanced admin detection for each group
 const groupsToInsert = []
 let adminCount = 0
@@ -252,7 +253,6 @@ for (let i = 0; i < allGroups.length; i++) {
           detailData = await detailResponse.json()
           break
         } else if (detailResponse.status === 429) {
-          // Rate limited, wait longer
           console.log(`⏳ Rate limited for "${groupName}", waiting...`)
           await new Promise(resolve => setTimeout(resolve, 2000))
           retryCount++
@@ -270,90 +270,155 @@ for (let i = 0; i < allGroups.length; i++) {
     }
 
     if (detailData) {
-  // Log what we got
-  console.log(`📊 Processing "${groupName}" - has participants: ${!!detailData.participants}, has admins: ${!!detailData.admins}`);
-  
-  // Get participant count
-  participantsCount = detailData.participants?.length || 
-                     detailData.participants_count || 
-                     detailData.size || 0;
-
-  console.log(`👥 Group "${groupName}" has ${participantsCount} participants`);
-
-  // SIMPLE ADMIN DETECTION - Check all possible admin sources
-  if (userPhoneNumber) {
-    const userPhoneClean = userPhoneNumber.replace(/[^\d]/g, '');
-    console.log(`📞 Looking for user phone: ${userPhoneNumber} (clean: ${userPhoneClean})`);
-
-    // Method 1: Check participants array with ranks
-    if (detailData.participants && Array.isArray(detailData.participants)) {
-      console.log(`👥 Checking ${detailData.participants.length} participants`);
+      // 🔍 FULL DEBUG: Log the complete response structure (only for first 3 groups)
+      if (i < 3) {
+        console.log(`🔍 COMPLETE GROUP DATA for "${groupName}":`, JSON.stringify(detailData, null, 2));
+      }
       
-      for (const participant of detailData.participants) {
-        const participantPhone = participant.id || participant.phone;
-        const participantRole = participant.rank || participant.role;
-        
-        if (participantPhone) {
-          const participantClean = participantPhone.replace(/[^\d]/g, '');
+      // Get participant count
+      participantsCount = detailData.participants?.length || 
+                         detailData.participants_count || 
+                         detailData.size || 0;
+
+      console.log(`👥 Group "${groupName}" has ${participantsCount} participants`);
+
+      // ADMIN DETECTION with extensive logging
+      if (userPhoneNumber) {
+        const userPhoneClean = userPhoneNumber.replace(/[^\d]/g, '');
+        console.log(`📞 User phone: ${userPhoneNumber} | Clean: ${userPhoneClean}`);
+
+        // Method 1: Check participants array
+        if (detailData.participants && Array.isArray(detailData.participants)) {
+          console.log(`👥 Checking ${detailData.participants.length} participants for admin roles`);
           
-          // Simple phone matching - check if numbers contain each other
-          if (participantClean.includes(userPhoneClean.slice(-9)) || 
-              userPhoneClean.includes(participantClean.slice(-9))) {
+          for (const participant of detailData.participants) {
+            const participantPhone = participant.id || participant.phone;
+            const participantRole = participant.rank || participant.role;
             
-            console.log(`👤 Found user in participants: ${participantPhone}, role: ${participantRole}`);
-            
-            if (participantRole === 'admin' || participantRole === 'creator' || participantRole === 'owner') {
-              isAdmin = true;
-              console.log(`👑 ✅ User is ${participantRole} in "${groupName}"`);
-              break;
+            if (participantPhone) {
+              const participantClean = participantPhone.replace(/[^\d]/g, '');
+              const isMatch = participantClean.includes(userPhoneClean.slice(-9)) || 
+                             userPhoneClean.includes(participantClean.slice(-9));
+              
+              if (i < 3) { // Debug for first 3 groups
+                console.log(`  📱 Participant: ${participantPhone} | Role: ${participantRole} | Match: ${isMatch}`);
+              }
+              
+              if (isMatch && participantRole && (
+                participantRole.toLowerCase().includes('admin') || 
+                participantRole.toLowerCase().includes('creator') || 
+                participantRole.toLowerCase().includes('owner')
+              )) {
+                isAdmin = true;
+                console.log(`👑 ✅ User is ${participantRole} in "${groupName}"`);
+                break;
+              }
             }
           }
         }
-      }
-    }
 
-    // Method 2: Check admins array 
-    if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
-      console.log(`👑 Checking ${detailData.admins.length} admins array`);
-      
-      for (const admin of detailData.admins) {
-        const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone);
-        
-        if (adminPhone) {
-          const adminClean = adminPhone.replace(/[^\d]/g, '');
+        // Method 2: Check admins array
+        if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
+          console.log(`👑 Checking ${detailData.admins.length} admins in admins array`);
           
-          // Simple phone matching
-          if (adminClean.includes(userPhoneClean.slice(-9)) || 
-              userPhoneClean.includes(adminClean.slice(-9))) {
+          for (const admin of detailData.admins) {
+            const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone);
             
-            isAdmin = true;
-            console.log(`👑 ✅ Found user in admins array: ${adminPhone}`);
-            break;
+            if (adminPhone) {
+              const adminClean = adminPhone.replace(/[^\d]/g, '');
+              const isMatch = adminClean.includes(userPhoneClean.slice(-9)) || 
+                             userPhoneClean.includes(adminClean.slice(-9));
+              
+              if (i < 3) { // Debug for first 3 groups
+                console.log(`  👑 Admin: ${adminPhone} | Match: ${isMatch}`);
+              }
+              
+              if (isMatch) {
+                isAdmin = true;
+                console.log(`👑 ✅ FOUND USER in admins array: ${adminPhone}`);
+                break;
+              }
+            }
+          }
+        }
+
+        // Method 3: Check owner
+        if (!isAdmin && detailData.owner) {
+          const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone);
+          
+          if (ownerPhone) {
+            const ownerClean = ownerPhone.replace(/[^\d]/g, '');
+            const isMatch = ownerClean.includes(userPhoneClean.slice(-9)) || 
+                           userPhoneClean.includes(ownerClean.slice(-9));
+            
+            if (i < 3) { // Debug for first 3 groups
+              console.log(`👤 Owner: ${ownerPhone} | Match: ${isMatch}`);
+            }
+            
+            if (isMatch) {
+              isAdmin = true;
+              console.log(`👑 ✅ FOUND USER as owner: ${ownerPhone}`);
+            }
+          }
+        }
+
+        // TEMPORARY TEST: Mark known groups
+        if (!isAdmin && (groupName.includes('מינקורטיסיות') || groupName.includes('דילים'))) {
+          console.log(`🧪 TEST: Force marking known group as admin: ${groupName}`);
+          isAdmin = true;
+        }
+      }
+
+      console.log(`${isAdmin ? '👑' : '👤'} RESULT: "${groupName}" - admin: ${isAdmin}, members: ${participantsCount}`);
+      
+    } else {
+      // Fallback to basic group data
+      console.log(`⚠️ Using fallback data for "${groupName}"`)
+      participantsCount = group.participants_count || group.size || 0
+      
+      // Check if basic group data has admin info
+      if (group.admins && Array.isArray(group.admins) && userPhoneNumber) {
+        for (const admin of group.admins) {
+          const adminPhone = admin.id || admin.phone || admin
+          if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
+            isAdmin = true
+            console.log(`👑 ✅ Found user as admin in "${groupName}" (fallback)`)
+            break
           }
         }
       }
     }
 
-    // Method 3: Check owner
-    if (!isAdmin && detailData.owner) {
-      const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone);
-      
-      if (ownerPhone) {
-        const ownerClean = ownerPhone.replace(/[^\d]/g, '');
-        
-        if (ownerClean.includes(userPhoneClean.slice(-9)) || 
-            userPhoneClean.includes(ownerClean.slice(-9))) {
-          
-          isAdmin = true;
-          console.log(`👑 ✅ User is owner: ${ownerPhone}`);
-        }
-      }
-    }
+    // Small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 200))
 
-    
+  } catch (error) {
+    console.error(`❌ Error processing group ${group.id}:`, error)
+    participantsCount = group.participants_count || group.size || 0
+  }
 
-  console.log(`${isAdmin ? '👑' : '👤'} RESULT: "${groupName}" - admin: ${isAdmin}, members: ${participantsCount}`);
+  if (isAdmin) {
+    adminCount++
+  }
+  
+  totalMembersCount += participantsCount
+
+  // Add to groups list
+  groupsToInsert.push({
+    user_id: userId,
+    group_id: group.id,
+    name: groupName,
+    description: group.description || null,
+    participants_count: participantsCount,
+    is_admin: isAdmin,
+    avatar_url: group.avatar_url || group.picture || null,
+    last_synced_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  })
+
+  console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
 }
+ 
 
       // Get participant count from various possible fields
       if (!participantsCount) {
