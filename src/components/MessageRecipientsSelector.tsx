@@ -233,7 +233,7 @@ const MessageRecipientsSelector = ({
                 >
                   <Checkbox
                     checked={selectedGroupIds.includes(group.group_id)}
-                    readOnly
+                    disabled
                     className="ml-3 pointer-events-none"
                   />
                   <div className="flex items-center gap-2 mr-3">
