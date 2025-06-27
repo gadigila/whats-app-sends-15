@@ -5,6 +5,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function - MOVED OUTSIDE
+function isPhoneMatch(phone1: string, phone2: string): boolean {
+  if (!phone1 || !phone2) return false;
+  
+  // Remove all non-digits
+  const clean1 = phone1.replace(/[^\d]/g, '');
+  const clean2 = phone2.replace(/[^\d]/g, '');
+  
+  // Direct match
+  if (clean1 === clean2) return true;
+  
+  // Israeli format matching (972 vs 0 prefix)
+  if (clean1.startsWith('972') && clean2.startsWith('0')) {
+    return clean1.substring(3) === clean2.substring(1);
+  }
+  
+  if (clean2.startsWith('972') && clean1.startsWith('0')) {
+    return clean2.substring(3) === clean1.substring(1);
+  }
+  
+  // Match last 9 digits (Israeli mobile numbers)
+  if (clean1.length >= 9 && clean2.length >= 9) {
+    return clean1.slice(-9) === clean2.slice(-9);
+  }
+  
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -155,6 +183,100 @@ Deno.serve(async (req) => {
           groupId: eventData.id,
           action: eventData.action
         })
+        
+        // Handle group creation (when user is added to new groups)
+        if (eventData.action === 'add' && userId) {
+          console.log('🆕 User added to new group, triggering sync...')
+          
+          try {
+            const { data, error } = await supabase.functions.invoke('sync-whatsapp-groups', {
+              body: { userId }
+            })
+            
+            if (error) {
+              console.error('❌ Failed to trigger group sync:', error)
+            } else {
+              console.log('✅ Group sync triggered successfully')
+            }
+          } catch (syncError) {
+            console.error('❌ Failed to sync new group:', syncError)
+          }
+        }
+        break
+
+      case 'groups_participants':
+        console.log('👥 Group participant change detected:', {
+          groupId: eventData.id,
+          action: eventData.action,
+          participants: eventData.participants
+        })
+        
+        const groupId = eventData.id || eventData.group_id
+        const action = eventData.action
+        const participants = eventData.participants || []
+        
+        // Handle admin promotions/demotions
+        if ((action === 'promote' || action === 'demote') && userId) {
+          console.log(`🔄 Processing ${action} for ${participants.length} participants`)
+          
+          // Get user's phone number from profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('whapi_token')
+            .eq('id', userId)
+            .single()
+            
+          if (profile?.whapi_token) {
+            try {
+              // Get user's phone number
+              const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${profile.whapi_token}`,
+                  'Content-Type': 'application/json'
+                }
+              })
+              
+              if (profileResponse.ok) {
+                const profileData = await profileResponse.json()
+                const userPhone = profileData.phone || profileData.id
+                
+                console.log('📞 User phone for comparison:', userPhone)
+                
+                // Check if the promoted/demoted user is the current user
+                for (const participantPhone of participants) {
+                  console.log(`🔍 Checking participant: ${participantPhone}`)
+                  
+                  if (isPhoneMatch(userPhone, participantPhone)) {
+                    console.log(`🎯 User's own admin status changed: ${action}`)
+                    
+                    // Update the group's admin status in database
+                    const isAdmin = action === 'promote'
+                    
+                    const { error: updateError } = await supabase
+                      .from('whatsapp_groups')
+                      .update({
+                        is_admin: isAdmin,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('user_id', userId)
+                      .eq('group_id', groupId)
+                    
+                    if (updateError) {
+                      console.error('❌ Failed to update admin status:', updateError)
+                    } else {
+                      console.log(`✅ Updated admin status: ${isAdmin} for group ${groupId}`)
+                    }
+                    
+                    break // Found the user, stop checking other participants
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('❌ Error getting user profile:', error)
+            }
+          }
+        }
         break
 
       case 'chats':
@@ -207,4 +329,4 @@ Deno.serve(async (req) => {
       }
     )
   }
-})
+}) 
