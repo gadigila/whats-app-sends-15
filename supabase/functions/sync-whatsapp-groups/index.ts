@@ -270,6 +270,10 @@ for (let i = 0; i < allGroups.length; i++) {
     }
 
     if (detailData) {
+       // ADD THIS DEBUG LINE - CRITICAL TO SEE WHAT WHAPI RETURNS
+  if (i < 3) { // Only log first 3 groups to avoid spam
+    console.log(`🔍 RAW GROUP DATA for "${groupName}":`, JSON.stringify(detailData, null, 2));
+  }
       // METHOD 1: Check participants array for admin roles
       if (detailData.participants && Array.isArray(detailData.participants)) {
         participantsCount = detailData.participants.length
