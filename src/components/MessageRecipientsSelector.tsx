@@ -162,21 +162,25 @@ const MessageRecipientsSelector = ({
               </div>
             ) : (
               filteredSegments.map((segment) => (
-                <div key={segment.id} className="flex items-center p-2 hover:bg-gray-50 rounded-lg">
+                <div 
+                  key={segment.id} 
+                  className="flex items-center p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                  onClick={() => handleSegmentToggle(segment.id)}
+                >
                   <Checkbox
                     checked={selectedSegmentIds.includes(segment.id)}
-                    onCheckedChange={() => handleSegmentToggle(segment.id)}
-                    className="ml-3"
+                    disabled
+                    className="ml-3 pointer-events-none"
                   />
-                  <div className="flex-1 text-right">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
-                        {segment.total_members} חברים
-                      </Badge>
-                      <span className="text-sm font-medium">
-                        {segment.name}
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-2 mr-3">
+                    <span className="text-sm font-medium">
+                      {segment.name}
+                    </span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-xs text-gray-500">
+                      {segment.total_members} חברים
+                    </span>
                     <p className="text-xs text-gray-500">
                       {segment.group_ids.length} קבוצות
                     </p>
