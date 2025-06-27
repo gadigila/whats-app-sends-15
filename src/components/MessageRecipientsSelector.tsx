@@ -131,17 +131,17 @@ const MessageRecipientsSelector = ({
         <TabsContent value="segments" className="space-y-4">
           <div className="space-y-3">
             <div className="relative">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="חפש קטגוריות..."
                 value={segmentSearchQuery}
                 onChange={(e) => setSegmentSearchQuery(e.target.value)}
-                className="pr-10 pl-10"
+                className="pl-10 pr-10"
               />
               {segmentSearchQuery && (
                 <button
                   onClick={() => setSegmentSearchQuery('')}
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -189,31 +189,29 @@ const MessageRecipientsSelector = ({
 
         <TabsContent value="groups" className="space-y-4">
           <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={showOnlyAdminGroups}
-                  onCheckedChange={(checked) => setShowOnlyAdminGroups(checked as boolean)}
-                />
-                <Star className="h-4 w-4 text-amber-600" />
-                <span className="text-sm font-medium text-amber-900">
-                  הצג רק קבוצות שאני מנהל
-                </span>
-              </div>
+            <div className="flex items-center justify-end p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <span className="text-sm font-medium text-amber-900">
+                הצג רק קבוצות שאני מנהל
+              </span>
+              <Star className="h-4 w-4 text-amber-600 mx-2" />
+              <Checkbox
+                checked={showOnlyAdminGroups}
+                onCheckedChange={(checked) => setShowOnlyAdminGroups(checked as boolean)}
+              />
             </div>
             
             <div className="relative">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="חפש קבוצות..."
                 value={groupSearchQuery}
                 onChange={(e) => setGroupSearchQuery(e.target.value)}
-                className="pr-10 pl-10"
+                className="pl-10 pr-10"
               />
               {groupSearchQuery && (
                 <button
                   onClick={() => setGroupSearchQuery('')}
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -234,25 +232,19 @@ const MessageRecipientsSelector = ({
                     onCheckedChange={() => handleGroupToggle(group.group_id)}
                     className="ml-3"
                   />
-                  <div className="flex-1 text-right">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">
-                        {group.participants_count || 0} חברים
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {group.name}
-                        </span>
-                        {group.is_admin && (
-                          <Star className="h-3 w-3 text-amber-500" />
-                        )}
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2 mr-3">
+                    <span className="text-sm font-medium">
+                      {group.name}
+                    </span>
                     {group.is_admin && (
-                      <p className="text-xs text-gray-500 text-right">
-                        מנהל
-                      </p>
+                      <Star className="h-3 w-3 text-amber-500" />
                     )}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-xs text-gray-500">
+                      {group.participants_count || 0} חברים
+                      {group.is_admin && ' • מנהל'}
+                    </span>
                   </div>
                 </div>
               ))
