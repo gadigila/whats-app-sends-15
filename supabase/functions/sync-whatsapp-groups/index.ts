@@ -1,4 +1,3 @@
-// Enhanced admin detection following WHAPI documentation recommendations
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -10,7 +9,7 @@ interface SyncGroupsRequest {
   userId: string
 }
 
-// FIXED: More precise phone number matching based on WHAPI formats
+// FIXED: Precise phone number normalization based on WHAPI formats
 function normalizePhoneNumber(phone: string): string {
   if (!phone) return '';
   
@@ -58,7 +57,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('🚀 Enhanced WHAPI Admin Detection - Following Documentation Guidelines')
+    console.log('🚀 Enhanced WHAPI Admin Detection Starting...')
 
     const { userId }: SyncGroupsRequest = await req.json()
 
@@ -91,7 +90,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // STEP 1: Get user's own phone number (CRITICAL for admin matching)
+    // STEP 1: Get user's phone number
     console.log('📱 Getting user phone number...')
     let userPhoneNumber = null
     
@@ -131,7 +130,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // STEP 2: Get ALL groups (basic list first)
+    // STEP 2: Get all groups
     console.log('📋 Fetching all groups...')
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
       method: 'GET',
@@ -163,127 +162,109 @@ Deno.serve(async (req) => {
 
     console.log(`📊 Found ${allGroups.length} total groups`)
 
-    // STEP 3: Enhanced admin detection with proper rate limiting
+    // STEP 3: Process groups with better rate limiting
     const groupsToInsert = []
     let adminCount = 0
     let processedCount = 0
-    const batchSize = 5 // Process in smaller batches
-    const delayBetweenBatches = 3000 // 3 seconds between batches
-    const delayBetweenRequests = 1000 // 1 second between individual requests
 
     console.log(`🔍 Starting admin detection for ${allGroups.length} groups...`)
 
-    // Process groups in batches to avoid rate limiting
-    for (let i = 0; i < allGroups.length; i += batchSize) {
-      const batch = allGroups.slice(i, i + batchSize)
-      console.log(`📦 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(allGroups.length/batchSize)} (${batch.length} groups)`)
+    for (const group of allGroups) {
+      const groupName = group.name || group.subject || `Group ${group.id}`
+      console.log(`🔍 [${processedCount + 1}/${allGroups.length}] Checking: ${groupName}`)
+      
+      let isAdmin = false
+      let participantsCount = 0
 
-      for (const group of batch) {
-        const groupName = group.name || group.subject || `Group ${group.id}`
-        console.log(`🔍 [${processedCount + 1}/${allGroups.length}] Checking: ${groupName}`)
-        
-        let isAdmin = false
-        let participantsCount = 0
+      try {
+        // Get detailed group information
+        const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
 
-        try {
-          // Get detailed group information
-          const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${profile.whapi_token}`,
-              'Content-Type': 'application/json'
-            }
-          })
+        if (detailResponse.ok) {
+          const detailData = await detailResponse.json()
+          participantsCount = detailData.participants?.length || 0
 
-          if (detailResponse.ok) {
-            const detailData = await detailResponse.json()
-            participantsCount = detailData.participants?.length || 0
+          // Check admin status using WHAPI's recommended approach
+          // 1. Check participants array with rank field
+          if (detailData.participants && Array.isArray(detailData.participants)) {
+            for (const participant of detailData.participants) {
+              const participantPhone = participant.id || participant.phone
+              const participantRank = participant.rank || participant.role
 
-            // ENHANCED: Check admin status using WHAPI's recommended approach
-            // 1. Check in participants array with rank field
-            if (detailData.participants && Array.isArray(detailData.participants)) {
-              for (const participant of detailData.participants) {
-                const participantPhone = participant.id || participant.phone
-                const participantRank = participant.rank || participant.role
-
-                if (participantPhone && isPhoneMatch(userPhoneNumber, participantPhone)) {
-                  if (participantRank === 'admin' || participantRank === 'creator' || participantRank === 'owner') {
-                    isAdmin = true
-                    console.log(`👑 ✅ User is ${participantRank} in "${groupName}"`)
-                    break
-                  }
-                }
-              }
-            }
-
-            // 2. Check in admins array (fallback)
-            if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
-              for (const admin of detailData.admins) {
-                const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone)
-                
-                if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
+              if (participantPhone && isPhoneMatch(userPhoneNumber, participantPhone)) {
+                if (participantRank === 'admin' || participantRank === 'creator' || participantRank === 'owner') {
                   isAdmin = true
-                  console.log(`👑 ✅ User found in admins array for "${groupName}"`)
+                  console.log(`👑 ✅ User is ${participantRank} in "${groupName}"`)
                   break
                 }
               }
             }
-
-            // 3. Check owner field (fallback)
-            if (!isAdmin && detailData.owner) {
-              const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone)
-              
-              if (ownerPhone && isPhoneMatch(userPhoneNumber, ownerPhone)) {
-                isAdmin = true
-                console.log(`👑 ✅ User is owner of "${groupName}"`)
-              }
-            }
-
-          } else if (detailResponse.status === 429) {
-            console.log(`⏳ Rate limited for "${groupName}", extending delay...`)
-            await new Promise(resolve => setTimeout(resolve, 5000))
-            // Retry once after rate limit
-            continue
-          } else {
-            console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
-            // Use basic group data
-            participantsCount = group.participants_count || group.size || 0
           }
 
-          // Delay between requests to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, delayBetweenRequests))
+          // 2. Check admins array (fallback)
+          if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
+            for (const admin of detailData.admins) {
+              const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone)
+              
+              if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
+                isAdmin = true
+                console.log(`👑 ✅ User found in admins array for "${groupName}"`)
+                break
+              }
+            }
+          }
 
-        } catch (error) {
-          console.error(`❌ Error processing group ${group.id}:`, error.message)
+          // 3. Check owner field (fallback)
+          if (!isAdmin && detailData.owner) {
+            const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone)
+            
+            if (ownerPhone && isPhoneMatch(userPhoneNumber, ownerPhone)) {
+              isAdmin = true
+              console.log(`👑 ✅ User is owner of "${groupName}"`)
+            }
+          }
+
+        } else if (detailResponse.status === 429) {
+          console.log(`⏳ Rate limited for "${groupName}", waiting...`)
+          await new Promise(resolve => setTimeout(resolve, 3000))
+        } else {
+          console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
           participantsCount = group.participants_count || group.size || 0
         }
 
-        if (isAdmin) {
-          adminCount++
-        }
+        // Rate limiting delay
+        await new Promise(resolve => setTimeout(resolve, 500))
 
-        // Add to results
-        groupsToInsert.push({
-          user_id: userId,
-          group_id: group.id,
-          name: groupName,
-          description: group.description || null,
-          participants_count: participantsCount,
-          is_admin: isAdmin,
-          avatar_url: group.avatar_url || group.picture || null,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-
-        console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
-        processedCount++
+      } catch (error) {
+        console.error(`❌ Error processing group ${group.id}:`, error.message)
+        participantsCount = group.participants_count || group.size || 0
       }
 
-      // Delay between batches (except for the last batch)
-      if (i + batchSize < allGroups.length) {
-        console.log(`⏳ Waiting ${delayBetweenBatches/1000}s before next batch...`)
-        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches))
+      if (isAdmin) {
+        adminCount++
       }
+
+      // Add to results
+      groupsToInsert.push({
+        user_id: userId,
+        group_id: group.id,
+        name: groupName,
+        description: group.description || null,
+        participants_count: participantsCount,
+        is_admin: isAdmin,
+        avatar_url: group.avatar_url || group.picture || null,
+        last_synced_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+
+      console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
+      processedCount++
     }
 
     // STEP 4: Save to database
@@ -300,18 +281,18 @@ Deno.serve(async (req) => {
         console.error('❌ Failed to clear existing groups:', deleteError)
       }
 
-      // Insert new groups in batches
-      const dbBatchSize = 50
-      for (let i = 0; i < groupsToInsert.length; i += dbBatchSize) {
-        const dbBatch = groupsToInsert.slice(i, i + dbBatchSize)
-        
+      // Insert new groups
+      if (groupsToInsert.length > 0) {
         const { error: insertError } = await supabase
           .from('whatsapp_groups')
-          .insert(dbBatch)
+          .insert(groupsToInsert)
 
         if (insertError) {
-          console.error('❌ Failed to insert batch:', insertError)
-          throw insertError
+          console.error('❌ Failed to insert groups:', insertError)
+          return new Response(
+            JSON.stringify({ error: 'Failed to save groups to database', details: insertError.message }),
+            { status: 500, headers: corsHeaders }
+          )
         }
       }
 
@@ -325,27 +306,15 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Final summary
+    // Final results
     const adminGroups = groupsToInsert.filter(g => g.is_admin)
-    const memberGroups = groupsToInsert.filter(g => !g.is_admin)
     const totalMembers = groupsToInsert.reduce((sum, g) => sum + g.participants_count, 0)
 
     console.log(`📊 FINAL RESULTS:`)
     console.log(`📊 Total groups: ${groupsToInsert.length}`)
     console.log(`👑 Admin groups: ${adminCount}`)
     console.log(`👤 Member groups: ${groupsToInsert.length - adminCount}`)
-    console.log(`👥 Total members across all groups: ${totalMembers}`)
-
-    // Log some admin groups for verification
-    if (adminGroups.length > 0) {
-      console.log(`👑 Admin groups found:`)
-      adminGroups.slice(0, 5).forEach(g => {
-        console.log(`  - ${g.name} (${g.participants_count} members)`)
-      })
-      if (adminGroups.length > 5) {
-        console.log(`  ... and ${adminGroups.length - 5} more`)
-      }
-    }
+    console.log(`👥 Total members: ${totalMembers}`)
 
     return new Response(
       JSON.stringify({
