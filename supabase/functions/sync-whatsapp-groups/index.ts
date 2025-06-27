@@ -10,6 +10,8 @@ interface SyncGroupsRequest {
 }
 
 // Enhanced phone number matching function
+// Replace your createPhoneVariations function with this MORE AGGRESSIVE version:
+
 function createPhoneVariations(phone: string): string[] {
   if (!phone) return [];
   
@@ -25,17 +27,24 @@ function createPhoneVariations(phone: string): string[] {
     variations.add(cleanPhone);
   }
   
+  // Handle @s.whatsapp.net suffix
+  if (phone.includes('@s.whatsapp.net')) {
+    cleanPhone = phone.replace('@s.whatsapp.net', '');
+    variations.add(cleanPhone);
+  }
+  
   // Remove all non-digits and create variations
   const digitsOnly = cleanPhone.replace(/[^\d]/g, '');
   if (digitsOnly) {
     variations.add(digitsOnly);
     variations.add(`+${digitsOnly}`);
     
-    // Israel specific (972)
+    // Israel specific (972) - MORE VARIATIONS
     if (digitsOnly.startsWith('972')) {
       const withoutCountry = digitsOnly.substring(3);
       variations.add(withoutCountry);
       variations.add(`0${withoutCountry}`);
+      variations.add(`+972${withoutCountry}`);
     }
     
     // If starts with 0, try with country code
@@ -45,12 +54,35 @@ function createPhoneVariations(phone: string): string[] {
       variations.add(`+${withCountry}`);
     }
 
-    // Add @c.us suffix to clean numbers (WhatsApp ID format)
+    // Add WhatsApp suffixes to ALL variations
     variations.add(`${digitsOnly}@c.us`);
+    variations.add(`${digitsOnly}@s.whatsapp.net`);
+    
     if (digitsOnly.startsWith('972')) {
       const withoutCountryCode = digitsOnly.substring(3);
       variations.add(`${withoutCountryCode}@c.us`);
       variations.add(`0${withoutCountryCode}@c.us`);
+      variations.add(`${withoutCountryCode}@s.whatsapp.net`);
+      variations.add(`0${withoutCountryCode}@s.whatsapp.net`);
+    }
+    
+    // Handle 10-digit Israeli numbers (like 0501234567)
+    if (digitsOnly.length === 10 && digitsOnly.startsWith('0')) {
+      const without0 = digitsOnly.substring(1);
+      variations.add(without0);
+      variations.add(`+972${without0}`);
+      variations.add(`972${without0}`);
+      variations.add(`${without0}@c.us`);
+      variations.add(`972${without0}@c.us`);
+    }
+    
+    // Handle 9-digit Israeli numbers (like 501234567)
+    if (digitsOnly.length === 9 && !digitsOnly.startsWith('0')) {
+      variations.add(`0${digitsOnly}`);
+      variations.add(`+972${digitsOnly}`);
+      variations.add(`972${digitsOnly}`);
+      variations.add(`${digitsOnly}@c.us`);
+      variations.add(`972${digitsOnly}@c.us`);
     }
   }
   
