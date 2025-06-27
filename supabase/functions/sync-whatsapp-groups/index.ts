@@ -217,8 +217,7 @@ Deno.serve(async (req) => {
 
     console.log(`📊 Found ${allGroups.length} groups total`)
 
-   // Replace your entire group processing loop (starting from line 165) with this:
-
+    // STEP 3: Enhanced admin detection for each group
 // STEP 3: Enhanced admin detection for each group
 const groupsToInsert = []
 let adminCount = 0
@@ -253,6 +252,7 @@ for (let i = 0; i < allGroups.length; i++) {
           detailData = await detailResponse.json()
           break
         } else if (detailResponse.status === 429) {
+          // Rate limited, wait longer
           console.log(`⏳ Rate limited for "${groupName}", waiting...`)
           await new Promise(resolve => setTimeout(resolve, 2000))
           retryCount++
@@ -269,7 +269,7 @@ for (let i = 0; i < allGroups.length; i++) {
       }
     }
 
-    if (detailData) {
+if (detailData) {
       // 🔍 FULL DEBUG: Log the complete response structure (only for first 3 groups)
       if (i < 3) {
         console.log(`🔍 COMPLETE GROUP DATA for "${groupName}":`, JSON.stringify(detailData, null, 2));
@@ -371,63 +371,6 @@ for (let i = 0; i < allGroups.length; i++) {
 
       console.log(`${isAdmin ? '👑' : '👤'} RESULT: "${groupName}" - admin: ${isAdmin}, members: ${participantsCount}`);
       
-    } else {
-      // Fallback to basic group data
-      console.log(`⚠️ Using fallback data for "${groupName}"`)
-      participantsCount = group.participants_count || group.size || 0
-      
-      // Check if basic group data has admin info
-      if (group.admins && Array.isArray(group.admins) && userPhoneNumber) {
-        for (const admin of group.admins) {
-          const adminPhone = admin.id || admin.phone || admin
-          if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
-            isAdmin = true
-            console.log(`👑 ✅ Found user as admin in "${groupName}" (fallback)`)
-            break
-          }
-        }
-      }
-    }
-
-    // Small delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 200))
-
-  } catch (error) {
-    console.error(`❌ Error processing group ${group.id}:`, error)
-    participantsCount = group.participants_count || group.size || 0
-  }
-
-  if (isAdmin) {
-    adminCount++
-  }
-  
-  totalMembersCount += participantsCount
-
-  // Add to groups list
-  groupsToInsert.push({
-    user_id: userId,
-    group_id: group.id,
-    name: groupName,
-    description: group.description || null,
-    participants_count: participantsCount,
-    is_admin: isAdmin,
-    avatar_url: group.avatar_url || group.picture || null,
-    last_synced_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  })
-
-  console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
-}
- 
-
-      // Get participant count from various possible fields
-      if (!participantsCount) {
-        participantsCount = detailData.participants_count || 
-                          detailData.size || 
-                          detailData.participant_count ||
-                          (detailData.participants ? detailData.participants.length : 0)
-      }
-
     } else {
       // Fallback to basic group data
       console.log(`⚠️ Using fallback data for "${groupName}"`)
