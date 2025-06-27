@@ -5,19 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, Clock, Send, Upload, Image, FileText } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
+import { useSegments } from '@/hooks/useSegments';
 import LockedFeature from '@/components/LockedFeature';
 import SuccessDialog from '@/components/SuccessDialog';
+import MessageRecipientsSelector from '@/components/MessageRecipientsSelector';
 
 const MessageComposer = () => {
   const [message, setMessage] = useState('');
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -27,11 +29,26 @@ const MessageComposer = () => {
   }>({ isOpen: false, type: 'sent' });
   
   const { trialStatus, isLoading } = useTrialStatus();
-  const { groups, isLoadingGroups } = useWhatsAppGroups();
+  const { groups } = useWhatsAppGroups();
+  const { segments } = useSegments();
   const { sendImmediateMessage, scheduleMessage } = useWhatsAppMessages();
   
   // Check if user has access to features
   const hasAccess = !isLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
+
+  // Get all unique group IDs from both direct selection and segments
+  const getAllSelectedGroupIds = () => {
+    const groupIdsFromSegments = new Set<string>();
+    selectedSegmentIds.forEach(segmentId => {
+      const segment = segments.find(s => s.id === segmentId);
+      if (segment) {
+        segment.group_ids.forEach(groupId => groupIdsFromSegments.add(groupId));
+      }
+    });
+    
+    const allGroupIds = new Set([...selectedGroupIds, ...Array.from(groupIdsFromSegments)]);
+    return Array.from(allGroupIds);
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!hasAccess) return;
@@ -66,17 +83,18 @@ const MessageComposer = () => {
       return;
     }
     
-    if (selectedGroups.length === 0) {
+    const allGroupIds = getAllSelectedGroupIds();
+    if (allGroupIds.length === 0) {
       toast({
-        title: "בחר קבוצות",
-        description: "אנא בחר קבוצות לשליחת ההודעה.",
+        title: "בחר נמענים",
+        description: "אנא בחר קבוצות או קטגוריות לשליחת ההודעה.",
         variant: "destructive",
       });
       return;
     }
 
     sendImmediateMessage.mutate({
-      groupIds: selectedGroups,
+      groupIds: allGroupIds,
       message,
       mediaUrl: attachedFile ? URL.createObjectURL(attachedFile) : undefined
     }, {
@@ -84,7 +102,8 @@ const MessageComposer = () => {
         setSuccessDialog({ isOpen: true, type: 'sent' });
         // Clear form
         setMessage('');
-        setSelectedGroups([]);
+        setSelectedGroupIds([]);
+        setSelectedSegmentIds([]);
         setAttachedFile(null);
       }
     });
@@ -93,7 +112,8 @@ const MessageComposer = () => {
   const handleSchedule = () => {
     if (!hasAccess) return;
     
-    if (!message.trim() || selectedGroups.length === 0 || !scheduleDate || !scheduleTime) {
+    const allGroupIds = getAllSelectedGroupIds();
+    if (!message.trim() || allGroupIds.length === 0 || !scheduleDate || !scheduleTime) {
       toast({
         title: "חסר מידע",
         description: "אנא מלא את כל השדות כדי לתזמן הודעה.",
@@ -105,7 +125,7 @@ const MessageComposer = () => {
     const sendAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
 
     scheduleMessage.mutate({
-      groupIds: selectedGroups,
+      groupIds: allGroupIds,
       message,
       mediaUrl: attachedFile ? URL.createObjectURL(attachedFile) : undefined,
       sendAt
@@ -114,7 +134,8 @@ const MessageComposer = () => {
         setSuccessDialog({ isOpen: true, type: 'scheduled' });
         // Clear form
         setMessage('');
-        setSelectedGroups([]);
+        setSelectedGroupIds([]);
+        setSelectedSegmentIds([]);
         setScheduleDate('');
         setScheduleTime('');
         setAttachedFile(null);
@@ -226,39 +247,12 @@ const MessageComposer = () => {
                 <CardTitle>נמענים</CardTitle>
               </CardHeader>
               <CardContent>
-                <div>
-                  <Label htmlFor="groups">בחר קבוצות</Label>
-                  {isLoadingGroups ? (
-                    <div className="mt-1 p-3 border rounded-lg text-gray-500">
-                      טוען קבוצות...
-                    </div>
-                  ) : groups.length === 0 ? (
-                    <div className="mt-1 p-3 border rounded-lg text-gray-500">
-                      אין קבוצות זמינות. אנא סנכרן את הקבוצות שלך תחילה.
-                    </div>
-                  ) : (
-                    <Select 
-                      value={selectedGroups.join(',')} 
-                      onValueChange={(value) => setSelectedGroups(value ? value.split(',') : [])}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="בחר קבוצות לשליחה..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {groups.map((group) => (
-                          <SelectItem key={group.group_id} value={group.group_id}>
-                            {group.name} ({group.participants_count || 0} חברים)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {selectedGroups.length > 0 && (
-                    <div className="mt-2 text-sm text-gray-600">
-                      נבחרו {selectedGroups.length} קבוצות
-                    </div>
-                  )}
-                </div>
+                <MessageRecipientsSelector
+                  selectedGroupIds={selectedGroupIds}
+                  selectedSegmentIds={selectedSegmentIds}
+                  onGroupsChange={setSelectedGroupIds}
+                  onSegmentsChange={setSelectedSegmentIds}
+                />
               </CardContent>
             </Card>
 
@@ -361,7 +355,7 @@ const MessageComposer = () => {
                     <li>• שמור על הודעות קצרות ומעניינות</li>
                     <li>• תמונות מקבלות יותר מעורבות מטקסט בלבד</li>
                     <li>• זמנים טובים: 10-11 בבוקר, 7-9 בערב</li>
-                    <li>• נסה קודם עם קבוצה אחת</li>
+                    <li>• השתמש בקטגוריות לשליחה מהירה</li>
                   </ul>
                 </div>
               </CardContent>

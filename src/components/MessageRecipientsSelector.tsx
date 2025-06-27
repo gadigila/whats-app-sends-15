@@ -1,0 +1,384 @@
+
+import { useState, useMemo } from 'react';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Search, X, Users, MessageSquare, CheckSquare, Square, Star } from 'lucide-react';
+import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { useSegments } from '@/hooks/useSegments';
+
+interface MessageRecipientsSelectorProps {
+  selectedGroupIds: string[];
+  selectedSegmentIds: string[];
+  onGroupsChange: (groupIds: string[]) => void;
+  onSegmentsChange: (segmentIds: string[]) => void;
+}
+
+const MessageRecipientsSelector = ({
+  selectedGroupIds,
+  selectedSegmentIds,
+  onGroupsChange,
+  onSegmentsChange
+}: MessageRecipientsSelectorProps) => {
+  const { groups, isLoadingGroups } = useWhatsAppGroups();
+  const { segments, isLoadingSegments } = useSegments();
+  
+  const [groupSearchQuery, setGroupSearchQuery] = useState('');
+  const [segmentSearchQuery, setSegmentSearchQuery] = useState('');
+  const [showOnlyAdminGroups, setShowOnlyAdminGroups] = useState(false);
+
+  // Filter groups based on search and admin status
+  const filteredGroups = useMemo(() => {
+    let filtered = groups;
+    
+    if (showOnlyAdminGroups) {
+      filtered = filtered.filter(group => group.is_admin === true);
+    }
+    
+    if (groupSearchQuery.trim()) {
+      const query = groupSearchQuery.toLowerCase().trim();
+      filtered = filtered.filter(group => 
+        group.name.toLowerCase().includes(query) ||
+        (group.description && group.description.toLowerCase().includes(query))
+      );
+    }
+    
+    return filtered;
+  }, [groups, groupSearchQuery, showOnlyAdminGroups]);
+
+  // Filter segments based on search
+  const filteredSegments = useMemo(() => {
+    if (!segmentSearchQuery.trim()) return segments;
+    
+    const query = segmentSearchQuery.toLowerCase().trim();
+    return segments.filter(segment => 
+      segment.name.toLowerCase().includes(query)
+    );
+  }, [segments, segmentSearchQuery]);
+
+  // Get all group IDs from selected segments
+  const groupIdsFromSegments = useMemo(() => {
+    const segmentGroupIds = new Set<string>();
+    selectedSegmentIds.forEach(segmentId => {
+      const segment = segments.find(s => s.id === segmentId);
+      if (segment) {
+        segment.group_ids.forEach(groupId => segmentGroupIds.add(groupId));
+      }
+    });
+    return Array.from(segmentGroupIds);
+  }, [selectedSegmentIds, segments]);
+
+  // Calculate total unique groups and members
+  const totalStats = useMemo(() => {
+    const allSelectedGroupIds = new Set([...selectedGroupIds, ...groupIdsFromSegments]);
+    const totalGroups = allSelectedGroupIds.size;
+    const totalMembers = Array.from(allSelectedGroupIds).reduce((sum, groupId) => {
+      const group = groups.find(g => g.group_id === groupId);
+      return sum + (group?.participants_count || 0);
+    }, 0);
+    
+    return { totalGroups, totalMembers };
+  }, [selectedGroupIds, groupIdsFromSegments, groups]);
+
+  const handleGroupToggle = (groupId: string) => {
+    const newSelection = selectedGroupIds.includes(groupId)
+      ? selectedGroupIds.filter(id => id !== groupId)
+      : [...selectedGroupIds, groupId];
+    onGroupsChange(newSelection);
+  };
+
+  const handleSegmentToggle = (segmentId: string) => {
+    const newSelection = selectedSegmentIds.includes(segmentId)
+      ? selectedSegmentIds.filter(id => id !== segmentId)
+      : [...selectedSegmentIds, segmentId];
+    onSegmentsChange(newSelection);
+  };
+
+  const handleSelectAllGroups = () => {
+    const allGroupIds = filteredGroups.map(g => g.group_id);
+    onGroupsChange(allGroupIds);
+  };
+
+  const handleDeselectAllGroups = () => {
+    onGroupsChange([]);
+  };
+
+  const handleSelectAllSegments = () => {
+    const allSegmentIds = filteredSegments.map(s => s.id);
+    onSegmentsChange(allSegmentIds);
+  };
+
+  const handleDeselectAllSegments = () => {
+    onSegmentsChange([]);
+  };
+
+  const clearAll = () => {
+    onGroupsChange([]);
+    onSegmentsChange([]);
+  };
+
+  const getGroupName = (groupId: string) => {
+    const group = groups.find(g => g.group_id === groupId);
+    return group?.name || 'קבוצה לא ידועה';
+  };
+
+  if (isLoadingGroups || isLoadingSegments) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        טוען נמענים...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Label className="text-base font-medium">בחר נמענים</Label>
+        {(selectedGroupIds.length > 0 || selectedSegmentIds.length > 0) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={clearAll}
+            className="text-red-600 border-red-600 hover:bg-red-50"
+          >
+            <X className="h-4 w-4 ml-1" />
+            נקה הכל
+          </Button>
+        )}
+      </div>
+
+      <Tabs defaultValue="groups" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="groups" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            קבוצות ({groups.length})
+          </TabsTrigger>
+          <TabsTrigger value="segments" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            קטגוריות ({segments.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="groups" className="space-y-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={showOnlyAdminGroups}
+                  onCheckedChange={(checked) => setShowOnlyAdminGroups(checked as boolean)}
+                />
+                <Star className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-medium text-amber-900">
+                  הצג רק קבוצות שאני מנהל
+                </span>
+              </div>
+            </div>
+            
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="חפש קבוצות..."
+                value={groupSearchQuery}
+                onChange={(e) => setGroupSearchQuery(e.target.value)}
+                className="pr-10 pl-10"
+              />
+              {groupSearchQuery && (
+                <button
+                  onClick={() => setGroupSearchQuery('')}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAllGroups}
+                disabled={filteredGroups.length === 0}
+              >
+                <CheckSquare className="h-4 w-4 ml-1" />
+                בחר הכל
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeselectAllGroups}
+                disabled={selectedGroupIds.length === 0}
+              >
+                <Square className="h-4 w-4 ml-1" />
+                בטל בחירה
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+            {filteredGroups.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                לא נמצאו קבוצות התואמות לחיפוש
+              </div>
+            ) : (
+              filteredGroups.map((group) => (
+                <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
+                  <Checkbox
+                    checked={selectedGroupIds.includes(group.group_id)}
+                    onCheckedChange={() => handleGroupToggle(group.group_id)}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">
+                        {group.name}
+                      </span>
+                      {group.is_admin && (
+                        <Star className="h-3 w-3 text-amber-500" />
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {group.participants_count || 0} חברים
+                      {group.is_admin && ' • מנהל'}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="segments" className="space-y-4">
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="חפש קטגוריות..."
+                value={segmentSearchQuery}
+                onChange={(e) => setSegmentSearchQuery(e.target.value)}
+                className="pr-10 pl-10"
+              />
+              {segmentSearchQuery && (
+                <button
+                  onClick={() => setSegmentSearchQuery('')}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAllSegments}
+                disabled={filteredSegments.length === 0}
+              >
+                <CheckSquare className="h-4 w-4 ml-1" />
+                בחר הכל
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeselectAllSegments}
+                disabled={selectedSegmentIds.length === 0}
+              >
+                <Square className="h-4 w-4 ml-1" />
+                בטל בחירה
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-y-auto border rounded-lg p-3 space-y-2">
+            {segments.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p>לא נוצרו קטגוריות</p>
+                <p className="text-xs">צור קטגוריות בעמוד הקטגוריות</p>
+              </div>
+            ) : filteredSegments.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                לא נמצאו קטגוריות התואמות לחיפוש
+              </div>
+            ) : (
+              filteredSegments.map((segment) => (
+                <div key={segment.id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
+                  <Checkbox
+                    checked={selectedSegmentIds.includes(segment.id)}
+                    onCheckedChange={() => handleSegmentToggle(segment.id)}
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">
+                        {segment.name}
+                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {segment.total_members} חברים
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {segment.group_ids.length} קבוצות
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Summary */}
+      {(selectedGroupIds.length > 0 || selectedSegmentIds.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-green-900">סיכום נמענים</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span>סך קבוצות:</span>
+              <span className="font-bold">{totalStats.totalGroups}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span>סך חברים:</span>
+              <span className="font-bold">{totalStats.totalMembers}</span>
+            </div>
+            
+            {selectedSegmentIds.length > 0 && (
+              <div className="pt-2 border-t">
+                <p className="text-xs text-gray-600 mb-2">קטגוריות נבחרות:</p>
+                <div className="flex flex-wrap gap-1">
+                  {selectedSegmentIds.map(segmentId => {
+                    const segment = segments.find(s => s.id === segmentId);
+                    return segment ? (
+                      <Badge key={segmentId} variant="secondary" className="text-xs">
+                        {segment.name}
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            )}
+            
+            {selectedGroupIds.length > 0 && (
+              <div className="pt-2 border-t">
+                <p className="text-xs text-gray-600 mb-2">קבוצות נבחרות:</p>
+                <div className="flex flex-wrap gap-1">
+                  {selectedGroupIds.map(groupId => (
+                    <Badge key={groupId} variant="outline" className="text-xs">
+                      {getGroupName(groupId)}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default MessageRecipientsSelector;
