@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface WhatsAppQRDisplayProps {
   qrCode: string;
@@ -10,6 +11,39 @@ interface WhatsAppQRDisplayProps {
 }
 
 const WhatsAppQRDisplay = ({ qrCode, onRefreshQR, isRefreshing }: WhatsAppQRDisplayProps) => {
+  const [cooldownSeconds, setCooldownSeconds] = useState(60);
+  const [isInCooldown, setIsInCooldown] = useState(true);
+
+  // Start cooldown timer when component mounts or QR is refreshed
+  useEffect(() => {
+    setIsInCooldown(true);
+    setCooldownSeconds(60);
+
+    const timer = setInterval(() => {
+      setCooldownSeconds((prev) => {
+        if (prev <= 1) {
+          setIsInCooldown(false);
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [qrCode]);
+
+  const handleRefreshQR = async () => {
+    await onRefreshQR();
+    // Timer will restart automatically due to useEffect dependency on qrCode
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <Card>
       <CardContent className="p-8 text-center space-y-6">
@@ -35,21 +69,22 @@ const WhatsAppQRDisplay = ({ qrCode, onRefreshQR, isRefreshing }: WhatsAppQRDisp
           <p>3. לחץ "קשר מכשיר" וסרוק</p>
         </div>
         
-        <div className="flex items-center justify-center gap-2 text-blue-600">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          מחכה לסריקה...
-        </div>
-        
         <Button
-          onClick={onRefreshQR}
+          onClick={handleRefreshQR}
           variant="outline"
           size="sm"
-          disabled={isRefreshing}
+          disabled={isRefreshing || isInCooldown}
         >
           {isRefreshing ? (
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          ) : null}
-          רענן קוד QR
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              מרענן...
+            </>
+          ) : isInCooldown ? (
+            `רענן קוד QR (${formatTime(cooldownSeconds)})`
+          ) : (
+            "רענן קוד QR"
+          )}
         </Button>
       </CardContent>
     </Card>
