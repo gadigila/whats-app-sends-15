@@ -85,9 +85,9 @@ const WhatsAppConnect = () => {
       
       // Continue polling
       setPollingAttempts(prev => prev + 1);
-      setTimeout(() => {
+      setTimeout(async () => {
         if (isPollingForQR) {
-          pollForQR();
+          await pollForQR();
         }
       }, 3000);
       
@@ -96,9 +96,9 @@ const WhatsAppConnect = () => {
       setPollingAttempts(prev => prev + 1);
       
       // Retry on error
-      setTimeout(() => {
+      setTimeout(async () => {
         if (isPollingForQR && pollingAttempts < 30) {
-          pollForQR();
+          await pollForQR();
         }
       }, 5000);
     }
@@ -189,8 +189,8 @@ const WhatsAppConnect = () => {
       setPollingAttempts(0);
       
       // Start polling after a short delay
-      setTimeout(() => {
-        pollForQR();
+      setTimeout(async () => {
+        await pollForQR();
       }, 2000);
     }
   }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR, manualReconnectStarted]);
@@ -228,8 +228,8 @@ const WhatsAppConnect = () => {
     setConnectionPollingAttempts(0);
     
     // Start polling immediately for manual reconnection
-    setTimeout(() => {
-      pollForQR();
+    setTimeout(async () => {
+      await pollForQR();
     }, 500);
   };
 
@@ -436,7 +436,7 @@ const WhatsAppConnect = () => {
     // Stop connection polling when refreshing QR
     setIsPollingConnection(false);
     setConnectionPollingAttempts(0);
-    pollForQR();
+    await pollForQR();
   };
 
   return (
@@ -482,10 +482,10 @@ const WhatsAppConnect = () => {
                   <h3 className="text-lg font-semibold mb-2">ערוץ מוכן</h3>
                   <p className="text-sm mb-4">הערוץ נוצר, ממתין לקוד QR</p>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setIsPollingForQR(true);
                       setPollingAttempts(0);
-                      pollForQR();
+                      await pollForQR();
                     }}
                     className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700"
                   >
