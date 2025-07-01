@@ -41,6 +41,10 @@ export const useWhatsAppMessages = () => {
     },
     onSuccess: (data) => {
       console.log('Message sent successfully:', data);
+      // Invalidate both sent messages and scheduled messages queries
+      queryClient.invalidateQueries({ queryKey: ['sent-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['scheduled-messages'] });
+      
       toast({
         title: "הודעה נשלחה בהצלחה",
         description: `נשלחה ל-${data.summary?.successful || 0} קבוצות`,

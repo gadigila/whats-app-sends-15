@@ -59,6 +59,15 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Get group names for the message record
+    const { data: groups } = await supabase
+      .from('whatsapp_groups')
+      .select('group_id, name')
+      .eq('user_id', userId)
+      .in('group_id', groupIds)
+
+    const groupNames = groups?.map(g => g.name) || []
+
     console.log(`Sending message to ${groupIds.length} groups via instance ${profile.instance_id}`)
 
     const results = []
@@ -125,6 +134,36 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Message sending completed: ${successCount} successful, ${failureCount} failed`)
+
+    // Store the message record in the database
+    const messageStatus = successCount > 0 ? 'sent' : 'failed'
+    const errorMessage = failureCount > 0 ? `${failureCount} out of ${groupIds.length} groups failed` : null
+
+    try {
+      const { error: insertError } = await supabase
+        .from('scheduled_messages')
+        .insert({
+          user_id: userId,
+          group_ids: groupIds,
+          group_names: groupNames,
+          message: message,
+          media_url: mediaUrl,
+          send_at: new Date().toISOString(), // Set to current time for immediate messages
+          status: messageStatus,
+          total_groups: groupIds.length,
+          error_message: errorMessage
+        })
+
+      if (insertError) {
+        console.error('Failed to store message record:', insertError)
+        // Don't fail the request if storage fails, the message was already sent
+      } else {
+        console.log('Message record stored successfully')
+      }
+    } catch (storageError) {
+      console.error('Error storing message record:', storageError)
+      // Don't fail the request if storage fails
+    }
 
     return new Response(
       JSON.stringify({
