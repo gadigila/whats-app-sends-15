@@ -25,6 +25,8 @@ const WhatsAppConnect = () => {
   const [pollingAttempts, setPollingAttempts] = useState(0);
   const [isPollingConnection, setIsPollingConnection] = useState(false);
   const [connectionPollingAttempts, setConnectionPollingAttempts] = useState(0);
+  // 🆕 NEW: Track if user manually started reconnection
+  const [manualReconnectStarted, setManualReconnectStarted] = useState(false);
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
@@ -35,7 +37,8 @@ const WhatsAppConnect = () => {
     isPollingForQR,
     pollingAttempts,
     isPollingConnection,
-    connectionPollingAttempts
+    connectionPollingAttempts,
+    manualReconnectStarted
   });
 
   // Simplified QR polling
@@ -44,6 +47,7 @@ const WhatsAppConnect = () => {
       console.error('❌ Max polling attempts reached');
       setIsPollingForQR(false);
       setPollingAttempts(0);
+      setManualReconnectStarted(false); // Reset manual flag
       toast({
         title: "שגיאה",
         description: "לא הצלחנו לקבל קוד QR. נסה ליצור ערוץ חדש",
@@ -66,6 +70,7 @@ const WhatsAppConnect = () => {
         console.log('✅ Already connected!');
         setIsPollingForQR(false);
         setPollingAttempts(0);
+        setManualReconnectStarted(false); // Reset manual flag
         await refetchProfile();
         return;
       }
@@ -130,6 +135,7 @@ const WhatsAppConnect = () => {
         setIsPollingConnection(false);
         setConnectionPollingAttempts(0);
         setQrCode(null); // Hide QR code
+        setManualReconnectStarted(false); // Reset manual flag
         
         // Show success toast
         toast({
@@ -162,17 +168,18 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // Start polling when channel is ready (but NOT after hard disconnect)
+  // 🔧 FIXED: Updated useEffect to handle manual reconnection
   useEffect(() => {
-    // Don't auto-start QR after hard disconnect
-    if (profile?.instance_status === 'unauthorized') {
+    // Don't auto-start QR after hard disconnect, UNLESS user manually started reconnection
+    if (profile?.instance_status === 'unauthorized' && !manualReconnectStarted) {
       console.log('⚠️ User is unauthorized - waiting for manual reconnection');
       return;
     }
     
     const shouldPoll = 
       profile?.instance_id && 
-      ['qr', 'active', 'ready'].includes(profile?.instance_status || '') &&
+      (['qr', 'active', 'ready'].includes(profile?.instance_status || '') || 
+       (profile?.instance_status === 'unauthorized' && manualReconnectStarted)) && // 🆕 Allow manual reconnection
       !qrCode && 
       !isPollingForQR;
     
@@ -186,7 +193,7 @@ const WhatsAppConnect = () => {
         pollForQR();
       }, 2000);
     }
-  }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR]);
+  }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR, manualReconnectStarted]);
 
   // Start connection polling when QR is displayed
   useEffect(() => {
@@ -202,6 +209,29 @@ const WhatsAppConnect = () => {
       }, 3000);
     }
   }, [qrCode, isPollingConnection, profile?.instance_status]);
+
+  // 🆕 NEW: Reset manual reconnect flag when user becomes connected or disconnected
+  useEffect(() => {
+    if (profile?.instance_status === 'connected' || profile?.instance_status === 'disconnected') {
+      setManualReconnectStarted(false);
+    }
+  }, [profile?.instance_status]);
+
+  // 🆕 NEW: Manual reconnection function
+  const handleManualReconnect = () => {
+    console.log('🔄 Manual reconnection started by user');
+    setManualReconnectStarted(true);
+    setIsPollingForQR(true);
+    setPollingAttempts(0);
+    setQrCode(null); // Clear any existing QR
+    setIsPollingConnection(false);
+    setConnectionPollingAttempts(0);
+    
+    // Start polling immediately for manual reconnection
+    setTimeout(() => {
+      pollForQR();
+    }, 500);
+  };
 
   // Loading states
   if (!isAuthReady || (profileLoading && !profileError)) {
@@ -243,6 +273,7 @@ const WhatsAppConnect = () => {
             setPollingAttempts(0);
             setIsPollingConnection(false);
             setConnectionPollingAttempts(0);
+            setManualReconnectStarted(false); // Reset manual flag
             
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
@@ -254,8 +285,95 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // 🆕 NEW: Disconnected/Unauthorized state (after hard disconnect)
+  // 🔧 FIXED: Disconnected/Unauthorized state - now shows QR when manually triggered
   if (profile?.instance_status === 'unauthorized') {
+    // If user started manual reconnection and we have QR, show it
+    if (manualReconnectStarted && qrCode) {
+      return (
+        <Layout>
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">התחבר מחדש לוואטסאפ</h1>
+              <p className="text-gray-600">סרוק את הקוד עם הוואטסאפ שלך</p>
+            </div>
+            
+            <WhatsAppQRDisplay 
+              qrCode={qrCode} 
+              onRefreshQR={() => {
+                setQrCode(null);
+                setIsPollingForQR(true);
+                setPollingAttempts(0);
+                setIsPollingConnection(false);
+                setConnectionPollingAttempts(0);
+                pollForQR();
+              }}
+              isRefreshing={isPollingForQR}
+            />
+            
+            {/* Connection status indicator */}
+            {isPollingConnection && (
+              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                <div className="flex items-center justify-center space-x-2 mb-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span className="text-blue-800 font-medium">
+                    מחכה לחיבור... ({connectionPollingAttempts + 1}/60)
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600">
+                  לאחר סריקת הקוד, החיבור יזוהה אוטומטית בעוד {Math.max(0, 5 - (connectionPollingAttempts % 5))} שניות
+                </p>
+                <div className="mt-2 bg-blue-100 rounded-full h-1 w-full">
+                  <div 
+                    className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                    style={{ width: `${(connectionPollingAttempts / 60) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+            
+            {/* Back to disconnect view button */}
+            <div className="text-center">
+              <button
+                onClick={() => {
+                  setManualReconnectStarted(false);
+                  setQrCode(null);
+                  setIsPollingForQR(false);
+                  setPollingAttempts(0);
+                  setIsPollingConnection(false);
+                  setConnectionPollingAttempts(0);
+                }}
+                className="text-gray-500 hover:text-gray-700 text-sm underline"
+              >
+                חזור
+              </button>
+            </div>
+          </div>
+        </Layout>
+      );
+    }
+
+    // If user started manual reconnection but no QR yet, show loading
+    if (manualReconnectStarted && isPollingForQR) {
+      return (
+        <Layout>
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">מתחבר מחדש...</h1>
+              <p className="text-gray-600">מכין קוד QR להתחברות</p>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold mb-2">מחכה לקוד QR...</h3>
+              <p className="text-sm mb-2">מכין את הקוד לסריקה</p>
+              <p className="text-xs">ניסיון {pollingAttempts + 1} מתוך 30</p>
+            </div>
+          </div>
+        </Layout>
+      );
+    }
+
+    // Default disconnected state - show reconnect button
     return (
       <Layout>
         <div className="max-w-2xl mx-auto space-y-6">
@@ -281,18 +399,11 @@ const WhatsAppConnect = () => {
             </div>
             
             <button
-              onClick={() => {
-                console.log('🔄 Manual reconnection started');
-                setIsPollingForQR(true);
-                setPollingAttempts(0);
-                setTimeout(() => {
-                  pollForQR();
-                }, 1000);
-              }}
+              onClick={handleManualReconnect}
               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-              disabled={isPollingForQR}
+              disabled={isPollingForQR || manualReconnectStarted}
             >
-              {isPollingForQR ? (
+              {(isPollingForQR || manualReconnectStarted) ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline-block ml-2"></div>
                   מתחבר...
@@ -387,7 +498,7 @@ const WhatsAppConnect = () => {
         )}
 
         {/* QR Code Display */}
-        {qrCode && (
+        {qrCode && !manualReconnectStarted && (
           <div>
             <WhatsAppQRDisplay 
               qrCode={qrCode} 
