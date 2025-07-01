@@ -299,13 +299,13 @@ const WhatsAppConnect = () => {
             
             <WhatsAppQRDisplay 
               qrCode={qrCode} 
-              onRefreshQR={() => {
+              onRefreshQR={async () => {
                 setQrCode(null);
                 setIsPollingForQR(true);
                 setPollingAttempts(0);
                 setIsPollingConnection(false);
                 setConnectionPollingAttempts(0);
-                pollForQR();
+                await pollForQR();
               }}
               isRefreshing={isPollingForQR}
             />
