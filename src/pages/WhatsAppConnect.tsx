@@ -11,6 +11,7 @@ import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { WifiOff } from 'lucide-react';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
@@ -98,7 +99,7 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // 🆕 NEW: Connection status polling function (using supabase directly)
+  // Connection status polling function (using supabase directly)
   const pollForConnection = async () => {
     if (connectionPollingAttempts >= 60) { // Max 60 attempts = 5 minutes
       console.log('❌ Max connection polling attempts reached');
@@ -161,11 +162,17 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // Start polling when channel is ready
+  // Start polling when channel is ready (but NOT after hard disconnect)
   useEffect(() => {
+    // Don't auto-start QR after hard disconnect
+    if (profile?.instance_status === 'unauthorized') {
+      console.log('⚠️ User is unauthorized - waiting for manual reconnection');
+      return;
+    }
+    
     const shouldPoll = 
       profile?.instance_id && 
-      ['unauthorized', 'qr', 'active', 'ready'].includes(profile?.instance_status || '') &&
+      ['qr', 'active', 'ready'].includes(profile?.instance_status || '') &&
       !qrCode && 
       !isPollingForQR;
     
@@ -181,7 +188,7 @@ const WhatsAppConnect = () => {
     }
   }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR]);
 
-  // 🆕 NEW: Start connection polling when QR is displayed
+  // Start connection polling when QR is displayed
   useEffect(() => {
     // Start connection polling when QR is displayed
     if (qrCode && !isPollingConnection && profile?.instance_status !== 'connected') {
@@ -225,22 +232,78 @@ const WhatsAppConnect = () => {
           }
         }}
         onDisconnect={async () => {
-  // This is now just a fallback - the main disconnect uses the dialog
-  try {
-    await deleteInstance.mutateAsync();
-    await refetchProfile();
-    setQrCode(null);
-    setIsPollingForQR(false);
-    setPollingAttempts(0);
-    setIsPollingConnection(false);
-    setConnectionPollingAttempts(0);
-  } catch (error) {
-    console.error('❌ Disconnect failed:', error);
-  }
-}}
+          // This is now just a fallback - the main disconnect uses the dialog
+          try {
+            await deleteInstance.mutateAsync();
+            await refetchProfile();
+            
+            // STOP all polling when disconnecting
+            setQrCode(null);
+            setIsPollingForQR(false);
+            setPollingAttempts(0);
+            setIsPollingConnection(false);
+            setConnectionPollingAttempts(0);
+            
+          } catch (error) {
+            console.error('❌ Disconnect failed:', error);
+          }
+        }}
         isSyncingGroups={syncGroups.isPending}
         isDisconnecting={deleteInstance.isPending}
       />
+    );
+  }
+
+  // 🆕 NEW: Disconnected/Unauthorized state (after hard disconnect)
+  if (profile?.instance_status === 'unauthorized') {
+    return (
+      <Layout>
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">וואטסאפ מנותק</h1>
+            <p className="text-gray-600">הוואטסאפ שלך נותק מהשירות</p>
+          </div>
+          
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center">
+            <div className="p-4 bg-orange-100 rounded-full w-fit mx-auto mb-4">
+              <WifiOff className="h-8 w-8 text-orange-600" />
+            </div>
+            
+            <h3 className="text-lg font-semibold mb-2">החיבור נותק</h3>
+            <p className="text-gray-600 mb-4">
+              כדי להמשיך לשלוח הודעות, תצטרך להתחבר מחדש לוואטסאפ
+            </p>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-right">
+              <p className="text-sm text-blue-800">
+                💡 לחיצה על הכפתור תתחיל תהליך חיבור מחדש עם QR קוד
+              </p>
+            </div>
+            
+            <button
+              onClick={() => {
+                console.log('🔄 Manual reconnection started');
+                setIsPollingForQR(true);
+                setPollingAttempts(0);
+                setTimeout(() => {
+                  pollForQR();
+                }, 1000);
+              }}
+              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              disabled={isPollingForQR}
+            >
+              {isPollingForQR ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline-block ml-2"></div>
+                  מתחבר...
+                </>
+              ) : (
+                'התחבר שוב לוואטסאפ'
+              )}
+            </button>
+          </div>
+        </div>
+      </Layout>
     );
   }
 
@@ -259,7 +322,7 @@ const WhatsAppConnect = () => {
     setQrCode(null);
     setIsPollingForQR(true);
     setPollingAttempts(0);
-    // 🆕 NEW: Stop connection polling when refreshing QR
+    // Stop connection polling when refreshing QR
     setIsPollingConnection(false);
     setConnectionPollingAttempts(0);
     pollForQR();
@@ -291,7 +354,7 @@ const WhatsAppConnect = () => {
 
         {/* Waiting for QR */}
         {profile?.instance_id && 
-         ['unauthorized', 'qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && 
+         ['qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && 
          !qrCode && 
          !isCreatingChannel && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
@@ -332,12 +395,24 @@ const WhatsAppConnect = () => {
               isRefreshing={isPollingForQR}
             />
             
-            {/* 🆕 UPDATED: Simplified connection status indicator */}
+            {/* Connection status indicator */}
             {isPollingConnection && (
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-                <p className="text-blue-800 font-medium">
-                  לאחר סריקת הקוד החיבור יזוהה אוטומטית
+                <div className="flex items-center justify-center space-x-2 mb-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span className="text-blue-800 font-medium">
+                    מחכה לחיבור... ({connectionPollingAttempts + 1}/60)
+                  </span>
+                </div>
+                <p className="text-xs text-blue-600">
+                  לאחר סריקת הקוד, החיבור יזוהה אוטומטית בעוד {Math.max(0, 5 - (connectionPollingAttempts % 5))} שניות
                 </p>
+                <div className="mt-2 bg-blue-100 rounded-full h-1 w-full">
+                  <div 
+                    className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                    style={{ width: `${(connectionPollingAttempts / 60) * 100}%` }}
+                  ></div>
+                </div>
               </div>
             )}
           </div>

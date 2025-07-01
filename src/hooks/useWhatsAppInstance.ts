@@ -83,16 +83,18 @@ export const useWhatsAppInstance = () => {
       
       return data;
     },
-    onSuccess: () => {
-      console.log('Instance deleted successfully');
-      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
-      toast({
-        title: "נותק בהצלחה",
-        description: "החיבור לוואטסאפ נותק",
-      });
-    },
+   onSuccess: () => {
+  console.log('✅ Hard disconnect successful');
+  queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+  queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+  queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
+  setShowDisconnectDialog(false);
+  
+  toast({
+    title: "נותקת בהצלחה",
+    description: "נותקת לחלוטין מוואטסאפ! לחץ על 'חבר וואטסאפ' כדי להתחבר מחדש.",
+  });
+},
     onError: (error: any) => {
       console.error('Failed to delete instance:', error);
       toast({
