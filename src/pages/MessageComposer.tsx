@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, Clock, Send, Upload, Image, FileText, X, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Send, Upload, Image, FileText, X, Loader2, CalendarDays } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from '@/hooks/use-toast';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
@@ -15,12 +17,14 @@ import LockedFeature from '@/components/LockedFeature';
 import SuccessDialog from '@/components/SuccessDialog';
 import MessageRecipientsSelector from '@/components/MessageRecipientsSelector';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const MessageComposer = () => {
   const [message, setMessage] = useState('');
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
-  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleDate, setScheduleDate] = useState<Date | undefined>();
   const [scheduleTime, setScheduleTime] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
@@ -266,7 +270,7 @@ const MessageComposer = () => {
     });
   };
 
-  // ✅ FIXED: Updated schedule function with proper media URL
+  // ✅ FIXED: Updated schedule function with proper media URL and date handling
   const handleSchedule = () => {
     if (!hasAccess) return;
     
@@ -290,7 +294,11 @@ const MessageComposer = () => {
       return;
     }
 
-    const sendAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+    // Create datetime from date and time
+    const [hours, minutes] = scheduleTime.split(':');
+    const scheduledDateTime = new Date(scheduleDate);
+    scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    const sendAt = scheduledDateTime.toISOString();
 
     console.log('⏰ Scheduling message:', {
       groupIds: allGroupIds,
@@ -312,7 +320,7 @@ const MessageComposer = () => {
         setMessage('');
         setSelectedGroupIds([]);
         setSelectedSegmentIds([]);
-        setScheduleDate('');
+        setScheduleDate(undefined);
         setScheduleTime('');
         setAttachedFile(null);
         setMediaUrl(null);
@@ -481,40 +489,78 @@ const MessageComposer = () => {
               </CardContent>
             </Card>
 
-            {/* Schedule */}
+            {/* Schedule - Updated UI */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
+                  <CalendarDays className="h-5 w-5" />
                   תזמון (אופציונלי)
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="date">תאריך</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      value={scheduleDate}
-                      onChange={(e) => setScheduleDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
-                      className="mt-1"
-                      disabled={isUploading}
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Date Picker */}
+                  <div className="space-y-2">
+                    <Label>תאריך</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal h-12 text-base",
+                            !scheduleDate && "text-muted-foreground"
+                          )}
+                          disabled={isUploading}
+                        >
+                          <CalendarIcon className="ml-2 h-5 w-5" />
+                          {scheduleDate ? (
+                            format(scheduleDate, "PPP", { locale: undefined })
+                          ) : (
+                            <span>בחר תאריך</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={scheduleDate}
+                          onSelect={setScheduleDate}
+                          disabled={(date) => date < new Date()}
+                          initialFocus
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
-                  <div>
+
+                  {/* Time Picker */}
+                  <div className="space-y-2">
                     <Label htmlFor="time">שעה</Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      value={scheduleTime}
-                      onChange={(e) => setScheduleTime(e.target.value)}
-                      className="mt-1"
-                      disabled={isUploading}
-                    />
+                    <div className="relative">
+                      <Clock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        id="time"
+                        type="time"
+                        value={scheduleTime}
+                        onChange={(e) => setScheduleTime(e.target.value)}
+                        className="h-12 text-base pr-10"
+                        disabled={isUploading}
+                      />
+                    </div>
                   </div>
                 </div>
+                
+                {/* Schedule Info */}
+                {scheduleDate && scheduleTime && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <Clock className="h-4 w-4" />
+                      <span className="text-sm font-medium">
+                        ההודעה תישלח ב-{format(scheduleDate, "dd/MM/yyyy")} בשעה {scheduleTime}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
