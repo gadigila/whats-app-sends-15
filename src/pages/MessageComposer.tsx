@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -298,6 +299,17 @@ const MessageComposer = () => {
     const [hours, minutes] = scheduleTime.split(':');
     const scheduledDateTime = new Date(scheduleDate);
     scheduledDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    
+    // Check if the scheduled time is in the past
+    if (scheduledDateTime <= new Date()) {
+      toast({
+        title: "זמן לא תקין",
+        description: "אנא בחר זמן עתידי לתזמון ההודעה.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const sendAt = scheduledDateTime.toISOString();
 
     console.log('⏰ Scheduling message:', {
@@ -334,6 +346,18 @@ const MessageComposer = () => {
         });
       }
     });
+  };
+
+  // Generate time options for the time picker
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute += 15) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        options.push(timeString);
+      }
+    }
+    return options;
   };
 
   // Get file type for display
@@ -489,7 +513,7 @@ const MessageComposer = () => {
               </CardContent>
             </Card>
 
-            {/* Schedule - Updated UI */}
+            {/* Schedule - Enhanced UI */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -525,7 +549,6 @@ const MessageComposer = () => {
                           mode="single"
                           selected={scheduleDate}
                           onSelect={setScheduleDate}
-                          disabled={(date) => date < new Date()}
                           initialFocus
                           className="pointer-events-auto"
                         />
@@ -533,20 +556,40 @@ const MessageComposer = () => {
                     </Popover>
                   </div>
 
-                  {/* Time Picker */}
+                  {/* Enhanced Time Picker */}
                   <div className="space-y-2">
                     <Label htmlFor="time">שעה</Label>
-                    <div className="relative">
-                      <Clock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                      <Input
-                        id="time"
-                        type="time"
-                        value={scheduleTime}
-                        onChange={(e) => setScheduleTime(e.target.value)}
-                        className="h-12 text-base pr-10"
-                        disabled={isUploading}
-                      />
-                    </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <div className="relative">
+                          <Clock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none z-10" />
+                          <Input
+                            id="time"
+                            type="time"
+                            value={scheduleTime}
+                            onChange={(e) => setScheduleTime(e.target.value)}
+                            className="h-12 text-base pr-10 cursor-pointer"
+                            disabled={isUploading}
+                            placeholder="בחר שעה"
+                          />
+                        </div>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-2" align="start">
+                        <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
+                          {generateTimeOptions().map((time) => (
+                            <Button
+                              key={time}
+                              variant={scheduleTime === time ? "default" : "ghost"}
+                              size="sm"
+                              className="h-8 text-sm"
+                              onClick={() => setScheduleTime(time)}
+                            >
+                              {time}
+                            </Button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
                 
