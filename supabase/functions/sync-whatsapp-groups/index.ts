@@ -9,232 +9,98 @@ interface SyncGroupsRequest {
   userId: string
 }
 
-// FIXED: Israeli phone number matching - much more aggressive
-function createIsraeliPhoneVariations(phone: string): string[] {
+// Enhanced phone number matching function
+function createPhoneVariations(phone: string): string[] {
   if (!phone) return [];
   
   const variations = new Set<string>();
   
-  // Always add original
+  // Original phone
   variations.add(phone);
   
-  // Remove all WhatsApp suffixes first
-  let cleanPhone = phone
-    .replace('@c.us', '')
-    .replace('@s.whatsapp.net', '')
-    .replace('@g.us', ''); // Group suffix
+  // Handle @c.us suffix (WhatsApp format) - REMOVE IT FIRST
+  let cleanPhone = phone;
+  if (phone.includes('@c.us')) {
+    cleanPhone = phone.replace('@c.us', '');
+    variations.add(cleanPhone);
+  }
   
-  variations.add(cleanPhone);
+  // Handle @s.whatsapp.net suffix
+  if (phone.includes('@s.whatsapp.net')) {
+    cleanPhone = phone.replace('@s.whatsapp.net', '');
+    variations.add(cleanPhone);
+  }
   
-  // Extract only digits
+  // Remove all non-digits and create variations
   const digitsOnly = cleanPhone.replace(/[^\d]/g, '');
-  if (!digitsOnly || digitsOnly.length < 9) return Array.from(variations);
-  
-  console.log(`📱 Creating variations for: "${phone}" -> digits: "${digitsOnly}"`);
-  
-  // Add digits-only version
-  variations.add(digitsOnly);
-  
-  // Israeli specific handling - MUCH MORE AGGRESSIVE
-  if (digitsOnly.startsWith('972')) {
-    // 972XXXXXXXXX format
-    const without972 = digitsOnly.substring(3);
-    variations.add(without972);           // XXXXXXXXX
-    variations.add(`0${without972}`);     // 0XXXXXXXXX
-    variations.add(`+972${without972}`);  // +972XXXXXXXXX
-    
-    // Add WhatsApp suffixes to all variations
-    variations.add(`${digitsOnly}@c.us`);
-    variations.add(`${without972}@c.us`);
-    variations.add(`0${without972}@c.us`);
-    variations.add(`${digitsOnly}@s.whatsapp.net`);
-    variations.add(`${without972}@s.whatsapp.net`);
-    variations.add(`0${without972}@s.whatsapp.net`);
-  }
-  
-  if (digitsOnly.length === 10 && digitsOnly.startsWith('0')) {
-    // 0XXXXXXXXX format (Israeli local)
-    const without0 = digitsOnly.substring(1);
-    variations.add(without0);             // XXXXXXXXX
-    variations.add(`972${without0}`);     // 972XXXXXXXXX
-    variations.add(`+972${without0}`);    // +972XXXXXXXXX
-    
-    // Add WhatsApp suffixes
-    variations.add(`${without0}@c.us`);
-    variations.add(`972${without0}@c.us`);
-    variations.add(`${digitsOnly}@c.us`);
-    variations.add(`${without0}@s.whatsapp.net`);
-    variations.add(`972${without0}@s.whatsapp.net`);
-    variations.add(`${digitsOnly}@s.whatsapp.net`);
-  }
-  
-  if (digitsOnly.length === 9 && !digitsOnly.startsWith('0') && !digitsOnly.startsWith('972')) {
-    // XXXXXXXXX format (9 digits)
-    variations.add(`0${digitsOnly}`);     // 0XXXXXXXXX
-    variations.add(`972${digitsOnly}`);   // 972XXXXXXXXX
-    variations.add(`+972${digitsOnly}`);  // +972XXXXXXXXX
-    
-    // Add WhatsApp suffixes
-    variations.add(`${digitsOnly}@c.us`);
-    variations.add(`0${digitsOnly}@c.us`);
-    variations.add(`972${digitsOnly}@c.us`);
-    variations.add(`${digitsOnly}@s.whatsapp.net`);
-    variations.add(`0${digitsOnly}@s.whatsapp.net`);
-    variations.add(`972${digitsOnly}@s.whatsapp.net`);
-  }
-  
-  // Add + variations
-  if (!cleanPhone.startsWith('+')) {
-    variations.add(`+${cleanPhone}`);
+  if (digitsOnly) {
+    variations.add(digitsOnly);
     variations.add(`+${digitsOnly}`);
+    
+    // Israel specific (972) - MORE VARIATIONS
+    if (digitsOnly.startsWith('972')) {
+      const withoutCountry = digitsOnly.substring(3);
+      variations.add(withoutCountry);
+      variations.add(`0${withoutCountry}`);
+      variations.add(`+972${withoutCountry}`);
+    }
+    
+    // If starts with 0, try with country code
+    if (digitsOnly.startsWith('0')) {
+      const withCountry = `972${digitsOnly.substring(1)}`;
+      variations.add(withCountry);
+      variations.add(`+${withCountry}`);
+    }
+
+    // Add WhatsApp suffixes to ALL variations
+    variations.add(`${digitsOnly}@c.us`);
+    variations.add(`${digitsOnly}@s.whatsapp.net`);
+    
+    if (digitsOnly.startsWith('972')) {
+      const withoutCountryCode = digitsOnly.substring(3);
+      variations.add(`${withoutCountryCode}@c.us`);
+      variations.add(`0${withoutCountryCode}@c.us`);
+      variations.add(`${withoutCountryCode}@s.whatsapp.net`);
+      variations.add(`0${withoutCountryCode}@s.whatsapp.net`);
+    }
+    
+    // Handle 10-digit Israeli numbers (like 0501234567)
+    if (digitsOnly.length === 10 && digitsOnly.startsWith('0')) {
+      const without0 = digitsOnly.substring(1);
+      variations.add(without0);
+      variations.add(`+972${without0}`);
+      variations.add(`972${without0}`);
+      variations.add(`${without0}@c.us`);
+      variations.add(`972${without0}@c.us`);
+    }
+    
+    // Handle 9-digit Israeli numbers (like 501234567)
+    if (digitsOnly.length === 9 && !digitsOnly.startsWith('0')) {
+      variations.add(`0${digitsOnly}`);
+      variations.add(`+972${digitsOnly}`);
+      variations.add(`972${digitsOnly}`);
+      variations.add(`${digitsOnly}@c.us`);
+      variations.add(`972${digitsOnly}@c.us`);
+    }
   }
   
-  const finalVariations = Array.from(variations).filter(v => v.length >= 9);
-  console.log(`📱 Generated ${finalVariations.length} variations:`, finalVariations.slice(0, 15));
+  // Add/remove + prefix variations
+  if (cleanPhone.startsWith('+')) {
+    variations.add(cleanPhone.substring(1));
+  } else if (!cleanPhone.startsWith('+')) {
+    variations.add(`+${cleanPhone}`);
+  }
   
-  return finalVariations;
+  return Array.from(variations).filter(v => v.length >= 8);
 }
 
-// SUPER AGGRESSIVE phone matching
 function isPhoneMatch(phone1: string, phone2: string): boolean {
   if (!phone1 || !phone2) return false;
   
-  // Quick exact match
-  if (phone1 === phone2) return true;
+  const variations1 = createPhoneVariations(phone1);
+  const variations2 = createPhoneVariations(phone2);
   
-  const variations1 = createIsraeliPhoneVariations(phone1);
-  const variations2 = createIsraeliPhoneVariations(phone2);
-  
-  // Check if any variation matches
-  const hasMatch = variations1.some(v1 => variations2.includes(v1));
-  
-  if (!hasMatch) {
-    // Last resort: extract just digits and compare last 9 digits
-    const digits1 = phone1.replace(/[^\d]/g, '');
-    const digits2 = phone2.replace(/[^\d]/g, '');
-    
-    if (digits1.length >= 9 && digits2.length >= 9) {
-      const last9_1 = digits1.slice(-9);
-      const last9_2 = digits2.slice(-9);
-      if (last9_1 === last9_2) {
-        console.log(`📱 MATCH found by last 9 digits: ${last9_1}`);
-        return true;
-      }
-    }
-  }
-  
-  return hasMatch;
-}
-
-// ENHANCED admin detection with detailed logging
-function detectAdminRole(userPhone: string, groupData: any, groupName: string): { isAdmin: boolean, role: string, method: string } {
-  console.log(`\n🔍 ========== ADMIN DETECTION: "${groupName}" ==========`);
-  console.log(`👤 User phone: ${userPhone}`);
-  
-  if (!userPhone || !groupData) {
-    return { isAdmin: false, role: 'member', method: 'no_data' };
-  }
-  
-  // Method 1: Check participants array (MAIN METHOD)
-  if (groupData.participants && Array.isArray(groupData.participants)) {
-    console.log(`👥 Checking ${groupData.participants.length} participants...`);
-    
-    // Check first 10 participants in detail, then scan all
-    for (let i = 0; i < groupData.participants.length; i++) {
-      const participant = groupData.participants[i];
-      const participantPhone = participant.id || participant.phone || participant.number;
-      const participantRank = participant.rank || participant.role || participant.type;
-      
-      // Log first 10 for debugging
-      if (i < 10) {
-        console.log(`  [${i + 1}] Phone: "${participantPhone}" | Rank: "${participantRank}"`);
-      }
-      
-      if (participantPhone) {
-        const isMatch = isPhoneMatch(userPhone, participantPhone);
-        
-        if (i < 10) {
-          console.log(`    📱 Match result: ${isMatch}`);
-        }
-        
-        if (isMatch) {
-          console.log(`  ✅ ===== USER FOUND! =====`);
-          console.log(`  📱 Matched phone: ${participantPhone}`);
-          console.log(`  👑 User rank: "${participantRank}"`);
-          
-          // Check for admin roles
-          if (participantRank) {
-            const roleCheck = participantRank.toLowerCase();
-            
-            if (roleCheck === 'creator') {
-              console.log(`  👑 ✅ USER IS CREATOR!`);
-              return { isAdmin: true, role: 'creator', method: 'participants_creator' };
-            }
-            
-            if (roleCheck === 'admin') {
-              console.log(`  🔑 ✅ USER IS ADMIN!`);
-              return { isAdmin: true, role: 'admin', method: 'participants_admin' };
-            }
-            
-            if (roleCheck === 'owner') {
-              console.log(`  👤 ✅ USER IS OWNER!`);
-              return { isAdmin: true, role: 'owner', method: 'participants_owner' };
-            }
-            
-            if (roleCheck === 'superadmin') {
-              console.log(`  ⭐ ✅ USER IS SUPERADMIN!`);
-              return { isAdmin: true, role: 'superadmin', method: 'participants_superadmin' };
-            }
-          }
-          
-          // User found but not admin
-          console.log(`  ℹ️ User found but rank is: "${participantRank}" (not admin)`);
-          return { isAdmin: false, role: participantRank || 'member', method: 'participants_member' };
-        }
-      }
-    }
-    
-    console.log(`  ❌ User phone not found in ${groupData.participants.length} participants`);
-  } else {
-    console.log(`❌ No participants array (or empty)`);
-  }
-  
-  // Method 2: Check admins array
-  if (groupData.admins && Array.isArray(groupData.admins)) {
-    console.log(`👑 Checking ${groupData.admins.length} admins...`);
-    
-    for (const admin of groupData.admins) {
-      const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone);
-      console.log(`  👑 Admin: "${adminPhone}"`);
-      
-      if (adminPhone && isPhoneMatch(userPhone, adminPhone)) {
-        console.log(`  👑 ✅ USER FOUND IN ADMINS ARRAY!`);
-        return { isAdmin: true, role: 'admin', method: 'admins_array' };
-      }
-    }
-  }
-  
-  // Method 3: Check owner/creator fields
-  const ownerPhone = typeof groupData.owner === 'string' ? groupData.owner : (groupData.owner?.id || groupData.owner?.phone);
-  if (ownerPhone) {
-    console.log(`👤 Owner: "${ownerPhone}"`);
-    if (isPhoneMatch(userPhone, ownerPhone)) {
-      console.log(`👤 ✅ USER IS OWNER!`);
-      return { isAdmin: true, role: 'owner', method: 'owner_field' };
-    }
-  }
-  
-  const creatorPhone = typeof groupData.creator === 'string' ? groupData.creator : (groupData.creator?.id || groupData.creator?.phone);
-  if (creatorPhone) {
-    console.log(`👑 Creator: "${creatorPhone}"`);
-    if (isPhoneMatch(userPhone, creatorPhone)) {
-      console.log(`👑 ✅ USER IS CREATOR!`);
-      return { isAdmin: true, role: 'creator', method: 'creator_field' };
-    }
-  }
-  
-  console.log(`❌ User is NOT admin in "${groupName}"`);
-  return { isAdmin: false, role: 'member', method: 'not_found' };
+  return variations1.some(v1 => variations2.includes(v1));
 }
 
 Deno.serve(async (req) => {
@@ -247,7 +113,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('🚀 Phone Matching Fix: Israeli Numbers Focus')
+    console.log('🚀 Sync WhatsApp Groups: Enhanced admin detection starting...')
 
     const { userId }: SyncGroupsRequest = await req.json()
 
@@ -258,7 +124,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get user profile
+    // Get user's WHAPI token
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status')
@@ -266,6 +132,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (profileError || !profile?.whapi_token) {
+      console.error('❌ No WHAPI token found for user:', userId)
       return new Response(
         JSON.stringify({ error: 'WhatsApp instance not found or not connected' }),
         { status: 400, headers: corsHeaders }
@@ -279,7 +146,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get user phone
+    // STEP 1: Enhanced user phone number detection
     console.log('📱 Getting user profile for phone number...')
     let userPhoneNumber = null
     
@@ -294,6 +161,7 @@ Deno.serve(async (req) => {
     
       if (profileResponse.ok) {
         const profileData = await profileResponse.json()
+        // Try multiple fields for phone number
         userPhoneNumber = profileData.phone || 
                          profileData.id || 
                          profileData.wid ||
@@ -302,10 +170,11 @@ Deno.serve(async (req) => {
                          (profileData.user && profileData.user.phone)
         
         console.log('📞 User phone number identified:', userPhoneNumber)
+        console.log('📞 Profile data fields:', Object.keys(profileData))
         
         if (userPhoneNumber) {
-          const phoneVariations = createIsraeliPhoneVariations(userPhoneNumber)
-          console.log('📞 Phone variations sample:', phoneVariations.slice(0, 10))
+          const phoneVariations = createPhoneVariations(userPhoneNumber)
+          console.log('📞 Phone variations created:', phoneVariations.slice(0, 5), '...') // Show first 5
         }
       } else {
         console.error('❌ Failed to get user profile:', profileResponse.status)
@@ -314,14 +183,7 @@ Deno.serve(async (req) => {
       console.error('❌ Error fetching user profile:', profileError)
     }
 
-    if (!userPhoneNumber) {
-      return new Response(
-        JSON.stringify({ error: 'Could not determine user phone number' }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    // Get groups
+    // STEP 2: Get groups list
     console.log('📋 Fetching groups list...')
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups`, {
       method: 'GET',
@@ -333,6 +195,7 @@ Deno.serve(async (req) => {
 
     if (!groupsResponse.ok) {
       const errorText = await groupsResponse.text()
+      console.error('❌ Failed to fetch groups:', groupsResponse.status, errorText)
       return new Response(
         JSON.stringify({ error: 'Failed to fetch WhatsApp groups', details: errorText }),
         { status: 400, headers: corsHeaders }
@@ -352,102 +215,325 @@ Deno.serve(async (req) => {
 
     console.log(`📊 Found ${allGroups.length} groups total`)
 
-    // Process groups with enhanced admin detection
+    // STEP 3: Enhanced admin detection for each group
     const groupsToInsert = []
     let adminCount = 0
     let totalMembersCount = 0
-    const roleStats = { creator: 0, admin: 0, owner: 0, superadmin: 0, member: 0 }
 
-    // Process first 15 groups to avoid timeout
-    const maxGroups = Math.min(allGroups.length, 15)
-    console.log(`📊 Processing first ${maxGroups} groups`)
-
-    for (let i = 0; i < maxGroups; i++) {
+    for (let i = 0; i < allGroups.length; i++) {
       const group = allGroups[i]
       const groupName = group.name || group.subject || `Group ${group.id}`
       
-      console.log(`\n🔍 [${i + 1}/${maxGroups}] Processing: "${groupName}"`)
+      console.log(`🔍 Processing ${i + 1}/${allGroups.length}: ${groupName}`)
       
-      let userRole = { isAdmin: false, role: 'member', method: 'unknown' }
+      let isAdmin = false
       let participantsCount = 0
 
       try {
-        const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Content-Type': 'application/json'
+        // Get detailed group information with retry logic
+        let detailData = null
+        let retryCount = 0
+        const maxRetries = 2
+
+        while (!detailData && retryCount <= maxRetries) {
+          try {
+            const detailResponse = await fetch(`https://gate.whapi.cloud/groups/${group.id}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${profile.whapi_token}`,
+                'Content-Type': 'application/json'
+              }
+            })
+
+            if (detailResponse.ok) {
+              detailData = await detailResponse.json()
+              break
+            } else if (detailResponse.status === 429) {
+              console.log(`⏳ Rate limited for "${groupName}", waiting...`)
+              await new Promise(resolve => setTimeout(resolve, 2000))
+              retryCount++
+            } else {
+              console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
+              break
+            }
+          } catch (fetchError) {
+            console.log(`⚠️ Fetch error for "${groupName}": ${fetchError.message}`)
+            retryCount++
+            if (retryCount <= maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 1000))
+            }
           }
-        })
-
-        if (detailResponse.ok) {
-          const detailData = await detailResponse.json()
-          
-          participantsCount = detailData.participants?.length || 
-                             detailData.participants_count || 
-                             detailData.size || 0
-
-          console.log(`👥 Group "${groupName}" has ${participantsCount} participants`)
-
-          // ENHANCED admin detection
-          userRole = detectAdminRole(userPhoneNumber, detailData, groupName)
-          
-        } else {
-          console.log(`⚠️ Could not get details for "${groupName}": ${detailResponse.status}`)
-          participantsCount = group.participants_count || group.size || 0
         }
 
-        await new Promise(resolve => setTimeout(resolve, 500))
+        if (detailData) {
+          // 🔍 FULL DEBUG: Log the complete response structure (only for first 3 groups)
+          if (i < 3) {
+            console.log(`🔍 COMPLETE GROUP DATA for "${groupName}":`, JSON.stringify(detailData, null, 2));
+          }
+          
+          // Get participant count
+          participantsCount = detailData.participants?.length || 
+                             detailData.participants_count || 
+                             detailData.size || 0;
+
+          console.log(`👥 Group "${groupName}" has ${participantsCount} participants`);
+
+          // ENHANCED ADMIN DETECTION with extensive logging
+          if (userPhoneNumber) {
+            const userPhoneClean = userPhoneNumber.replace(/[^\d]/g, '');
+            console.log(`📞 User phone: ${userPhoneNumber} | Clean: ${userPhoneClean}`);
+
+            // Method 1: Check participants array with ENHANCED matching
+            if (detailData.participants && Array.isArray(detailData.participants)) {
+              console.log(`👥 Checking ${detailData.participants.length} participants for admin roles`);
+              
+              for (const participant of detailData.participants) {
+                const participantPhone = participant.id || participant.phone;
+                const participantRole = participant.rank || participant.role;
+                
+                if (participantPhone) {
+                  const participantClean = participantPhone.replace(/[^\d]/g, '');
+                  
+                  // ENHANCED MATCHING: Multiple approaches
+                  let isMatch = false;
+                  
+                  // 1. Exact match after cleaning
+                  if (participantClean === userPhoneClean) {
+                    isMatch = true;
+                  }
+                  
+                  // 2. Last 9 digits match (Israeli mobile numbers)
+                  if (!isMatch && participantClean.length >= 9 && userPhoneClean.length >= 9) {
+                    if (participantClean.slice(-9) === userPhoneClean.slice(-9)) {
+                      isMatch = true;
+                    }
+                  }
+                  
+                  // 3. Handle country code variations (972 vs 0)
+                  if (!isMatch) {
+                    if (participantClean.startsWith('972') && userPhoneClean.startsWith('0')) {
+                      if (participantClean.substring(3) === userPhoneClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    } else if (userPhoneClean.startsWith('972') && participantClean.startsWith('0')) {
+                      if (userPhoneClean.substring(3) === participantClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    }
+                  }
+                  
+                  if (i < 3) { // Debug for first 3 groups
+                    console.log(`  📱 Participant: ${participantPhone} | Role: ${participantRole} | Match: ${isMatch}`);
+                  }
+                  
+                  // Check if matched user has admin role
+                  if (isMatch && participantRole) {
+                    const roleCheck = participantRole.toLowerCase();
+                    if (roleCheck === 'admin' || roleCheck === 'creator' || roleCheck === 'owner' || roleCheck === 'superadmin') {
+                      isAdmin = true;
+                      console.log(`👑 ✅ User is ${participantRole} in "${groupName}" (matched: ${participantPhone})`);
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // Method 2: Check admins array with ENHANCED matching
+            if (!isAdmin && detailData.admins && Array.isArray(detailData.admins)) {
+              console.log(`👑 Checking ${detailData.admins.length} admins in admins array`);
+              
+              for (const admin of detailData.admins) {
+                const adminPhone = typeof admin === 'string' ? admin : (admin.id || admin.phone);
+                
+                if (adminPhone) {
+                  const adminClean = adminPhone.replace(/[^\d]/g, '');
+                  
+                  // ENHANCED MATCHING: Same logic as above
+                  let isMatch = false;
+                  
+                  // 1. Exact match
+                  if (adminClean === userPhoneClean) {
+                    isMatch = true;
+                  }
+                  
+                  // 2. Last 9 digits match
+                  if (!isMatch && adminClean.length >= 9 && userPhoneClean.length >= 9) {
+                    if (adminClean.slice(-9) === userPhoneClean.slice(-9)) {
+                      isMatch = true;
+                    }
+                  }
+                  
+                  // 3. Country code variations
+                  if (!isMatch) {
+                    if (adminClean.startsWith('972') && userPhoneClean.startsWith('0')) {
+                      if (adminClean.substring(3) === userPhoneClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    } else if (userPhoneClean.startsWith('972') && adminClean.startsWith('0')) {
+                      if (userPhoneClean.substring(3) === adminClean.substring(1)) {
+                        isMatch = true;
+                      }
+                    }
+                  }
+                  
+                  if (i < 3) { // Debug for first 3 groups
+                    console.log(`  👑 Admin: ${adminPhone} | Match: ${isMatch}`);
+                  }
+                  
+                  if (isMatch) {
+                    isAdmin = true;
+                    console.log(`👑 ✅ FOUND USER in admins array: ${adminPhone} matches ${userPhoneNumber}`);
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Method 3: Check owner with ENHANCED matching
+            if (!isAdmin && detailData.owner) {
+              const ownerPhone = typeof detailData.owner === 'string' ? detailData.owner : (detailData.owner.id || detailData.owner.phone);
+              
+              if (ownerPhone) {
+                const ownerClean = ownerPhone.replace(/[^\d]/g, '');
+                
+                // ENHANCED MATCHING: Same logic as above
+                let isMatch = false;
+                
+                // 1. Exact match
+                if (ownerClean === userPhoneClean) {
+                  isMatch = true;
+                }
+                
+                // 2. Last 9 digits match
+                if (!isMatch && ownerClean.length >= 9 && userPhoneClean.length >= 9) {
+                  if (ownerClean.slice(-9) === userPhoneClean.slice(-9)) {
+                    isMatch = true;
+                  }
+                }
+                
+                // 3. Country code variations
+                if (!isMatch) {
+                  if (ownerClean.startsWith('972') && userPhoneClean.startsWith('0')) {
+                    if (ownerClean.substring(3) === userPhoneClean.substring(1)) {
+                      isMatch = true;
+                    }
+                  } else if (userPhoneClean.startsWith('972') && ownerClean.startsWith('0')) {
+                    if (userPhoneClean.substring(3) === ownerClean.substring(1)) {
+                      isMatch = true;
+                    }
+                  }
+                }
+                
+                if (i < 3) { // Debug for first 3 groups
+                  console.log(`👤 Owner: ${ownerPhone} | Match: ${isMatch}`);
+                }
+                
+                if (isMatch) {
+                  isAdmin = true;
+                  console.log(`👑 ✅ FOUND USER as owner: ${ownerPhone} matches ${userPhoneNumber}`);
+                }
+              }
+            }
+
+            // Method 4: Additional check for creator field (sometimes separate from owner)
+            if (!isAdmin && detailData.creator) {
+              const creatorPhone = typeof detailData.creator === 'string' ? detailData.creator : (detailData.creator.id || detailData.creator.phone);
+              
+              if (creatorPhone) {
+                const creatorClean = creatorPhone.replace(/[^\d]/g, '');
+                
+                let isMatch = false;
+                
+                if (creatorClean === userPhoneClean) {
+                  isMatch = true;
+                } else if (creatorClean.length >= 9 && userPhoneClean.length >= 9) {
+                  if (creatorClean.slice(-9) === userPhoneClean.slice(-9)) {
+                    isMatch = true;
+                  }
+                }
+                
+                if (isMatch) {
+                  isAdmin = true;
+                  console.log(`👑 ✅ FOUND USER as creator: ${creatorPhone}`);
+                }
+              }
+            }
+
+            // DEBUGGING: Show what we found for first few groups
+            if (i < 5) {
+              console.log(`🔍 DEBUG for "${groupName}":`);
+              console.log(`  - User phone (clean): ${userPhoneClean}`);
+              console.log(`  - Participants count: ${detailData.participants?.length || 0}`);
+              console.log(`  - Admins count: ${detailData.admins?.length || 0}`);
+              console.log(`  - Owner: ${detailData.owner}`);
+              console.log(`  - Creator: ${detailData.creator}`);
+              console.log(`  - Final admin status: ${isAdmin}`);
+            }
+          }
+
+          console.log(`${isAdmin ? '👑' : '👤'} RESULT: "${groupName}" - admin: ${isAdmin}, members: ${participantsCount}`);
+          
+        } else {
+          // Fallback to basic group data
+          console.log(`⚠️ Using fallback data for "${groupName}"`)
+          participantsCount = group.participants_count || group.size || 0
+          
+          // Check if basic group data has admin info
+          if (group.admins && Array.isArray(group.admins) && userPhoneNumber) {
+            for (const admin of group.admins) {
+              const adminPhone = admin.id || admin.phone || admin
+              if (adminPhone && isPhoneMatch(userPhoneNumber, adminPhone)) {
+                isAdmin = true
+                console.log(`👑 ✅ Found user as admin in "${groupName}" (fallback)`)
+                break
+              }
+            }
+          }
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200))
 
       } catch (error) {
         console.error(`❌ Error processing group ${group.id}:`, error)
         participantsCount = group.participants_count || group.size || 0
       }
 
-      if (userRole.isAdmin) {
+      if (isAdmin) {
         adminCount++
       }
       
       totalMembersCount += participantsCount
-      roleStats[userRole.role as keyof typeof roleStats]++
 
+      // Add to groups list
       groupsToInsert.push({
         user_id: userId,
         group_id: group.id,
         name: groupName,
         description: group.description || null,
         participants_count: participantsCount,
-        is_admin: userRole.isAdmin,
-        user_role: userRole.role,
-        detection_method: userRole.method,
+        is_admin: isAdmin,
         avatar_url: group.avatar_url || group.picture || null,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
 
-      const roleEmoji = userRole.role === 'creator' ? '👑' : userRole.role === 'admin' ? '🔑' : userRole.role === 'owner' ? '👤' : '👥'
-      console.log(`${roleEmoji} RESULT: "${groupName}" - ${userRole.role} (${userRole.method}) - ${participantsCount} members`)
-    }
+      console.log(`${isAdmin ? '👑' : '👤'} "${groupName}": ${participantsCount} members, admin: ${isAdmin}`)
+    } // <- CLOSING BRACE FOR THE FOR LOOP
 
-    console.log(`\n📊 ENHANCED RESULTS:`)
-    console.log(`  - Groups processed: ${groupsToInsert.length}`)
-    console.log(`  - Admin groups found: ${adminCount}`)
-    console.log(`  - Role distribution:`, roleStats)
+    // Enhanced logging - AFTER THE LOOP
+    console.log(`📊 Final results: ${adminCount} admin groups, ${groupsToInsert.length - adminCount} member groups, ${totalMembersCount} total members`)
 
     const adminGroups = groupsToInsert.filter(g => g.is_admin)
+    const memberGroups = groupsToInsert.filter(g => !g.is_admin)
 
-    if (adminCount > 0) {
-      console.log('👑 ADMIN GROUPS FOUND:')
-      adminGroups.forEach(g => {
-        const roleEmoji = g.user_role === 'creator' ? '👑' : g.user_role === 'admin' ? '🔑' : '👤'
-        console.log(`  ${roleEmoji} ${g.name} (${g.user_role} via ${g.detection_method}) - ${g.participants_count} members`)
-      })
-    } else {
-      console.log('❌ NO ADMIN GROUPS DETECTED with enhanced phone matching')
-    }
+    console.log('👑 Admin groups:', adminGroups.map(g => `${g.name} (${g.participants_count} members)`))
+    console.log('👤 Member groups:', memberGroups.map(g => `${g.name} (${g.participants_count} members)`))
 
-    // Save to database
+    // STEP 4: Save to database
     try {
+      // Clear existing groups
       const { error: deleteError } = await supabase
         .from('whatsapp_groups')
         .delete()
@@ -457,6 +543,7 @@ Deno.serve(async (req) => {
         console.error('❌ Failed to clear existing groups:', deleteError)
       }
 
+      // Insert new groups
       if (groupsToInsert.length > 0) {
         const { error: insertError } = await supabase
           .from('whatsapp_groups')
@@ -481,26 +568,16 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Return success with detailed stats
     return new Response(
       JSON.stringify({
         success: true,
-        enhanced_matching: true,
         groups_count: groupsToInsert.length,
-        total_groups_available: allGroups.length,
         admin_groups_count: adminCount,
         member_groups_count: groupsToInsert.length - adminCount,
         total_members: totalMembersCount,
         user_phone: userPhoneNumber,
-        role_distribution: roleStats,
-        admin_groups: adminGroups.map(g => ({ 
-          name: g.name, 
-          role: g.user_role,
-          participants: g.participants_count,
-          method: g.detection_method
-        })),
-        message: adminCount > 0 
-          ? `🎉 ENHANCED SUCCESS! Found ${adminCount} admin groups with improved phone matching!`
-          : `Enhanced phone matching applied but no admin groups found. Check logs for detailed analysis.`
+        message: `Successfully synced ${groupsToInsert.length} groups (${adminCount} admin groups found)`
       }),
       { status: 200, headers: corsHeaders }
     )
