@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -549,6 +548,11 @@ const MessageComposer = () => {
                           mode="single"
                           selected={scheduleDate}
                           onSelect={setScheduleDate}
+                          disabled={(date) => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            return date < today;
+                          }}
                           initialFocus
                           className="pointer-events-auto"
                         />
