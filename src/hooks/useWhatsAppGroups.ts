@@ -1,4 +1,3 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,14 +53,14 @@ export const useWhatsAppGroups = () => {
       console.log('Groups synced successfully:', data);
       queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
       
-      // FIXED: Use the correct response fields from the backend
+      // FIXED: Use the correct response fields
       const totalGroups = data.groups_count || 0;
       const adminGroups = data.admin_groups_count || 0;
-      const creatorGroups = data.creator_groups_count || 0;
+      const memberGroups = data.member_groups_count || 0;
       
       toast({
         title: "קבוצות סונכרנו בהצלחה",
-        description: `נמצאו ${totalGroups} קבוצות בניהולך (${adminGroups} כמנהל, ${creatorGroups} כיוצר)`,
+        description: `נמצאו ${totalGroups} קבוצות (${adminGroups} קבוצות ניהול, ${memberGroups} קבוצות חברות)`,
       });
     },
     onError: (error: any) => {
