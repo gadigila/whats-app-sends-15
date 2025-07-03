@@ -95,24 +95,26 @@ Deno.serve(async (req) => {
 
         // Check if already connected
         if (healthData.status === 'connected' || healthData.me?.phone) {
-          console.log('✅ Already connected to WhatsApp!')
-          
-          // Update database status
-          await supabase
-            .from('profiles')
-            .update({
-              instance_status: 'connected',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId)
+  console.log('✅ Already connected to WhatsApp!');
+  const phoneNumber = healthData.me?.phone || healthData.phone || healthData.user?.id;
 
-          return {
-            success: true,
-            already_connected: true,
-            phone: healthData.me?.phone || healthData.phone,
-            message: 'WhatsApp is already connected'
-          }
-        }
+  // Update database status AND phone number if present
+  await supabase
+    .from('profiles')
+    .update({
+      instance_status: 'connected',
+      phone_number: phoneNumber,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', userId);
+
+  return {
+    success: true,
+    already_connected: true,
+    phone: phoneNumber,
+    message: 'WhatsApp is already connected'
+  }
+}
 
         // Process health status
         const status = (typeof healthData.status === 'object' ? healthData.status.text : healthData.status || '').toLowerCase()
