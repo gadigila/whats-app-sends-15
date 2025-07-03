@@ -63,37 +63,63 @@ Deno.serve(async (req) => {
 
     // Handle different event types
     switch (eventType) {
-      case 'ready':
-        console.log('🎉 WhatsApp connected successfully!')
-        console.log('📱 Phone number:', eventData.phone)
-        console.log('📊 Device info:', eventData.device)
-        
-        // DIRECT UPDATE USING USER ID FROM URL
-        if (userId) {
-          console.log(`✅ Updating user ${userId} to connected status`)
-          
-          const updateData: any = {
-            instance_status: 'connected',
-            updated_at: new Date().toISOString()
-          }
-          
-          // 🎯 NEW: Save phone number from webhook
-          if (eventData.phone) {
-            updateData.phone_number = eventData.phone
-            console.log('📱 Saving phone number from webhook:', eventData.phone)
-          }
-          
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update(updateData)
-            .eq('id', userId)
+  case 'ready':
+    console.log('🎉 WhatsApp connected successfully!');
+    console.log('📊 Device info:', eventData.device);
 
-          if (updateError) {
-            console.error('❌ Error updating profile:', updateError)
+    if (userId) {
+      // Get whapi_token for this user
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('whapi_token')
+        .eq('id', userId)
+        .single();
+
+      if (!profileError && profile?.whapi_token) {
+        // Call /health for accurate phone number
+        const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        let phoneNumber;
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json();
+          phoneNumber = healthData?.user?.id;
+          if (phoneNumber) {
+            await supabase.from('profiles')
+              .update({
+                instance_status: 'connected',
+                phone_number: phoneNumber,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', userId);
+            console.log('✅ Saved phone number from /health:', phoneNumber);
           } else {
-            console.log('✅ Profile updated to connected status and phone number via webhook')
+            // fallback, no phone in /health (very rare)
+            await supabase.from('profiles')
+              .update({
+                instance_status: 'connected',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', userId);
+            console.log('⚠️ /health call succeeded but no phone number found.');
           }
         } else {
+          // fallback, /health failed (should be rare)
+          await supabase.from('profiles')
+            .update({
+              instance_status: 'connected',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+          console.log('⚠️ /health call failed.');
+        }
+      }
+    } else {
           // FALLBACK: Try to find user by phone number
           console.log('⚠️ No userId in webhook URL, trying fallback method')
           
