@@ -6,102 +6,28 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    console.log('🚀 MINIMAL DEBUG: Sync starting...')
+    console.log('🚀 PHONE DEBUG: Sync starting...')
     
-    // Check environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    
-    console.log('🔧 Environment check:', {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseServiceKey,
-      urlStart: supabaseUrl?.substring(0, 20) || 'missing'
-    })
-    
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('❌ Missing environment variables')
-      return new Response(
-        JSON.stringify({ error: 'Server configuration missing' }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Parse request
-    let requestBody
-    try {
-      requestBody = await req.json()
-      console.log('📥 Request received:', requestBody)
-    } catch (parseError) {
-      console.error('❌ JSON parse error:', parseError)
-      return new Response(
-        JSON.stringify({ error: 'Invalid JSON in request' }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    const userId = requestBody?.userId
-    if (!userId) {
-      console.error('❌ Missing userId')
-      return new Response(
-        JSON.stringify({ error: 'userId is required' }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
+    const { userId } = await req.json()
     console.log('👤 Processing for user:', userId)
 
-    // Create Supabase client
-    let supabase
-    try {
-      supabase = createClient(supabaseUrl, supabaseServiceKey)
-      console.log('✅ Supabase client created')
-    } catch (supabaseError) {
-      console.error('❌ Supabase client error:', supabaseError)
-      return new Response(
-        JSON.stringify({ error: 'Database connection failed' }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
-
     // Get user profile
-    let profile
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('whapi_token, instance_status')
-        .eq('id', userId)
-        .single()
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('whapi_token, instance_status')
+      .eq('id', userId)
+      .single()
 
-      if (error) {
-        console.error('❌ Profile query error:', error)
-        return new Response(
-          JSON.stringify({ error: 'User not found', details: error.message }),
-          { status: 404, headers: corsHeaders }
-        )
-      }
-
-      profile = data
-      console.log('👤 Profile found:', {
-        hasToken: !!profile?.whapi_token,
-        status: profile?.instance_status
-      })
-
-    } catch (profileError) {
-      console.error('❌ Profile fetch error:', profileError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to fetch user profile' }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
-
-    if (!profile?.whapi_token) {
-      console.error('❌ No WHAPI token')
+    if (profileError || !profile?.whapi_token) {
       return new Response(
         JSON.stringify({ error: 'No WhatsApp token found' }),
         { status: 400, headers: corsHeaders }
@@ -109,146 +35,150 @@ Deno.serve(async (req) => {
     }
 
     if (profile.instance_status !== 'connected') {
-      console.error('❌ Not connected:', profile.instance_status)
       return new Response(
-        JSON.stringify({ error: 'WhatsApp not connected', status: profile.instance_status }),
+        JSON.stringify({ error: 'WhatsApp not connected' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    // Test WHAPI connection with user profile
-    let userPhone
-    try {
-      console.log('📱 Testing WHAPI connection...')
-      const response = await fetch('https://gate.whapi.cloud/users/profile', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${profile.whapi_token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      console.log('📱 WHAPI profile response:', response.status)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ WHAPI profile failed:', errorText)
-        return new Response(
-          JSON.stringify({ error: 'WHAPI connection failed', details: errorText }),
-          { status: 400, headers: corsHeaders }
-        )
+    // Get user phone with detailed logging
+    console.log('📱 Getting user phone number...')
+    const profileResponse = await fetch('https://gate.whapi.cloud/users/profile', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${profile.whapi_token}`,
+        'Content-Type': 'application/json'
       }
+    })
 
-      const profileData = await response.json()
-      userPhone = profileData.phone || profileData.id
-      console.log('📱 User phone:', userPhone)
-
-    } catch (whapiError) {
-      console.error('❌ WHAPI error:', whapiError)
+    if (!profileResponse.ok) {
+      const errorText = await profileResponse.text()
+      console.error('❌ WHAPI profile failed:', errorText)
       return new Response(
-        JSON.stringify({ error: 'WHAPI request failed', details: whapiError.message }),
-        { status: 500, headers: corsHeaders }
+        JSON.stringify({ error: 'WHAPI connection failed' }),
+        { status: 400, headers: corsHeaders }
       )
     }
 
-    // Get groups from WHAPI
-    let groups = []
-    try {
-      console.log('📋 Fetching groups from WHAPI...')
-      const response = await fetch('https://gate.whapi.cloud/groups?count=50', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${profile.whapi_token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      console.log('📋 WHAPI groups response:', response.status)
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('❌ WHAPI groups failed:', errorText)
-        return new Response(
-          JSON.stringify({ error: 'Failed to fetch groups', details: errorText }),
-          { status: 400, headers: corsHeaders }
-        )
-      }
-
-      const groupsData = await response.json()
-      groups = groupsData.groups || []
-      console.log('📋 Groups received:', groups.length)
-
-      // Log structure of first group for debugging
-      if (groups.length > 0) {
-        console.log('📋 First group structure:', {
-          id: groups[0].id,
-          name: groups[0].name,
-          hasParticipants: !!groups[0].participants,
-          participantsCount: groups[0].participants?.length || 0,
-          size: groups[0].size
-        })
-      }
-
-    } catch (groupsError) {
-      console.error('❌ Groups fetch error:', groupsError)
-      return new Response(
-        JSON.stringify({ error: 'Groups request failed', details: groupsError.message }),
-        { status: 500, headers: corsHeaders }
-      )
+    const profileData = await profileResponse.json()
+    console.log('📱 FULL PROFILE DATA:', JSON.stringify(profileData, null, 2))
+    
+    const userPhone = profileData.phone || profileData.id || profileData.wid
+    console.log('📱 EXTRACTED USER PHONE:', userPhone)
+    
+    // Normalize phone number
+    function normalizePhone(phone) {
+      if (!phone) return ''
+      const clean = phone.replace(/\D/g, '')
+      console.log(`📱 Normalizing: ${phone} → ${clean}`)
+      return clean
     }
+    
+    const normalizedUserPhone = normalizePhone(userPhone)
+    console.log('📱 NORMALIZED USER PHONE:', normalizedUserPhone)
 
-    // Simple phone matching function
+    // Get groups
+    const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=10', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${profile.whapi_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    const groupsData = await groupsResponse.json()
+    const groups = groupsData.groups || []
+    console.log('📋 Groups received:', groups.length)
+
+    // Enhanced phone matching with detailed logging
     function isPhoneMatch(phone1, phone2) {
-      if (!phone1 || !phone2) return false
+      if (!phone1 || !phone2) {
+        console.log(`❌ Phone match failed - missing phone: "${phone1}" vs "${phone2}"`)
+        return false
+      }
       
-      // Remove all non-digits and compare
       const clean1 = phone1.replace(/\D/g, '')
       const clean2 = phone2.replace(/\D/g, '')
       
-      // Direct match
-      if (clean1 === clean2) return true
+      console.log(`🔍 Comparing: "${phone1}" (${clean1}) vs "${phone2}" (${clean2})`)
       
-      // Check last 9 digits (Israeli mobile)
-      if (clean1.length >= 9 && clean2.length >= 9) {
-        return clean1.slice(-9) === clean2.slice(-9)
+      // Direct match
+      if (clean1 === clean2) {
+        console.log(`✅ DIRECT MATCH: ${clean1} === ${clean2}`)
+        return true
       }
       
+      // Last 9 digits match (Israeli mobile)
+      if (clean1.length >= 9 && clean2.length >= 9) {
+        const last9_1 = clean1.slice(-9)
+        const last9_2 = clean2.slice(-9)
+        if (last9_1 === last9_2) {
+          console.log(`✅ LAST 9 DIGITS MATCH: ${last9_1} === ${last9_2}`)
+          return true
+        }
+      }
+      
+      console.log(`❌ NO MATCH: ${clean1} vs ${clean2}`)
       return false
     }
 
-    // Process groups for admin detection
+    // Process groups with enhanced logging
     let adminCount = 0
     const processedGroups = []
 
-    for (let i = 0; i < Math.min(groups.length, 5); i++) { // Process first 5 groups only for debugging
+    for (let i = 0; i < Math.min(groups.length, 3); i++) { // Process first 3 groups
       const group = groups[i]
       const groupName = group.name || `Group ${group.id}`
       
-      console.log(`🔍 Processing group ${i + 1}: "${groupName}"`)
+      console.log(`\n🔍 ===== PROCESSING GROUP ${i + 1}: "${groupName}" =====`)
+      console.log(`👥 Group has ${group.participants?.length || 0} participants`)
       
       let isAdmin = false
+      let foundUser = false
       
-      // Check participants for admin status
       if (group.participants && Array.isArray(group.participants)) {
-        console.log(`👥 Checking ${group.participants.length} participants`)
+        console.log(`🔍 Checking participants for user phone: ${normalizedUserPhone}`)
         
+        // Show all admins/creators in this group first
+        const adminsInGroup = group.participants.filter(p => p.rank === 'admin' || p.rank === 'creator')
+        console.log(`👑 Group has ${adminsInGroup.length} admins/creators:`)
+        adminsInGroup.forEach(admin => {
+          console.log(`   👑 ${admin.id} (${admin.rank})`)
+        })
+        
+        // Now check if user is in the group
         for (const participant of group.participants) {
           const participantPhone = participant.id
           const rank = participant.rank
           
-          console.log(`👤 Participant: ${participantPhone}, rank: ${rank}`)
+          // Only log the first few and any potential matches
+          if (group.participants.indexOf(participant) < 5 || isPhoneMatch(normalizedUserPhone, participantPhone)) {
+            console.log(`👤 Participant: ${participantPhone}, rank: ${rank}`)
+          }
           
-          if (participantPhone && userPhone && isPhoneMatch(userPhone, participantPhone)) {
-            console.log(`✅ FOUND USER with rank: ${rank}`)
+          if (isPhoneMatch(normalizedUserPhone, participantPhone)) {
+            foundUser = true
+            console.log(`🎯 ===== FOUND USER IN GROUP! =====`)
+            console.log(`🎯 User phone: ${normalizedUserPhone}`)
+            console.log(`🎯 Participant phone: ${participantPhone}`)
+            console.log(`🎯 Rank: ${rank}`)
             
             if (rank === 'admin' || rank === 'creator') {
               isAdmin = true
               adminCount++
-              console.log(`🎯 User is ${rank} of "${groupName}"`)
+              console.log(`✅ USER IS ${rank.toUpperCase()} OF "${groupName}"`)
+            } else {
+              console.log(`👤 User is only a member of "${groupName}"`)
             }
             break
           }
         }
+        
+        if (!foundUser) {
+          console.log(`❌ User phone ${normalizedUserPhone} NOT FOUND in group "${groupName}"`)
+        }
+      } else {
+        console.log(`⚠️ No participants array for group "${groupName}"`)
       }
 
       processedGroups.push({
@@ -263,68 +193,50 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString()
       })
 
-      console.log(`${isAdmin ? '⭐' : '👤'} "${groupName}": ${group.size || 0} members`)
+      console.log(`${isAdmin ? '⭐' : '👤'} "${groupName}": ${group.size || 0} members, admin: ${isAdmin}`)
     }
 
-    console.log(`📊 RESULTS: Found ${adminCount} admin groups out of ${processedGroups.length} processed`)
+    console.log(`\n📊 ===== FINAL RESULTS =====`)
+    console.log(`📊 User phone: ${userPhone}`)
+    console.log(`📊 Normalized: ${normalizedUserPhone}`)
+    console.log(`📊 Admin groups: ${adminCount}`)
+    console.log(`📊 Total processed: ${processedGroups.length}`)
 
     // Save to database
-    try {
-      console.log('💾 Saving to database...')
-      
-      // Clear existing groups
-      await supabase
+    await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
+    
+    if (processedGroups.length > 0) {
+      const { error: insertError } = await supabase
         .from('whatsapp_groups')
-        .delete()
-        .eq('user_id', userId)
+        .insert(processedGroups)
 
-      // Insert new groups
-      if (processedGroups.length > 0) {
-        const { error: insertError } = await supabase
-          .from('whatsapp_groups')
-          .insert(processedGroups)
-
-        if (insertError) {
-          console.error('❌ Database insert error:', insertError)
-          return new Response(
-            JSON.stringify({ error: 'Database insert failed', details: insertError.message }),
-            { status: 500, headers: corsHeaders }
-          )
-        }
+      if (insertError) {
+        console.error('❌ Database insert error:', insertError)
+        return new Response(
+          JSON.stringify({ error: 'Database error', details: insertError.message }),
+          { status: 500, headers: corsHeaders }
+        )
       }
-
-      console.log('✅ Database updated successfully')
-
-    } catch (dbError) {
-      console.error('❌ Database error:', dbError)
-      return new Response(
-        JSON.stringify({ error: 'Database error', details: dbError.message }),
-        { status: 500, headers: corsHeaders }
-      )
     }
 
-    // Return success
     return new Response(
       JSON.stringify({
         success: true,
-        debug: true,
+        debug_phone_matching: true,
+        user_phone_raw: userPhone,
+        user_phone_normalized: normalizedUserPhone,
         total_groups: groups.length,
         processed_groups: processedGroups.length,
         admin_groups: adminCount,
-        user_phone: userPhone,
-        message: `DEBUG: Processed ${processedGroups.length} groups, found ${adminCount} admin groups`
+        message: `DEBUG: User phone ${normalizedUserPhone}, found ${adminCount} admin groups`
       }),
       { status: 200, headers: corsHeaders }
     )
 
-  } catch (mainError) {
-    console.error('💥 MAIN ERROR:', mainError)
+  } catch (error) {
+    console.error('💥 ERROR:', error)
     return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error', 
-        details: mainError.message,
-        stack: mainError.stack 
-      }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
     )
   }
