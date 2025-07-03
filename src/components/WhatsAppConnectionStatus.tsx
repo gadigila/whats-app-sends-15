@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Loader2, WifiOff, RefreshCw } from 'lucide-react';
+import { CheckCircle, Loader2, WifiOff, RefreshCw, Crown } from 'lucide-react';
 
 interface WhatsAppConnectionStatusProps {
   onNavigateToCompose: () => void;
@@ -59,15 +59,15 @@ const WhatsAppConnectionStatus = ({
             >
               התחל לשלוח הודעות
             </Button>
-            <Button
-              onClick={onSyncGroups}
-              variant="outline"
-              disabled={isSyncingGroups}
-              className="border-blue-600 text-blue-600 hover:bg-blue-50"
-            >
-              {isSyncingGroups ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-              סנכרן קבוצות
-            </Button>
+           <Button
+  onClick={onSyncGroups}
+  variant="outline"
+  disabled={isSyncingGroups}
+  className="border-green-600 text-green-600 hover:bg-green-50"
+>
+  {isSyncingGroups ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Crown className="h-4 w-4 mr-2" />}
+  סנכרן קבוצות בניהולי
+</Button>
             <Button
               onClick={handleDisconnectClick}
               variant="outline"
