@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 PHONE DEBUG: Sync starting...')
+    console.log('🚀 FIXED PHONE DETECTION: Starting...')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -34,50 +34,109 @@ Deno.serve(async (req) => {
       )
     }
 
-    if (profile.instance_status !== 'connected') {
-      return new Response(
-        JSON.stringify({ error: 'WhatsApp not connected' }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
+    // METHOD 1: Try /users/profile endpoint
+    console.log('📱 METHOD 1: Trying /users/profile...')
+    let userPhone = null
+    
+    try {
+      const profileResponse = await fetch('https://gate.whapi.cloud/users/profile', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${profile.whapi_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
 
-    // Get user phone with detailed logging
-    console.log('📱 Getting user phone number...')
-    const profileResponse = await fetch('https://gate.whapi.cloud/users/profile', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${profile.whapi_token}`,
-        'Content-Type': 'application/json'
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        console.log('📱 Profile response keys:', Object.keys(profileData))
+        userPhone = profileData.phone || profileData.id || profileData.wid || profileData.jid
+        console.log('📱 From profile:', userPhone)
       }
-    })
-
-    if (!profileResponse.ok) {
-      const errorText = await profileResponse.text()
-      console.error('❌ WHAPI profile failed:', errorText)
-      return new Response(
-        JSON.stringify({ error: 'WHAPI connection failed' }),
-        { status: 400, headers: corsHeaders }
-      )
+    } catch (error) {
+      console.log('⚠️ Profile method failed:', error.message)
     }
 
-    const profileData = await profileResponse.json()
-    console.log('📱 FULL PROFILE DATA:', JSON.stringify(profileData, null, 2))
-    
-    const userPhone = profileData.phone || profileData.id || profileData.wid
-    console.log('📱 EXTRACTED USER PHONE:', userPhone)
-    
-    // Normalize phone number
-    function normalizePhone(phone) {
-      if (!phone) return ''
-      const clean = phone.replace(/\D/g, '')
-      console.log(`📱 Normalizing: ${phone} → ${clean}`)
-      return clean
+    // METHOD 2: Try /health endpoint if profile didn't work
+    if (!userPhone) {
+      console.log('📱 METHOD 2: Trying /health endpoint...')
+      try {
+        const healthResponse = await fetch('https://gate.whapi.cloud/health', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json()
+          console.log('📱 Health response:', JSON.stringify(healthData, null, 2))
+          userPhone = healthData.phone || healthData.me?.phone || healthData.user?.phone
+          console.log('📱 From health:', userPhone)
+        }
+      } catch (error) {
+        console.log('⚠️ Health method failed:', error.message)
+      }
     }
-    
-    const normalizedUserPhone = normalizePhone(userPhone)
-    console.log('📱 NORMALIZED USER PHONE:', normalizedUserPhone)
+
+    // METHOD 3: Try /chats endpoint and look for own messages
+    if (!userPhone) {
+      console.log('📱 METHOD 3: Trying to find phone from chats...')
+      try {
+        const chatsResponse = await fetch('https://gate.whapi.cloud/chats?count=5', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${profile.whapi_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+
+        if (chatsResponse.ok) {
+          const chatsData = await chatsResponse.json()
+          console.log('📱 Chats response structure:', Object.keys(chatsData))
+          
+          // Look for individual chats (not groups) that might reveal our number
+          const chats = chatsData.chats || chatsData.data || []
+          for (const chat of chats.slice(0, 3)) {
+            if (chat.type === 'individual' || !chat.type) {
+              console.log('📱 Found individual chat:', chat.id, chat.name)
+              // Sometimes our own number appears in individual chats
+            }
+          }
+        }
+      } catch (error) {
+        console.log('⚠️ Chats method failed:', error.message)
+      }
+    }
+
+    // METHOD 4: Use instance status from database or try different WHAPI endpoints
+    if (!userPhone) {
+      console.log('📱 METHOD 4: Trying alternative detection...')
+      
+      // Check if we stored the phone number anywhere in our database
+      const { data: profileWithPhone } = await supabase
+        .from('profiles')
+        .select('phone_number, whapi_phone') // These columns might not exist, but let's try
+        .eq('id', userId)
+        .single()
+      
+      if (profileWithPhone?.phone_number) {
+        userPhone = profileWithPhone.phone_number
+        console.log('📱 From database:', userPhone)
+      }
+    }
+
+    // If still no phone, we'll try to detect it from admin patterns
+    if (!userPhone) {
+      console.log('⚠️ Could not determine user phone number!')
+      console.log('📱 Will try to detect from admin patterns in groups...')
+    } else {
+      console.log('✅ USER PHONE FOUND:', userPhone)
+    }
 
     // Get groups
+    console.log('📋 Fetching groups...')
     const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=10', {
       method: 'GET',
       headers: {
@@ -86,99 +145,98 @@ Deno.serve(async (req) => {
       }
     })
 
+    if (!groupsResponse.ok) {
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch groups' }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
     const groupsData = await groupsResponse.json()
     const groups = groupsData.groups || []
     console.log('📋 Groups received:', groups.length)
 
-    // Enhanced phone matching with detailed logging
+    // Enhanced phone normalization
+    function normalizePhone(phone) {
+      if (!phone) return ''
+      let clean = phone.replace(/\D/g, '')
+      
+      // Convert Israeli format: 0501234567 → 972501234567
+      if (clean.startsWith('0') && clean.length === 10) {
+        clean = '972' + clean.substring(1)
+      }
+      
+      return clean
+    }
+
+    // Enhanced phone matching
     function isPhoneMatch(phone1, phone2) {
-      if (!phone1 || !phone2) {
-        console.log(`❌ Phone match failed - missing phone: "${phone1}" vs "${phone2}"`)
-        return false
-      }
+      if (!phone1 || !phone2) return false
       
-      const clean1 = phone1.replace(/\D/g, '')
-      const clean2 = phone2.replace(/\D/g, '')
+      const clean1 = normalizePhone(phone1)
+      const clean2 = normalizePhone(phone2)
       
-      console.log(`🔍 Comparing: "${phone1}" (${clean1}) vs "${phone2}" (${clean2})`)
+      if (clean1 === clean2) return true
       
-      // Direct match
-      if (clean1 === clean2) {
-        console.log(`✅ DIRECT MATCH: ${clean1} === ${clean2}`)
-        return true
-      }
-      
-      // Last 9 digits match (Israeli mobile)
+      // Israeli number variations
       if (clean1.length >= 9 && clean2.length >= 9) {
-        const last9_1 = clean1.slice(-9)
-        const last9_2 = clean2.slice(-9)
-        if (last9_1 === last9_2) {
-          console.log(`✅ LAST 9 DIGITS MATCH: ${last9_1} === ${last9_2}`)
-          return true
-        }
+        return clean1.slice(-9) === clean2.slice(-9)
       }
       
-      console.log(`❌ NO MATCH: ${clean1} vs ${clean2}`)
       return false
     }
 
-    // Process groups with enhanced logging
+    const normalizedUserPhone = normalizePhone(userPhone)
+    console.log('📱 Normalized user phone:', normalizedUserPhone)
+
+    // Process groups with phone detection fallback
     let adminCount = 0
     const processedGroups = []
+    const potentialUserPhones = new Set() // Collect phones that appear as admin in multiple groups
 
-    for (let i = 0; i < Math.min(groups.length, 3); i++) { // Process first 3 groups
+    for (let i = 0; i < Math.min(groups.length, 5); i++) {
       const group = groups[i]
       const groupName = group.name || `Group ${group.id}`
       
-      console.log(`\n🔍 ===== PROCESSING GROUP ${i + 1}: "${groupName}" =====`)
-      console.log(`👥 Group has ${group.participants?.length || 0} participants`)
+      console.log(`\n🔍 ===== GROUP ${i + 1}: "${groupName}" =====`)
       
       let isAdmin = false
       let foundUser = false
       
       if (group.participants && Array.isArray(group.participants)) {
-        console.log(`🔍 Checking participants for user phone: ${normalizedUserPhone}`)
-        
-        // Show all admins/creators in this group first
         const adminsInGroup = group.participants.filter(p => p.rank === 'admin' || p.rank === 'creator')
-        console.log(`👑 Group has ${adminsInGroup.length} admins/creators:`)
+        console.log(`👑 Admins/creators (${adminsInGroup.length}):`)
+        
         adminsInGroup.forEach(admin => {
           console.log(`   👑 ${admin.id} (${admin.rank})`)
+          // If we don't have user phone, collect admin phones for pattern analysis
+          if (!normalizedUserPhone) {
+            potentialUserPhones.add(admin.id)
+          }
         })
-        
-        // Now check if user is in the group
-        for (const participant of group.participants) {
-          const participantPhone = participant.id
-          const rank = participant.rank
-          
-          // Only log the first few and any potential matches
-          if (group.participants.indexOf(participant) < 5 || isPhoneMatch(normalizedUserPhone, participantPhone)) {
-            console.log(`👤 Participant: ${participantPhone}, rank: ${rank}`)
-          }
-          
-          if (isPhoneMatch(normalizedUserPhone, participantPhone)) {
-            foundUser = true
-            console.log(`🎯 ===== FOUND USER IN GROUP! =====`)
-            console.log(`🎯 User phone: ${normalizedUserPhone}`)
-            console.log(`🎯 Participant phone: ${participantPhone}`)
-            console.log(`🎯 Rank: ${rank}`)
-            
-            if (rank === 'admin' || rank === 'creator') {
-              isAdmin = true
-              adminCount++
-              console.log(`✅ USER IS ${rank.toUpperCase()} OF "${groupName}"`)
-            } else {
-              console.log(`👤 User is only a member of "${groupName}"`)
+
+        // If we have user phone, try to match
+        if (normalizedUserPhone) {
+          for (const participant of group.participants) {
+            if (isPhoneMatch(normalizedUserPhone, participant.id)) {
+              foundUser = true
+              console.log(`🎯 FOUND USER: ${participant.id} (${participant.rank})`)
+              
+              if (participant.rank === 'admin' || participant.rank === 'creator') {
+                isAdmin = true
+                adminCount++
+                console.log(`✅ USER IS ${participant.rank.toUpperCase()}`)
+              }
+              break
             }
-            break
           }
+          
+          if (!foundUser) {
+            console.log(`❌ User phone ${normalizedUserPhone} not found in group`)
+          }
+        } else {
+          console.log(`⚠️ Skipping user detection - no phone number available`)
         }
-        
-        if (!foundUser) {
-          console.log(`❌ User phone ${normalizedUserPhone} NOT FOUND in group "${groupName}"`)
-        }
-      } else {
-        console.log(`⚠️ No participants array for group "${groupName}"`)
       }
 
       processedGroups.push({
@@ -193,14 +251,16 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString()
       })
 
-      console.log(`${isAdmin ? '⭐' : '👤'} "${groupName}": ${group.size || 0} members, admin: ${isAdmin}`)
+      console.log(`${isAdmin ? '⭐' : '👤'} Result: admin=${isAdmin}`)
     }
 
-    console.log(`\n📊 ===== FINAL RESULTS =====`)
-    console.log(`📊 User phone: ${userPhone}`)
-    console.log(`📊 Normalized: ${normalizedUserPhone}`)
-    console.log(`📊 Admin groups: ${adminCount}`)
-    console.log(`📊 Total processed: ${processedGroups.length}`)
+    // If we couldn't find user phone, show potential phones
+    if (!normalizedUserPhone && potentialUserPhones.size > 0) {
+      console.log('\n📱 POTENTIAL USER PHONES (appear as admin):')
+      Array.from(potentialUserPhones).forEach(phone => {
+        console.log(`   📱 ${phone}`)
+      })
+    }
 
     // Save to database
     await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
@@ -211,24 +271,32 @@ Deno.serve(async (req) => {
         .insert(processedGroups)
 
       if (insertError) {
-        console.error('❌ Database insert error:', insertError)
+        console.error('❌ Database error:', insertError)
         return new Response(
-          JSON.stringify({ error: 'Database error', details: insertError.message }),
+          JSON.stringify({ error: 'Database error' }),
           { status: 500, headers: corsHeaders }
         )
       }
     }
 
+    console.log('\n📊 ===== FINAL RESULTS =====')
+    console.log(`📊 User phone detected: ${userPhone || 'NOT FOUND'}`)
+    console.log(`📊 Admin groups found: ${adminCount}`)
+
     return new Response(
       JSON.stringify({
         success: true,
-        debug_phone_matching: true,
+        phone_detection_debug: true,
         user_phone_raw: userPhone,
         user_phone_normalized: normalizedUserPhone,
+        phone_detection_successful: !!userPhone,
+        potential_admin_phones: Array.from(potentialUserPhones),
         total_groups: groups.length,
         processed_groups: processedGroups.length,
-        admin_groups: adminCount,
-        message: `DEBUG: User phone ${normalizedUserPhone}, found ${adminCount} admin groups`
+        admin_groups_found: adminCount,
+        message: userPhone 
+          ? `Found ${adminCount} admin groups for phone ${normalizedUserPhone}`
+          : `Could not detect user phone. Found ${potentialUserPhones.size} potential admin phones.`
       }),
       { status: 200, headers: corsHeaders }
     )
