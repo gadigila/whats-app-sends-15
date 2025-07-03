@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     // Get user's WHAPI token
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whapi_token, instance_id, instance_status')
+      .select('whapi_token, instance_id, instance_status, phone_number')
       .eq('id', userId)
       .single()
 
@@ -92,8 +92,6 @@ Deno.serve(async (req) => {
     const profileData = await profileResponse.json()
     console.log('📊 Profile response data:', JSON.stringify(profileData, null, 2))
 
-    // 🔧 FIXED: Check for connection based on user profile response
-    // If we get a successful response with user data, user is connected
     // 🔧 ENHANCED: Better connection detection
     const isConnected = !!(
       profileData.phone ||                     // Phone number is the strongest indicator
@@ -109,19 +107,27 @@ Deno.serve(async (req) => {
       
       console.log('✅ User is connected:', { phone: phoneNumber, name: userName })
       
-      // 🚀 CRUCIAL: Update database status to connected
+      // 🚀 CRUCIAL: Update database status AND phone number
+      const updateData: any = {
+        instance_status: 'connected',
+        updated_at: new Date().toISOString()
+      }
+      
+      // 🎯 NEW: Save phone number if we have it
+      if (phoneNumber && phoneNumber !== 'Connected') {
+        updateData.phone_number = phoneNumber
+        console.log('📱 Saving phone number to database:', phoneNumber)
+      }
+      
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({
-          instance_status: 'connected',
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', userId)
 
       if (updateError) {
         console.error('❌ Failed to update database:', updateError)
       } else {
-        console.log('✅ Database updated to connected status')
+        console.log('✅ Database updated with connection status and phone number')
       }
 
       return new Response(

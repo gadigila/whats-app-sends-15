@@ -72,18 +72,26 @@ Deno.serve(async (req) => {
         if (userId) {
           console.log(`✅ Updating user ${userId} to connected status`)
           
+          const updateData: any = {
+            instance_status: 'connected',
+            updated_at: new Date().toISOString()
+          }
+          
+          // 🎯 NEW: Save phone number from webhook
+          if (eventData.phone) {
+            updateData.phone_number = eventData.phone
+            console.log('📱 Saving phone number from webhook:', eventData.phone)
+          }
+          
           const { error: updateError } = await supabase
             .from('profiles')
-            .update({
-              instance_status: 'connected',
-              updated_at: new Date().toISOString()
-            })
+            .update(updateData)
             .eq('id', userId)
 
           if (updateError) {
             console.error('❌ Error updating profile:', updateError)
           } else {
-            console.log('✅ Profile updated to connected status via webhook')
+            console.log('✅ Profile updated to connected status and phone number via webhook')
           }
         } else {
           // FALLBACK: Try to find user by phone number
@@ -122,6 +130,7 @@ Deno.serve(async (req) => {
                         .from('profiles')
                         .update({
                           instance_status: 'connected',
+                          phone_number: phoneNumber, // 🎯 Save phone number
                           updated_at: new Date().toISOString()
                         })
                         .eq('id', profile.id)
@@ -222,59 +231,45 @@ Deno.serve(async (req) => {
           // Get user's phone number from profile
           const { data: profile } = await supabase
             .from('profiles')
-            .select('whapi_token')
+            .select('phone_number')
             .eq('id', userId)
             .single()
             
-          if (profile?.whapi_token) {
-            try {
-              // Get user's phone number
-              const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${profile.whapi_token}`,
-                  'Content-Type': 'application/json'
-                }
-              })
+          if (profile?.phone_number) {
+            // 🎯 NEW: Use stored phone number instead of fetching from WHAPI
+            const userPhone = profile.phone_number
+            console.log('📞 User phone for comparison:', userPhone)
+            
+            // Check if the promoted/demoted user is the current user
+            for (const participantPhone of participants) {
+              console.log(`🔍 Checking participant: ${participantPhone}`)
               
-              if (profileResponse.ok) {
-                const profileData = await profileResponse.json()
-                const userPhone = profileData.phone || profileData.id
+              if (isPhoneMatch(userPhone, participantPhone)) {
+                console.log(`🎯 User's own admin status changed: ${action}`)
                 
-                console.log('📞 User phone for comparison:', userPhone)
+                // Update the group's admin status in database
+                const isAdmin = action === 'promote'
                 
-                // Check if the promoted/demoted user is the current user
-                for (const participantPhone of participants) {
-                  console.log(`🔍 Checking participant: ${participantPhone}`)
-                  
-                  if (isPhoneMatch(userPhone, participantPhone)) {
-                    console.log(`🎯 User's own admin status changed: ${action}`)
-                    
-                    // Update the group's admin status in database
-                    const isAdmin = action === 'promote'
-                    
-                    const { error: updateError } = await supabase
-                      .from('whatsapp_groups')
-                      .update({
-                        is_admin: isAdmin,
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('user_id', userId)
-                      .eq('group_id', groupId)
-                    
-                    if (updateError) {
-                      console.error('❌ Failed to update admin status:', updateError)
-                    } else {
-                      console.log(`✅ Updated admin status: ${isAdmin} for group ${groupId}`)
-                    }
-                    
-                    break // Found the user, stop checking other participants
-                  }
+                const { error: updateError } = await supabase
+                  .from('whatsapp_groups')
+                  .update({
+                    is_admin: isAdmin,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('user_id', userId)
+                  .eq('group_id', groupId)
+                
+                if (updateError) {
+                  console.error('❌ Failed to update admin status:', updateError)
+                } else {
+                  console.log(`✅ Updated admin status: ${isAdmin} for group ${groupId}`)
                 }
+                
+                break // Found the user, stop checking other participants
               }
-            } catch (error) {
-              console.error('❌ Error getting user profile:', error)
             }
+          } else {
+            console.log('⚠️ No phone number stored for user, cannot check admin status')
           }
         }
         break
@@ -329,4 +324,4 @@ Deno.serve(async (req) => {
       }
     )
   }
-}) 
+})

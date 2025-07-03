@@ -32,10 +32,10 @@ Deno.serve(async (req) => {
 
     console.log('👤 Syncing managed groups for user:', userId)
 
-    // Get user's WHAPI token (without user_phone to avoid column error)
+    // Get user's WHAPI token AND phone number
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, whapi_token, instance_status')
+      .select('instance_id, whapi_token, instance_status, phone_number')
       .eq('id', userId)
       .single()
 
@@ -53,14 +53,14 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Auto-detect phone (no caching for now)
-    let userPhoneNumber = null
+    // 🎯 NEW: Check if we have phone number stored
+    let userPhoneNumber = profile.phone_number
 
     if (!userPhoneNumber) {
-      console.log('📱 Auto-detecting phone...')
+      console.log('📱 No phone number stored, fetching from WHAPI...')
       
-      // Quick admin pattern detection
-      const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=30', {
+      // Get phone number from WHAPI profile
+      const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${profile.whapi_token}`,
@@ -68,43 +68,34 @@ Deno.serve(async (req) => {
         }
       })
 
-      if (groupsResponse.ok) {
-        const groupsData = await groupsResponse.json()
-        const groups = groupsData.groups || []
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        userPhoneNumber = profileData.phone || profileData.id
         
-        const adminFrequency = new Map()
-        for (const group of groups) {
-          if (group.participants) {
-            for (const participant of group.participants) {
-              if ((participant.rank === 'admin' || participant.rank === 'creator') && 
-                  participant.id.match(/^972\d{9}$/)) {
-                const count = adminFrequency.get(participant.id) || 0
-                adminFrequency.set(participant.id, count + 1)
-              }
-            }
-          }
-        }
-        
-        const sortedAdmins = Array.from(adminFrequency.entries())
-          .sort((a, b) => b[1] - a[1])
-        
-        if (sortedAdmins.length > 0) {
-          const [topPhone, topCount] = sortedAdmins[0]
-          if (topCount >= 2) {
-            userPhoneNumber = topPhone
-            console.log(`📱 Auto-detected: ${userPhoneNumber} (admin in ${topCount} groups)`)
-            
-            // Don't cache it for now to avoid column errors
-          }
+        if (userPhoneNumber) {
+          console.log('📱 Got phone number from WHAPI:', userPhoneNumber)
+          
+          // Save it to database for future use
+          await supabase
+            .from('profiles')
+            .update({
+              phone_number: userPhoneNumber,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+          
+          console.log('✅ Phone number saved to database')
         }
       }
+    } else {
+      console.log('📱 Using stored phone number:', userPhoneNumber)
     }
 
     if (!userPhoneNumber) {
       return new Response(
         JSON.stringify({ 
-          error: 'Could not detect your phone number',
-          suggestion: 'Make sure you are admin of at least one group'
+          error: 'Could not determine your phone number',
+          suggestion: 'Please reconnect your WhatsApp account'
         }),
         { status: 400, headers: corsHeaders }
       )
