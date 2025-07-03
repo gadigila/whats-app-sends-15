@@ -170,10 +170,18 @@ const WhatsAppConnect = () => {
 
   // 🔧 FIXED: Updated useEffect to handle new channels vs reconnection
   useEffect(() => {
-    // Check if this is a new channel (just created)
+    // Check if this is a new channel (recently updated)
     const isNewChannel = profile?.instance_status === 'unauthorized' && 
-      profile?.created_at && 
-      (new Date().getTime() - new Date(profile.created_at).getTime()) < 300000; // 5 minutes old
+      profile?.updated_at && 
+      (new Date().getTime() - new Date(profile.updated_at).getTime()) < 600000; // 10 minutes old
+    
+    console.log('🔍 useEffect channel detection:', {
+      status: profile?.instance_status,
+      updatedAt: profile?.updated_at,
+      minutesAgo: profile?.updated_at ? Math.round((new Date().getTime() - new Date(profile.updated_at).getTime()) / 60000) : 'no date',
+      isNewChannel,
+      manualReconnectStarted
+    });
     
     // Don't auto-start QR after hard disconnect, UNLESS:
     // 1. User manually started reconnection, OR
@@ -191,7 +199,7 @@ const WhatsAppConnect = () => {
       !isPollingForQR;
     
     if (shouldPoll) {
-      console.log('🚀 Starting QR polling...', { isNewChannel, manualReconnectStarted });
+      console.log('🚀 Starting QR polling...', { isNewChannel, manualReconnectStarted, status: profile?.instance_status });
       setIsPollingForQR(true);
       setPollingAttempts(0);
       
@@ -200,7 +208,7 @@ const WhatsAppConnect = () => {
         await pollForQR();
       }, 2000);
     }
-  }, [profile?.instance_status, profile?.instance_id, profile?.created_at, qrCode, isPollingForQR, manualReconnectStarted]);
+  }, [profile?.instance_status, profile?.instance_id, profile?.updated_at, qrCode, isPollingForQR, manualReconnectStarted]);
 
   // Start connection polling when QR is displayed
   useEffect(() => {
@@ -294,9 +302,17 @@ const WhatsAppConnect = () => {
 
   // 🔧 FIXED: Disconnected/Unauthorized state - handle new vs disconnected users
   if (profile?.instance_status === 'unauthorized') {
-    // 🆕 NEW: Check if this is a fresh channel (just created) vs hard disconnected user
-    const isNewChannel = !manualReconnectStarted && profile?.created_at && 
-      (new Date().getTime() - new Date(profile.created_at).getTime()) < 300000; // 5 minutes old
+    // 🆕 NEW: Check if this is a fresh channel vs hard disconnected user
+    // Use updated_at as a proxy for when the channel was created/last modified
+    const isNewChannel = !manualReconnectStarted && profile?.updated_at && 
+      (new Date().getTime() - new Date(profile.updated_at).getTime()) < 600000; // 10 minutes old
+    
+    console.log('🔍 Channel detection:', {
+      manualReconnectStarted,
+      updatedAt: profile?.updated_at,
+      minutesAgo: profile?.updated_at ? Math.round((new Date().getTime() - new Date(profile.updated_at).getTime()) / 60000) : 'no date',
+      isNewChannel
+    });
     
     // For fresh channels, auto-start QR (don't show manual reconnection)
     if (isNewChannel && !qrCode && !isPollingForQR) {
