@@ -124,20 +124,30 @@ Deno.serve(async (req) => {
             const [topPhone, topCount] = sortedAdmins[0]
             const [secondPhone, secondCount] = sortedAdmins[1] || [null, 0]
             
-            // Auto-select if:
-            // 1. Top phone appears in at least 2 groups as admin, AND
-            // 2. It appears significantly more than the second most frequent
-            if (topCount >= 2 && (topCount > secondCount * 1.5 || secondCount === 0)) {
+            // IMPROVED: More confident auto-selection
+            // Auto-select the top candidate if they're admin in at least 3 groups
+            // OR if they're clearly the most frequent admin
+            if (topCount >= 3) {
               userPhoneNumber = topPhone
-              console.log(`🎯 AUTO-DETECTED: ${userPhoneNumber} (admin in ${topCount} groups)`)
+              console.log(`🎯 AUTO-DETECTED: ${userPhoneNumber} (admin in ${topCount} groups - high confidence)`)
+            } else if (topCount >= 2 && topCount > secondCount) {
+              // Select if admin in 2+ groups AND more than second place
+              userPhoneNumber = topPhone
+              console.log(`🎯 AUTO-DETECTED: ${userPhoneNumber} (admin in ${topCount} groups - medium confidence)`)
             } else if (sortedAdmins.length === 1 && topCount >= 1) {
-              // If there's only one admin phone and you're admin of at least 1 group
+              // Only one admin candidate
               userPhoneNumber = topPhone
               console.log(`🎯 AUTO-DETECTED: ${userPhoneNumber} (only admin candidate)`)
             } else {
-              console.log(`⚠️ Ambiguous results. Top candidates:`)
+              console.log(`⚠️ Multiple admin candidates found. Top candidates:`)
               for (const [phone, count] of sortedAdmins.slice(0, 3)) {
                 console.log(`   📱 ${phone}: ${count} groups`)
+              }
+              
+              // FALLBACK: Just pick the top one if they have at least 2 groups
+              if (topCount >= 2) {
+                userPhoneNumber = topPhone
+                console.log(`🎯 FALLBACK AUTO-SELECT: ${userPhoneNumber} (top candidate with ${topCount} groups)`)
               }
             }
           }
