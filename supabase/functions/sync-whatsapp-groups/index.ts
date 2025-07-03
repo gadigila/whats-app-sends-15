@@ -32,10 +32,10 @@ Deno.serve(async (req) => {
 
     console.log('👤 Syncing managed groups for user:', userId)
 
-    // Get user's WHAPI token and cached phone
+    // Get user's WHAPI token (without user_phone to avoid column error)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, whapi_token, instance_status, user_phone')
+      .select('instance_id, whapi_token, instance_status')
       .eq('id', userId)
       .single()
 
@@ -53,11 +53,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Use cached phone or auto-detect
-    let userPhoneNumber = profile.user_phone
+    // Auto-detect phone (no caching for now)
+    let userPhoneNumber = null
 
     if (!userPhoneNumber) {
-      console.log('📱 Phone not cached, auto-detecting...')
+      console.log('📱 Auto-detecting phone...')
       
       // Quick admin pattern detection
       const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=30', {
@@ -94,11 +94,7 @@ Deno.serve(async (req) => {
             userPhoneNumber = topPhone
             console.log(`📱 Auto-detected: ${userPhoneNumber} (admin in ${topCount} groups)`)
             
-            // Cache it
-            await supabase
-              .from('profiles')
-              .update({ user_phone: userPhoneNumber })
-              .eq('id', userId)
+            // Don't cache it for now to avoid column errors
           }
         }
       }
