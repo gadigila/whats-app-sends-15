@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('📨 WHAPI Webhook - Processing Event (Optimized for Notifications)')
+    console.log('📨 WHAPI Webhook - Processing Event')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     const eventType = webhookData.type
     const eventData = webhookData.data || {}
 
-    // Handle different event types - OPTIMIZED TO AVOID NOTIFICATION INTERFERENCE
+    // Handle different event types
     switch (eventType) {
       case 'ready':
         console.log('🎉 WhatsApp connected successfully!')
@@ -144,6 +144,7 @@ Deno.serve(async (req) => {
             }
           }
         }
+        
         break
 
       case 'auth_failure':
@@ -159,6 +160,22 @@ Deno.serve(async (req) => {
             })
             .eq('id', userId)
         }
+        
+        break
+
+      case 'messages':
+        console.log('💬 Message received:', {
+          from: eventData.from,
+          type: eventData.type || 'text',
+          fromMe: eventData.from_me || false
+        })
+        break
+
+      case 'statuses':
+        console.log('📊 Message status update:', {
+          messageId: eventData.id,
+          status: eventData.status
+        })
         break
 
       case 'groups':
@@ -262,14 +279,23 @@ Deno.serve(async (req) => {
         }
         break
 
-      // ✅ REMOVED: These cases were causing notification interference
-      // case 'messages': - REMOVED to fix notifications
-      // case 'statuses': - REMOVED to fix notifications  
-      // case 'chats': - REMOVED to fix notifications
-      // case 'contacts': - REMOVED to fix notifications
+      case 'chats':
+        console.log('💬 Chat event:', {
+          chatId: eventData.id,
+          action: eventData.action
+        })
+        break
+
+      case 'contacts':
+        console.log('📞 Contact event:', {
+          contactId: eventData.id,
+          action: eventData.action
+        })
+        break
 
       default:
-        console.log(`⚠️ Unhandled webhook event: ${eventType}`)
+        console.log(`⚠️ Unknown webhook event: ${eventType}`)
+        console.log('📊 Event data:', JSON.stringify(eventData, null, 2))
         break
     }
 
@@ -279,8 +305,7 @@ Deno.serve(async (req) => {
         received: true, 
         processed: eventType,
         userId: userId,
-        timestamp: new Date().toISOString(),
-        optimized_for_notifications: true
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 200, 
@@ -304,4 +329,4 @@ Deno.serve(async (req) => {
       }
     )
   }
-})
+}) 

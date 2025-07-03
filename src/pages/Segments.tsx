@@ -148,15 +148,15 @@ const Segments = () => {
   
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState('');
+  const [showOnlyAdminGroups, setShowOnlyAdminGroups] = useState(false);
   
-  // Filter groups based on search and show only admin/creator groups by default
+  // Filter groups based on search and admin status
   const filteredGroups = useMemo(() => {
-    // Always filter to show only admin/creator groups
-    let filtered = allGroups.filter(group => 
-      group.is_admin === true || 
-      group.user_role === 'creator' || 
-      group.admin_role === 'admin'
-    );
+    let filtered = allGroups;
+    
+    if (showOnlyAdminGroups) {
+      filtered = filtered.filter(group => group.is_admin === true);
+    }
     
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
@@ -167,7 +167,7 @@ const Segments = () => {
     }
     
     return filtered;
-  }, [allGroups, searchQuery]);
+  }, [allGroups, searchQuery, showOnlyAdminGroups]);
 
   // Group statistics
   const groupStats = useMemo(() => {
@@ -259,6 +259,7 @@ const Segments = () => {
     setSelectedGroupIds([]);
     setEditingSegment(null);
     setSearchQuery('');
+    setShowOnlyAdminGroups(false);
   };
 
   const clearSearch = () => {
@@ -297,7 +298,7 @@ const Segments = () => {
             <DialogTrigger asChild>
               <Button 
                 className="bg-green-600 hover:bg-green-700"
-                disabled={filteredGroups.length === 0}
+                disabled={allGroups.length === 0}
               >
                 <Plus className="h-4 w-4 ml-2" />
                 צור קטגוריה
@@ -325,6 +326,19 @@ const Segments = () => {
                   <Label>בחר קבוצות</Label>
                   
                   <div className="mt-3 space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-2">
+                        <Star className="h-4 w-4 text-amber-600" />
+                        <span className="text-sm font-medium text-amber-900">
+                          הצג רק קבוצות שאני מנהל ({groupStats.adminGroups} מתוך {groupStats.totalGroups})
+                        </span>
+                      </div>
+                      <Switch
+                        checked={showOnlyAdminGroups}
+                        onCheckedChange={setShowOnlyAdminGroups}
+                      />
+                    </div>
+                    
                     <div className="relative">
                       <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
@@ -344,7 +358,7 @@ const Segments = () => {
                     </div>
                     
                     <div className="text-sm text-gray-600">
-                      מציג {filteredGroups.length} קבוצות בניהולך
+                      מציג {filteredGroups.length} קבוצות זמינות
                     </div>
                   </div>
                   
