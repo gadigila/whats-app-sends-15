@@ -123,31 +123,33 @@ Deno.serve(async (req) => {
     console.log('✅ Channel created successfully with token')
 
     // Step 2: Setup webhooks
-console.log('🔗 Setting up webhooks...')
-const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook-simple?userId=${userId}`
-
-const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
-  method: 'PATCH',
-  headers: {
-    'Authorization': `Bearer ${channelToken}`,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    webhooks: [{
-      url: webhookUrl,
-      events: [
-        { type: 'ready', method: 'post' },
-        { type: 'auth_failure', method: 'post' },
-        { type: 'groups', method: 'post' },
-        { type: 'groups_participants', method: 'post' }
-        // Removed: messages, statuses, chats, contacts to fix notifications
-      ],
-      callback_persist: true,
-      callback_backoff_delay_ms: 3000,
-      max_callback_backoff_delay_ms: 900000
-    }]
-  })
-})
+    console.log('🔗 Setting up webhooks...')
+    const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook-simple?userId=${userId}`
+    
+    const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${channelToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        webhooks: [{
+          url: webhookUrl,
+          events: [
+            { type: 'messages', method: 'post' },
+            { type: 'statuses', method: 'post' },
+            { type: 'ready', method: 'post' },
+            { type: 'auth_failure', method: 'post' },
+            { type: 'chats', method: 'post' },
+            { type: 'groups', method: 'post' },
+            { type: 'contacts', method: 'post' }
+          ],
+          callback_persist: true,
+          callback_backoff_delay_ms: 3000,
+          max_callback_backoff_delay_ms: 900000
+        }]
+      })
+    })
 
     if (!webhookResponse.ok) {
       const webhookError = await webhookResponse.text()

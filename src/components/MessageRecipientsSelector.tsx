@@ -28,15 +28,15 @@ const MessageRecipientsSelector = ({
   
   const [groupSearchQuery, setGroupSearchQuery] = useState('');
   const [segmentSearchQuery, setSegmentSearchQuery] = useState('');
+  const [showOnlyAdminGroups, setShowOnlyAdminGroups] = useState(false);
 
-  // Filter groups based on search and show only admin/creator groups by default
+  // Filter groups based on search and admin status
   const filteredGroups = useMemo(() => {
-    // Always filter to show only admin/creator groups
-    let filtered = groups.filter(group => 
-      group.is_admin === true || 
-      group.user_role === 'creator' || 
-      group.admin_role === 'admin'
-    );
+    let filtered = groups;
+    
+    if (showOnlyAdminGroups) {
+      filtered = filtered.filter(group => group.is_admin === true);
+    }
     
     if (groupSearchQuery.trim()) {
       const query = groupSearchQuery.toLowerCase().trim();
@@ -47,7 +47,7 @@ const MessageRecipientsSelector = ({
     }
     
     return filtered;
-  }, [groups, groupSearchQuery]);
+  }, [groups, groupSearchQuery, showOnlyAdminGroups]);
 
   // Filter segments based on search
   const filteredSegments = useMemo(() => {
@@ -124,7 +124,7 @@ const MessageRecipientsSelector = ({
           </TabsTrigger>
           <TabsTrigger value="groups" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
-            קבוצות ({filteredGroups.length})
+            קבוצות ({groups.length})
           </TabsTrigger>
         </TabsList>
 
@@ -193,6 +193,17 @@ const MessageRecipientsSelector = ({
 
         <TabsContent value="groups" className="space-y-4">
           <div className="space-y-3">
+            <div className="flex items-center justify-end p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <span className="text-sm font-medium text-amber-900">
+                הצג רק קבוצות שאני מנהל
+              </span>
+              <Star className="h-4 w-4 text-amber-600 mx-2" />
+              <Checkbox
+                checked={showOnlyAdminGroups}
+                onCheckedChange={(checked) => setShowOnlyAdminGroups(checked as boolean)}
+              />
+            </div>
+            
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input

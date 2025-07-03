@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('📨 WHAPI Webhook - Processing Event with Phone Capture')
+    console.log('📨 WHAPI Webhook - Processing Event')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -61,156 +61,29 @@ Deno.serve(async (req) => {
     const eventType = webhookData.type
     const eventData = webhookData.data || {}
 
-    // Handle different event types - OPTIMIZED TO AVOID NOTIFICATION INTERFERENCE
+    // Handle different event types
     switch (eventType) {
       case 'ready':
         console.log('🎉 WhatsApp connected successfully!')
-        console.log('📱 Phone from webhook:', eventData.phone)
+        console.log('📱 Phone number:', eventData.phone)
         console.log('📊 Device info:', eventData.device)
         
         // DIRECT UPDATE USING USER ID FROM URL
         if (userId) {
-          console.log(`✅ Processing connection for user ${userId}`)
-          
-          // 🆕 ENHANCED: Multi-method phone capture
-          let capturedPhone = null
-          
-          // Method 1: Try to get phone from webhook data
-          if (eventData.phone && eventData.phone.match(/^972\d{9}$/)) {
-            capturedPhone = eventData.phone
-            console.log('📱 Phone from webhook data:', capturedPhone)
-          }
-          
-          // Method 2: If no phone in webhook, get user token and try API calls
-          if (!capturedPhone) {
-            console.log('📱 No phone in webhook, trying API detection...')
-            
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('whapi_token')
-              .eq('id', userId)
-              .single()
-            
-            if (profile?.whapi_token) {
-              // Try health endpoint first
-              try {
-                console.log('📊 Checking health endpoint for phone...')
-                const healthResponse = await fetch('https://gate.whapi.cloud/health', {
-                  method: 'GET',
-                  headers: {
-                    'Authorization': `Bearer ${profile.whapi_token}`,
-                    'Content-Type': 'application/json'
-                  }
-                })
-
-                if (healthResponse.ok) {
-                  const healthData = await healthResponse.json()
-                  console.log('📊 Health data:', healthData)
-                  
-                  if (healthData.me?.phone) {
-                    capturedPhone = healthData.me.phone
-                    console.log('📱 Phone from health.me.phone:', capturedPhone)
-                  } else if (healthData.phone) {
-                    capturedPhone = healthData.phone
-                    console.log('📱 Phone from health.phone:', capturedPhone)
-                  } else if (healthData.me?.id && healthData.me.id.match(/^972\d{9}$/)) {
-                    capturedPhone = healthData.me.id
-                    console.log('📱 Phone from health.me.id:', capturedPhone)
-                  }
-                }
-              } catch (error) {
-                console.log('⚠️ Health endpoint failed:', error.message)
-              }
-              
-              // Method 3: If health fails, try group analysis
-              if (!capturedPhone) {
-                console.log('📊 Trying group analysis...')
-                try {
-                  const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=30', {
-                    method: 'GET',
-                    headers: {
-                      'Authorization': `Bearer ${profile.whapi_token}`,
-                      'Content-Type': 'application/json'
-                    }
-                  })
-
-                  if (groupsResponse.ok) {
-                    const groupsData = await groupsResponse.json()
-                    const groups = groupsData.groups || []
-                    
-                    // Advanced phone detection - prioritize creators
-                    const phoneStats = new Map()
-                    for (const group of groups) {
-                      if (group.participants) {
-                        for (const participant of group.participants) {
-                          if (participant.id?.match(/^972\d{9}$/)) {
-                            const stats = phoneStats.get(participant.id) || { creator: 0, admin: 0 }
-                            
-                            if (participant.rank === 'creator') {
-                              stats.creator++
-                            } else if (participant.rank === 'admin') {
-                              stats.admin++
-                            }
-                            
-                            phoneStats.set(participant.id, stats)
-                          }
-                        }
-                      }
-                    }
-                    
-                    // Find best candidate - prioritize creators
-                    let bestPhone = null
-                    let bestScore = 0
-                    
-                    for (const [phone, stats] of phoneStats.entries()) {
-                      const score = stats.creator * 3 + stats.admin * 1
-                      if (score > bestScore) {
-                        bestScore = score
-                        bestPhone = phone
-                      }
-                    }
-                    
-                    if (bestPhone && bestScore >= 3) { // At least creator in 1 group
-                      capturedPhone = bestPhone
-                      console.log(`📱 Phone from group analysis: ${capturedPhone} (score: ${bestScore})`)
-                    }
-                  }
-                } catch (error) {
-                  console.log('⚠️ Group analysis failed:', error.message)
-                }
-              }
-            }
-          }
-          
-          // Update profile with connection status AND phone
-          const updateData: any = {
-            instance_status: 'connected',
-            updated_at: new Date().toISOString()
-          }
-          
-          if (capturedPhone) {
-            const cleanPhone = capturedPhone.replace(/\D/g, '')
-            if (cleanPhone.match(/^972\d{9}$/)) {
-              updateData.user_phone = cleanPhone
-              updateData.phone_detected_at = new Date().toISOString()
-              console.log('✅ Storing phone in database:', cleanPhone)
-            } else {
-              console.log('⚠️ Invalid phone format:', capturedPhone)
-            }
-          } else {
-            console.log('⚠️ Could not detect phone number from any method')
-          }
+          console.log(`✅ Updating user ${userId} to connected status`)
           
           const { error: updateError } = await supabase
             .from('profiles')
-            .update(updateData)
+            .update({
+              instance_status: 'connected',
+              updated_at: new Date().toISOString()
+            })
             .eq('id', userId)
 
           if (updateError) {
             console.error('❌ Error updating profile:', updateError)
           } else {
-            console.log('✅ Profile updated successfully')
-            console.log('📱 Phone capture result:', capturedPhone ? 'SUCCESS' : 'FAILED')
+            console.log('✅ Profile updated to connected status via webhook')
           }
         } else {
           // FALLBACK: Try to find user by phone number
@@ -249,8 +122,6 @@ Deno.serve(async (req) => {
                         .from('profiles')
                         .update({
                           instance_status: 'connected',
-                          user_phone: phoneNumber.replace(/\D/g, ''),
-                          phone_detected_at: new Date().toISOString(),
                           updated_at: new Date().toISOString()
                         })
                         .eq('id', profile.id)
@@ -273,6 +144,7 @@ Deno.serve(async (req) => {
             }
           }
         }
+        
         break
 
       case 'auth_failure':
@@ -288,6 +160,22 @@ Deno.serve(async (req) => {
             })
             .eq('id', userId)
         }
+        
+        break
+
+      case 'messages':
+        console.log('💬 Message received:', {
+          from: eventData.from,
+          type: eventData.type || 'text',
+          fromMe: eventData.from_me || false
+        })
+        break
+
+      case 'statuses':
+        console.log('📊 Message status update:', {
+          messageId: eventData.id,
+          status: eventData.status
+        })
         break
 
       case 'groups':
@@ -334,32 +222,25 @@ Deno.serve(async (req) => {
           // Get user's phone number from profile
           const { data: profile } = await supabase
             .from('profiles')
-            .select('whapi_token, user_phone')
+            .select('whapi_token')
             .eq('id', userId)
             .single()
             
           if (profile?.whapi_token) {
             try {
-              // Use cached phone first, fallback to API
-              let userPhone = profile.user_phone
-              
-              if (!userPhone) {
-                // Get user's phone number from API
-                const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
-                  method: 'GET',
-                  headers: {
-                    'Authorization': `Bearer ${profile.whapi_token}`,
-                    'Content-Type': 'application/json'
-                  }
-                })
-                
-                if (profileResponse.ok) {
-                  const profileData = await profileResponse.json()
-                  userPhone = profileData.phone || profileData.id
+              // Get user's phone number
+              const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${profile.whapi_token}`,
+                  'Content-Type': 'application/json'
                 }
-              }
+              })
               
-              if (userPhone) {
+              if (profileResponse.ok) {
+                const profileData = await profileResponse.json()
+                const userPhone = profileData.phone || profileData.id
+                
                 console.log('📞 User phone for comparison:', userPhone)
                 
                 // Check if the promoted/demoted user is the current user
@@ -398,14 +279,23 @@ Deno.serve(async (req) => {
         }
         break
 
-      // ✅ REMOVED: These cases were causing notification interference
-      // case 'messages': - REMOVED to fix notifications
-      // case 'statuses': - REMOVED to fix notifications  
-      // case 'chats': - REMOVED to fix notifications
-      // case 'contacts': - REMOVED to fix notifications
+      case 'chats':
+        console.log('💬 Chat event:', {
+          chatId: eventData.id,
+          action: eventData.action
+        })
+        break
+
+      case 'contacts':
+        console.log('📞 Contact event:', {
+          contactId: eventData.id,
+          action: eventData.action
+        })
+        break
 
       default:
-        console.log(`⚠️ Unhandled webhook event: ${eventType}`)
+        console.log(`⚠️ Unknown webhook event: ${eventType}`)
+        console.log('📊 Event data:', JSON.stringify(eventData, null, 2))
         break
     }
 
@@ -415,8 +305,7 @@ Deno.serve(async (req) => {
         received: true, 
         processed: eventType,
         userId: userId,
-        timestamp: new Date().toISOString(),
-        phone_capture_enabled: true
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 200, 
@@ -440,4 +329,4 @@ Deno.serve(async (req) => {
       }
     )
   }
-})
+}) 
