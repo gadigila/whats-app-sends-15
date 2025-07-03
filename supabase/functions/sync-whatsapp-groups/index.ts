@@ -32,12 +32,12 @@ Deno.serve(async (req) => {
 
     console.log('👤 Syncing managed groups for user:', userId)
 
-    // Get user's WHAPI token (without user_phone to avoid column error)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('instance_id, whapi_token, instance_status')
-      .eq('id', userId)
-      .single()
+    // Get user's WHAPI token WITH user_phone
+const { data: profile, error: profileError } = await supabase
+  .from('profiles')
+  .select('instance_id, whapi_token, instance_status, user_phone')
+  .eq('id', userId)
+  .single()
 
     if (profileError || !profile?.whapi_token) {
       return new Response(
@@ -53,64 +53,59 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Auto-detect phone (no caching for now)
-    let userPhoneNumber = null
+    // 🎯 USE CACHED PHONE OR DETECT ONCE
+let userPhoneNumber = profile.user_phone
 
-    if (!userPhoneNumber) {
-      console.log('📱 Auto-detecting phone...')
-      
-      // Quick admin pattern detection
-      const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=30', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${profile.whapi_token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+if (!userPhoneNumber) {
+  console.log('📱 Phone not cached, detecting and storing...')
+  
+  // Quick detection from groups (same logic but cache result)
+  const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=30', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${profile.whapi_token}`,
+      'Content-Type': 'application/json'
+    }
+  })
 
-      if (groupsResponse.ok) {
-        const groupsData = await groupsResponse.json()
-        const groups = groupsData.groups || []
-        
-        const adminFrequency = new Map()
-        for (const group of groups) {
-          if (group.participants) {
-            for (const participant of group.participants) {
-              if ((participant.rank === 'admin' || participant.rank === 'creator') && 
-                  participant.id.match(/^972\d{9}$/)) {
-                const count = adminFrequency.get(participant.id) || 0
-                adminFrequency.set(participant.id, count + 1)
-              }
-            }
-          }
-        }
-        
-        const sortedAdmins = Array.from(adminFrequency.entries())
-          .sort((a, b) => b[1] - a[1])
-        
-        if (sortedAdmins.length > 0) {
-          const [topPhone, topCount] = sortedAdmins[0]
-          if (topCount >= 2) {
-            userPhoneNumber = topPhone
-            console.log(`📱 Auto-detected: ${userPhoneNumber} (admin in ${topCount} groups)`)
-            
-            // Don't cache it for now to avoid column errors
+  if (groupsResponse.ok) {
+    const groupsData = await groupsResponse.json()
+    const groups = groupsData.groups || []
+    
+    const adminFrequency = new Map()
+    for (const group of groups) {
+      if (group.participants) {
+        for (const participant of group.participants) {
+          if ((participant.rank === 'admin' || participant.rank === 'creator') && 
+              participant.id.match(/^972\d{9}$/)) {
+            const count = adminFrequency.get(participant.id) || 0
+            adminFrequency.set(participant.id, count + (participant.rank === 'creator' ? 3 : 1))
           }
         }
       }
     }
-
-    if (!userPhoneNumber) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Could not detect your phone number',
-          suggestion: 'Make sure you are admin of at least one group'
-        }),
-        { status: 400, headers: corsHeaders }
-      )
+    
+    const sortedAdmins = Array.from(adminFrequency.entries())
+      .sort((a, b) => b[1] - a[1])
+    
+    if (sortedAdmins.length > 0) {
+      const [topPhone, topCount] = sortedAdmins[0]
+      if (topCount >= 3) { // At least creator in 1 group
+        userPhoneNumber = topPhone
+        console.log(`📱 Detected and caching: ${userPhoneNumber} (score: ${topCount})`)
+        
+        // 🆕 CACHE IT IMMEDIATELY
+        await supabase
+          .from('profiles')
+          .update({ 
+            user_phone: userPhoneNumber,
+            phone_detected_at: new Date().toISOString()
+          })
+          .eq('id', userId)
+      }
     }
-
-    console.log(`📱 Using phone: ${userPhoneNumber}`)
+  }
+}
 
     // Get all groups
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups?count=100`, {
