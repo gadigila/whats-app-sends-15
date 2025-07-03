@@ -168,23 +168,30 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // 🔧 FIXED: Updated useEffect to handle manual reconnection
+  // 🔧 FIXED: Updated useEffect to handle new channels vs reconnection
   useEffect(() => {
-    // Don't auto-start QR after hard disconnect, UNLESS user manually started reconnection
-    if (profile?.instance_status === 'unauthorized' && !manualReconnectStarted) {
-      console.log('⚠️ User is unauthorized - waiting for manual reconnection');
+    // Check if this is a new channel (just created)
+    const isNewChannel = profile?.instance_status === 'unauthorized' && 
+      profile?.created_at && 
+      (new Date().getTime() - new Date(profile.created_at).getTime()) < 300000; // 5 minutes old
+    
+    // Don't auto-start QR after hard disconnect, UNLESS:
+    // 1. User manually started reconnection, OR
+    // 2. This is a fresh new channel
+    if (profile?.instance_status === 'unauthorized' && !manualReconnectStarted && !isNewChannel) {
+      console.log('⚠️ User is unauthorized (hard disconnected) - waiting for manual reconnection');
       return;
     }
     
     const shouldPoll = 
       profile?.instance_id && 
       (['qr', 'active', 'ready'].includes(profile?.instance_status || '') || 
-       (profile?.instance_status === 'unauthorized' && manualReconnectStarted)) && // 🆕 Allow manual reconnection
+       (profile?.instance_status === 'unauthorized' && (manualReconnectStarted || isNewChannel))) && // 🆕 Allow new channels and manual reconnection
       !qrCode && 
       !isPollingForQR;
     
     if (shouldPoll) {
-      console.log('🚀 Starting QR polling...');
+      console.log('🚀 Starting QR polling...', { isNewChannel, manualReconnectStarted });
       setIsPollingForQR(true);
       setPollingAttempts(0);
       
@@ -193,7 +200,7 @@ const WhatsAppConnect = () => {
         await pollForQR();
       }, 2000);
     }
-  }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR, manualReconnectStarted]);
+  }, [profile?.instance_status, profile?.instance_id, profile?.created_at, qrCode, isPollingForQR, manualReconnectStarted]);
 
   // Start connection polling when QR is displayed
   useEffect(() => {
@@ -285,8 +292,40 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // 🔧 FIXED: Disconnected/Unauthorized state - now shows QR when manually triggered
+  // 🔧 FIXED: Disconnected/Unauthorized state - handle new vs disconnected users
   if (profile?.instance_status === 'unauthorized') {
+    // 🆕 NEW: Check if this is a fresh channel (just created) vs hard disconnected user
+    const isNewChannel = !manualReconnectStarted && profile?.created_at && 
+      (new Date().getTime() - new Date(profile.created_at).getTime()) < 300000; // 5 minutes old
+    
+    // For fresh channels, auto-start QR (don't show manual reconnection)
+    if (isNewChannel && !qrCode && !isPollingForQR) {
+      console.log('🆕 New channel detected, auto-starting QR...');
+      setIsPollingForQR(true);
+      setPollingAttempts(0);
+      setTimeout(async () => {
+        await pollForQR();
+      }, 1000);
+      
+      return (
+        <Layout>
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">מכין את הוואטסאפ שלך</h1>
+              <p className="text-gray-600">יוצר קוד QR לחיבור</p>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <h3 className="text-lg font-semibold mb-2">מכין קוד QR...</h3>
+              <p className="text-sm mb-2">הערוץ נוצר, מכין קוד לסריקה</p>
+              <p className="text-xs">ניסיון {pollingAttempts + 1} מתוך 30</p>
+            </div>
+          </div>
+        </Layout>
+      );
+    }
+
     // If user started manual reconnection and we have QR, show it
     if (manualReconnectStarted && qrCode) {
       return (
