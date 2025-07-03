@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 AUTO PHONE DETECTION: Starting with multiple methods...')
+    console.log('🚀 REALISTIC AUTO DETECTION: Using proven methods...')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -54,20 +54,23 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🎯 AUTOMATIC PHONE DETECTION with multiple methods
+    // 🎯 SMART AUTO DETECTION using the most reliable method
     let userPhoneNumber = null
 
-    // Method 1: Check if we already have it stored in database
+    // Method 1: Check if we already detected it before
     if (profile.user_phone) {
       userPhoneNumber = profile.user_phone
-      console.log('📱 METHOD 1: Found phone in database:', userPhoneNumber)
+      console.log('📱 Found cached phone number:', userPhoneNumber)
     }
 
-    // Method 2: Try /health endpoint 
+    // Method 2: Admin Pattern Analysis (Most Reliable!)
+    // This analyzes which phone number appears as admin/creator most frequently
     if (!userPhoneNumber) {
-      console.log('📱 METHOD 2: Trying /health endpoint...')
+      console.log('📱 METHOD: Smart admin pattern analysis...')
+      
       try {
-        const healthResponse = await fetch('https://gate.whapi.cloud/health', {
+        // Get groups to analyze admin patterns
+        const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=50', {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${profile.whapi_token}`,
@@ -75,58 +78,81 @@ Deno.serve(async (req) => {
           }
         })
 
-        if (healthResponse.ok) {
-          const healthData = await healthResponse.json()
-          console.log('📱 Health data structure:', Object.keys(healthData))
+        if (groupsResponse.ok) {
+          const groupsData = await groupsResponse.json()
+          const groups = groupsData.groups || []
+          console.log(`📊 Analyzing ${groups.length} groups for admin patterns...`)
           
-          // Check various possible fields
-          userPhoneNumber = healthData.phone || 
-                           healthData.me?.phone || 
-                           healthData.user?.phone ||
-                           healthData.wid ||
-                           healthData.jid
-
-          if (userPhoneNumber) {
-            console.log('📱 Found phone in health endpoint:', userPhoneNumber)
-          } else {
-            console.log('📱 No phone found in health endpoint')
+          // Count admin/creator appearances
+          const adminFrequency = new Map()
+          let totalAdminGroups = 0
+          
+          for (const group of groups) {
+            if (group.participants && Array.isArray(group.participants)) {
+              const adminsInGroup = group.participants.filter(p => 
+                p.rank === 'admin' || p.rank === 'creator'
+              )
+              
+              if (adminsInGroup.length > 0) {
+                totalAdminGroups++
+                
+                for (const admin of adminsInGroup) {
+                  const phone = admin.id
+                  if (phone && phone.match(/^972\d{9}$/)) { // Valid Israeli format
+                    const count = adminFrequency.get(phone) || 0
+                    adminFrequency.set(phone, count + 1)
+                  }
+                }
+              }
+            }
+          }
+          
+          console.log(`📊 Found ${totalAdminGroups} groups with admin data`)
+          console.log(`📊 Admin frequency analysis:`)
+          
+          // Sort by frequency and find the most likely user phone
+          const sortedAdmins = Array.from(adminFrequency.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10) // Top 10
+          
+          for (const [phone, count] of sortedAdmins) {
+            console.log(`   📱 ${phone}: admin in ${count} groups`)
+          }
+          
+          // Auto-select if one phone is clearly dominant
+          if (sortedAdmins.length > 0) {
+            const [topPhone, topCount] = sortedAdmins[0]
+            const [secondPhone, secondCount] = sortedAdmins[1] || [null, 0]
+            
+            // Auto-select if:
+            // 1. Top phone appears in at least 2 groups as admin, AND
+            // 2. It appears significantly more than the second most frequent
+            if (topCount >= 2 && (topCount > secondCount * 1.5 || secondCount === 0)) {
+              userPhoneNumber = topPhone
+              console.log(`🎯 AUTO-DETECTED: ${userPhoneNumber} (admin in ${topCount} groups)`)
+            } else if (sortedAdmins.length === 1 && topCount >= 1) {
+              // If there's only one admin phone and you're admin of at least 1 group
+              userPhoneNumber = topPhone
+              console.log(`🎯 AUTO-DETECTED: ${userPhoneNumber} (only admin candidate)`)
+            } else {
+              console.log(`⚠️ Ambiguous results. Top candidates:`)
+              for (const [phone, count] of sortedAdmins.slice(0, 3)) {
+                console.log(`   📱 ${phone}: ${count} groups`)
+              }
+            }
           }
         }
       } catch (error) {
-        console.log('⚠️ Health endpoint failed:', error.message)
+        console.log('⚠️ Admin pattern analysis failed:', error.message)
       }
     }
 
-    // Method 3: Try /users/profile endpoint
+    // Method 3: Fallback - Extract from sent messages 
     if (!userPhoneNumber) {
-      console.log('📱 METHOD 3: Trying /users/profile endpoint...')
+      console.log('📱 FALLBACK: Trying to extract from sent messages...')
+      
       try {
-        const profileResponse = await fetch('https://gate.whapi.cloud/users/profile', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json()
-          userPhoneNumber = profileData.phone || profileData.id || profileData.wid
-          
-          if (userPhoneNumber) {
-            console.log('📱 Found phone in profile endpoint:', userPhoneNumber)
-          }
-        }
-      } catch (error) {
-        console.log('⚠️ Profile endpoint failed:', error.message)
-      }
-    }
-
-    // Method 4: Extract from individual chat that contains only user (me)
-    if (!userPhoneNumber) {
-      console.log('📱 METHOD 4: Trying to extract from individual chats...')
-      try {
-        const chatsResponse = await fetch('https://gate.whapi.cloud/chats?count=20', {
+        const chatsResponse = await fetch('https://gate.whapi.cloud/chats?count=10', {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${profile.whapi_token}`,
@@ -138,14 +164,12 @@ Deno.serve(async (req) => {
           const chatsData = await chatsResponse.json()
           const chats = chatsData.chats || chatsData.data || []
           
-          // Look for individual chats where we sent messages
-          for (const chat of chats.slice(0, 10)) {
-            // Skip groups
+          for (const chat of chats) {
+            // Skip groups, look for individual chats
             if (chat.type === 'group' || chat.id.includes('@g.us')) continue
             
-            // Try to get messages from this chat to find our number
             try {
-              const messagesResponse = await fetch(`https://gate.whapi.cloud/messages/list?chat_id=${chat.id}&count=5`, {
+              const messagesResponse = await fetch(`https://gate.whapi.cloud/messages/list?chat_id=${chat.id}&count=3`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${profile.whapi_token}`,
@@ -155,11 +179,10 @@ Deno.serve(async (req) => {
               
               if (messagesResponse.ok) {
                 const messagesData = await messagesResponse.json()
-                const messages = messagesData.messages || messagesData.data || []
+                const messages = messagesData.messages || []
                 
-                // Find messages sent by us (from_me: true)
                 for (const message of messages) {
-                  if (message.from_me && message.from) {
+                  if (message.from_me && message.from && message.from.match(/^972\d{9}$/)) {
                     userPhoneNumber = message.from
                     console.log('📱 Found phone from sent message:', userPhoneNumber)
                     break
@@ -169,20 +192,20 @@ Deno.serve(async (req) => {
                 if (userPhoneNumber) break
               }
             } catch (msgError) {
-              console.log('⚠️ Error checking messages:', msgError.message)
+              console.log('⚠️ Error checking messages in chat:', chat.id)
             }
           }
         }
       } catch (error) {
-        console.log('⚠️ Chats method failed:', error.message)
+        console.log('⚠️ Message extraction failed:', error.message)
       }
     }
 
-    // Method 5: Pattern detection from admin groups
+    // If still no phone, provide helpful guidance
     if (!userPhoneNumber) {
-      console.log('📱 METHOD 5: Pattern detection from admin appearances...')
+      console.log('❌ Could not auto-detect phone number')
       
-      // Get a quick sample of groups to analyze admin patterns
+      // Try to get admin patterns anyway for manual selection
       const groupsResponse = await fetch('https://gate.whapi.cloud/groups?count=20', {
         method: 'GET',
         headers: {
@@ -191,71 +214,54 @@ Deno.serve(async (req) => {
         }
       })
 
+      let adminPhones = []
       if (groupsResponse.ok) {
         const groupsData = await groupsResponse.json()
         const groups = groupsData.groups || []
+        const phoneSet = new Set()
         
-        // Count admin appearances to find the most likely user phone
-        const adminCounts = new Map()
-        
-        for (const group of groups.slice(0, 10)) {
-          if (group.participants && Array.isArray(group.participants)) {
+        for (const group of groups) {
+          if (group.participants) {
             for (const participant of group.participants) {
-              if (participant.rank === 'admin' || participant.rank === 'creator') {
-                const phone = participant.id
-                adminCounts.set(phone, (adminCounts.get(phone) || 0) + 1)
+              if ((participant.rank === 'admin' || participant.rank === 'creator') && 
+                  participant.id.match(/^972\d{9}$/)) {
+                phoneSet.add(participant.id)
               }
             }
           }
         }
         
-        // Find the phone that appears as admin most frequently
-        let maxCount = 0
-        let mostFrequentAdmin = null
-        
-        for (const [phone, count] of adminCounts.entries()) {
-          if (count > maxCount && count >= 2) { // Must be admin in at least 2 groups
-            maxCount = count
-            mostFrequentAdmin = phone
-          }
-        }
-        
-        if (mostFrequentAdmin) {
-          userPhoneNumber = mostFrequentAdmin
-          console.log(`📱 Pattern detected: ${userPhoneNumber} appears as admin in ${maxCount} groups`)
-        }
+        adminPhones = Array.from(phoneSet)
       }
-    }
 
-    // If still no phone found, return error with guidance
-    if (!userPhoneNumber) {
-      console.error('❌ Could not automatically detect user phone number')
       return new Response(
         JSON.stringify({ 
           error: 'Could not automatically detect your phone number',
-          suggestion: 'Please contact support to manually configure your phone number',
-          methods_tried: ['database', 'health_endpoint', 'profile_endpoint', 'chat_messages', 'admin_pattern']
+          help: 'Please contact support with one of these phone numbers that appear as admin in your groups:',
+          possible_phones: adminPhones,
+          instructions: 'Tell support which of these numbers is yours, and we will configure it for you.'
         }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    // 🎯 Save the detected phone number for future use
-    try {
-      await supabase
-        .from('profiles')
-        .update({ user_phone: userPhoneNumber })
-        .eq('id', userId)
-      
-      console.log('✅ Saved detected phone to database for future use')
-    } catch (saveError) {
-      console.log('⚠️ Could not save phone to database:', saveError.message)
+    // 🎯 Save detected phone for future use
+    if (userPhoneNumber && !profile.user_phone) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({ user_phone: userPhoneNumber })
+          .eq('id', userId)
+        
+        console.log('✅ Saved detected phone to database')
+      } catch (saveError) {
+        console.log('⚠️ Could not save phone:', saveError.message)
+      }
     }
 
-    // Continue with normal group sync using detected phone
-    console.log('📱 Using detected phone number:', userPhoneNumber)
+    console.log('📱 Using phone number:', userPhoneNumber)
 
-    // Get all groups
+    // Continue with group sync
     const groupsResponse = await fetch(`https://gate.whapi.cloud/groups?count=100`, {
       method: 'GET',
       headers: {
@@ -265,16 +271,14 @@ Deno.serve(async (req) => {
     })
 
     if (!groupsResponse.ok) {
-      const errorText = await groupsResponse.text()
       return new Response(
-        JSON.stringify({ error: 'Failed to fetch WhatsApp groups', details: errorText }),
+        JSON.stringify({ error: 'Failed to fetch groups' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
     const groupsData = await groupsResponse.json()
     const allGroups = groupsData.groups || []
-    console.log(`📊 Found ${allGroups.length} groups total`)
 
     // Enhanced phone matching
     function isPhoneMatch(phone1: string, phone2: string): boolean {
@@ -283,27 +287,9 @@ Deno.serve(async (req) => {
       const clean1 = phone1.replace(/\D/g, '')
       const clean2 = phone2.replace(/\D/g, '')
       
-      // Direct match
       if (clean1 === clean2) return true
       
-      // Israeli variations
-      const variations1 = [clean1]
-      const variations2 = [clean2]
-      
-      if (!clean1.startsWith('972') && clean1.length === 10 && clean1.startsWith('0')) {
-        variations1.push('972' + clean1.substring(1))
-      }
-      if (!clean2.startsWith('972') && clean2.length === 10 && clean2.startsWith('0')) {
-        variations2.push('972' + clean2.substring(1))
-      }
-      
-      for (const v1 of variations1) {
-        for (const v2 of variations2) {
-          if (v1 === v2) return true
-        }
-      }
-      
-      // Last 9 digits
+      // Israeli format handling
       if (clean1.length >= 9 && clean2.length >= 9) {
         return clean1.slice(-9) === clean2.slice(-9)
       }
@@ -311,19 +297,16 @@ Deno.serve(async (req) => {
       return false
     }
 
-    // Process all groups
+    // Process groups
     const groupsToInsert = []
     let adminCount = 0
     let creatorCount = 0
 
-    for (let i = 0; i < allGroups.length; i++) {
-      const group = allGroups[i]
+    for (const group of allGroups) {
       const groupName = group.name || group.subject || `Group ${group.id}`
-      
       let isAdmin = false
       let isCreator = false
-      let participantsCount = group.participants?.length || group.size || 0
-
+      
       if (group.participants && Array.isArray(group.participants)) {
         for (const participant of group.participants) {
           if (isPhoneMatch(userPhoneNumber, participant.id)) {
@@ -347,9 +330,9 @@ Deno.serve(async (req) => {
         group_id: group.id,
         name: groupName,
         description: group.description || null,
-        participants_count: participantsCount,
+        participants_count: group.participants?.length || group.size || 0,
         is_admin: isAdmin,
-        avatar_url: group.chat_pic || group.picture || null,
+        avatar_url: group.chat_pic || null,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -359,21 +342,11 @@ Deno.serve(async (req) => {
     await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
     
     if (groupsToInsert.length > 0) {
-      const { error: insertError } = await supabase
-        .from('whatsapp_groups')
-        .insert(groupsToInsert)
-
-      if (insertError) {
-        console.error('❌ Database error:', insertError)
-        return new Response(
-          JSON.stringify({ error: 'Database error', details: insertError.message }),
-          { status: 500, headers: corsHeaders }
-        )
-      }
+      await supabase.from('whatsapp_groups').insert(groupsToInsert)
     }
 
-    console.log('📊 RESULTS:', {
-      phone_detected: userPhoneNumber,
+    console.log('🎯 SYNC COMPLETE:', {
+      phone: userPhoneNumber,
       total_groups: allGroups.length,
       admin_groups: adminCount,
       creator_groups: creatorCount
@@ -387,13 +360,13 @@ Deno.serve(async (req) => {
         groups_count: allGroups.length,
         admin_groups_count: adminCount,
         creator_groups_count: creatorCount,
-        message: `Successfully auto-detected phone ${userPhoneNumber} and synced ${allGroups.length} groups (${adminCount + creatorCount} admin/creator groups)`
+        message: `Auto-detected ${userPhoneNumber} and found ${adminCount + creatorCount} admin/creator groups out of ${allGroups.length} total groups`
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Sync error:', error)
+    console.error('💥 Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: corsHeaders }
