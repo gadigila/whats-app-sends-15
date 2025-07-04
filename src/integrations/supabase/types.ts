@@ -20,13 +20,10 @@ export type Database = {
           is_onboarded: boolean | null
           name: string | null
           payment_plan: string | null
-          phone_detected_at: string | null
-          phone_number: string | null
           plan: string | null
           role: string | null
           trial_expires_at: string | null
           updated_at: string
-          user_phone: string | null
           whapi_channel_id: string | null
           whapi_token: string | null
         }
@@ -40,13 +37,10 @@ export type Database = {
           is_onboarded?: boolean | null
           name?: string | null
           payment_plan?: string | null
-          phone_detected_at?: string | null
-          phone_number?: string | null
           plan?: string | null
           role?: string | null
           trial_expires_at?: string | null
           updated_at?: string
-          user_phone?: string | null
           whapi_channel_id?: string | null
           whapi_token?: string | null
         }
@@ -60,13 +54,10 @@ export type Database = {
           is_onboarded?: boolean | null
           name?: string | null
           payment_plan?: string | null
-          phone_detected_at?: string | null
-          phone_number?: string | null
           plan?: string | null
           role?: string | null
           trial_expires_at?: string | null
           updated_at?: string
-          user_phone?: string | null
           whapi_channel_id?: string | null
           whapi_token?: string | null
         }
@@ -149,11 +140,9 @@ export type Database = {
       }
       whatsapp_groups: {
         Row: {
-          admin_role: string | null
           avatar_url: string | null
           created_at: string
           description: string | null
-          detection_method: string | null
           group_id: string
           id: string
           is_admin: boolean | null
@@ -162,14 +151,11 @@ export type Database = {
           participants_count: number | null
           updated_at: string
           user_id: string
-          user_role: string | null
         }
         Insert: {
-          admin_role?: string | null
           avatar_url?: string | null
           created_at?: string
           description?: string | null
-          detection_method?: string | null
           group_id: string
           id?: string
           is_admin?: boolean | null
@@ -178,14 +164,11 @@ export type Database = {
           participants_count?: number | null
           updated_at?: string
           user_id: string
-          user_role?: string | null
         }
         Update: {
-          admin_role?: string | null
           avatar_url?: string | null
           created_at?: string
           description?: string | null
-          detection_method?: string | null
           group_id?: string
           id?: string
           is_admin?: boolean | null
@@ -194,7 +177,6 @@ export type Database = {
           participants_count?: number | null
           updated_at?: string
           user_id?: string
-          user_role?: string | null
         }
         Relationships: []
       }
