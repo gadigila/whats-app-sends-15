@@ -14,7 +14,7 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Enhanced phone matching with more logging
+// Enhanced phone matching
 function isPhoneMatch(phone1: string, phone2: string): boolean {
   if (!phone1 || !phone2) return false;
   
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 ENHANCED SYNC: Getting ALL admin groups in one operation...')
+    console.log('🚀 ROBUST MULTI-PASS SYNC: Ensuring ALL admin groups are found...')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('👤 Starting comprehensive sync for user:', userId)
+    console.log('👤 Starting ROBUST sync for user:', userId)
 
     // Get user's WHAPI token AND phone number
     const { data: profile, error: profileError } = await supabase
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🎯 Get phone number with fallback
+    // Get phone number with fallback
     let userPhoneNumber = profile.phone_number
 
     if (!userPhoneNumber) {
@@ -106,7 +106,6 @@ Deno.serve(async (req) => {
           if (healthData?.user?.id) {
             userPhoneNumber = healthData.user.id.replace(/[^\d]/g, '');
             
-            // Save to database
             await supabase
               .from('profiles')
               .update({
@@ -135,219 +134,218 @@ Deno.serve(async (req) => {
 
     console.log(`📱 User phone for matching: ${userPhoneNumber}`)
 
-    // 🚀 ENHANCED: Get ALL groups with pagination and retry logic
-    let allGroups: any[] = []
-    let currentOffset = 0
-    const batchSize = 50 // Smaller batches to avoid timeouts
-    let hasMoreGroups = true
-    let totalApiCalls = 0
-    const maxApiCalls = 10 // Safety limit
+    // 🚀 MULTI-PASS SYNC STRATEGY
+    const maxPasses = 3; // Try up to 3 complete syncs
+    let allFoundGroups = new Map(); // Use Map to avoid duplicates
+    let totalApiCalls = 0;
 
-    console.log('📊 Starting paginated group fetching...')
-
-    while (hasMoreGroups && totalApiCalls < maxApiCalls) {
-      totalApiCalls++
-      console.log(`📊 API call ${totalApiCalls}: Fetching groups ${currentOffset}-${currentOffset + batchSize}`)
+    for (let pass = 1; pass <= maxPasses; pass++) {
+      console.log(`\n🔄 === SYNC PASS ${pass}/${maxPasses} ===`)
       
-      try {
-        // Add delay between requests to respect rate limits
-        if (totalApiCalls > 1) {
-          console.log('⏳ Adding 3-second delay for rate limiting...')
-          await delay(3000)
-        }
+      // 🎯 INCREASED DELAYS for better reliability
+      const baseDelay = pass === 1 ? 3000 : (pass * 2000); // 3s, 4s, 6s
+      const batchSize = pass === 1 ? 50 : 30; // Smaller batches on retry
+      
+      console.log(`⚙️ Pass ${pass} settings: ${baseDelay}ms delay, ${batchSize} batch size`)
 
-        const groupsResponse = await fetch(
-          `https://gate.whapi.cloud/groups?count=${batchSize}&offset=${currentOffset}`,
-          {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${profile.whapi_token}`,
-              'Content-Type': 'application/json'
+      // Get all groups with pagination
+      let allGroups: any[] = []
+      let currentOffset = 0
+      let hasMoreGroups = true
+      let passApiCalls = 0
+      const maxPassApiCalls = 15 // Limit per pass
+
+      while (hasMoreGroups && passApiCalls < maxPassApiCalls) {
+        passApiCalls++
+        totalApiCalls++
+        
+        console.log(`📊 Pass ${pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + batchSize}`)
+        
+        try {
+          // Enhanced delay between requests
+          if (passApiCalls > 1) {
+            console.log(`⏳ Adding ${baseDelay}ms delay for rate limiting...`)
+            await delay(baseDelay)
+          }
+
+          const groupsResponse = await fetch(
+            `https://gate.whapi.cloud/groups?count=${batchSize}&offset=${currentOffset}`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${profile.whapi_token}`,
+                'Content-Type': 'application/json'
+              }
             }
-          }
-        )
+          )
 
-        if (!groupsResponse.ok) {
-          console.error(`❌ Groups API failed (attempt ${totalApiCalls}):`, groupsResponse.status)
-          
-          // Retry logic for failed requests
-          if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
-            console.log('🔄 Rate limited or server error, waiting 5 seconds and retrying...')
-            await delay(5000)
-            continue // Retry same offset
-          } else {
-            throw new Error(`Groups API failed: ${groupsResponse.status}`)
-          }
-        }
-
-        const groupsData = await groupsResponse.json()
-        const batchGroups = groupsData.groups || []
-        
-        console.log(`📊 Batch ${totalApiCalls}: Received ${batchGroups.length} groups`)
-        
-        if (batchGroups.length === 0) {
-          hasMoreGroups = false
-          console.log('📊 No more groups to fetch')
-        } else {
-          allGroups = allGroups.concat(batchGroups)
-          currentOffset += batchSize
-          
-          // Check if we got fewer than requested (indicates last page)
-          if (batchGroups.length < batchSize) {
-            hasMoreGroups = false
-            console.log('📊 Last batch detected (fewer groups than requested)')
-          }
-        }
-
-      } catch (batchError) {
-        console.error(`❌ Error in batch ${totalApiCalls}:`, batchError)
-        
-        // If it's a rate limit or timeout, wait and retry
-        if (batchError.message.includes('timeout') || batchError.message.includes('429')) {
-          console.log('🔄 Retrying after error...')
-          await delay(5000)
-          continue
-        } else {
-          // For other errors, stop the loop
-          console.error('💥 Fatal error, stopping group fetch')
-          break
-        }
-      }
-    }
-
-    console.log(`📊 TOTAL GROUPS COLLECTED: ${allGroups.length} from ${totalApiCalls} API calls`)
-
-    // 🎯 Process ALL groups to find admin/creator roles
-    const managedGroups = []
-    let adminCount = 0
-    let creatorCount = 0
-    let totalMemberCount = 0
-    let processedCount = 0
-    let skippedLargeGroups = 0
-
-    console.log('🔍 Starting admin role detection across all groups...')
-
-    for (const group of allGroups) {
-      processedCount++
-      const groupName = group.name || group.subject || `Group ${group.id}`
-      const participantsCount = group.participants?.length || group.size || 0
-      
-      // Progress logging
-      if (processedCount % 10 === 0) {
-        console.log(`🔄 Progress: ${processedCount}/${allGroups.length} groups processed`)
-      }
-      
-      console.log(`\n👥 [${processedCount}/${allGroups.length}] ${groupName} (${participantsCount} members)`)
-      
-      let isAdmin = false
-      let isCreator = false
-      let userRole = 'member'
-      let foundUser = false
-      
-      // 🚀 ENHANCED: Handle large groups differently
-      if (participantsCount > 500) {
-        console.log('⚠️ Large group detected, using optimized processing...')
-        
-        // For very large groups, we might need to handle differently
-        // Some groups might not load all participants due to WHAPI limitations
-        if (!group.participants || group.participants.length === 0) {
-          console.log('⚠️ Large group has no participant data, skipping...')
-          skippedLargeGroups++
-          continue
-        }
-      }
-      
-      // Check if user is admin/creator in this group
-      if (group.participants && Array.isArray(group.participants)) {
-        for (const participant of group.participants) {
-          const participantId = participant.id || participant.phone || participant.number;
-          const participantRank = participant.rank || participant.role || participant.admin || 'member';
-          
-          // 🎯 ENHANCED: More admin role variations
-          const normalizedRank = participantRank.toLowerCase();
-          const isAdminRole = normalizedRank === 'admin' || 
-                            normalizedRank === 'administrator' || 
-                            normalizedRank === 'creator' ||
-                            normalizedRank === 'owner' ||
-                            participant.admin === true;
-          
-          const isCreatorRole = normalizedRank === 'creator' || 
-                               normalizedRank === 'owner';
-          
-          if (isPhoneMatch(userPhoneNumber, participantId)) {
-            foundUser = true;
-            userRole = participantRank;
+          if (!groupsResponse.ok) {
+            console.error(`❌ Groups API failed (pass ${pass}, call ${passApiCalls}):`, groupsResponse.status)
             
-            if (isCreatorRole) {
-              isCreator = true;
-              isAdmin = true;
-              creatorCount++;
-              console.log(`👑 CREATOR: ${groupName}`);
-            } else if (isAdminRole) {
-              isAdmin = true;
-              adminCount++;
-              console.log(`⭐ ADMIN: ${groupName}`);
+            if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
+              const retryDelay = baseDelay * 2;
+              console.log(`🔄 Rate limited, waiting ${retryDelay}ms and retrying...`)
+              await delay(retryDelay)
+              continue // Retry same offset
             } else {
-              console.log(`👤 MEMBER: ${groupName} (role: ${participantRank})`);
+              console.log(`💥 Non-retryable error, stopping pass ${pass}`)
+              break
             }
-            break;
+          }
+
+          const groupsData = await groupsResponse.json()
+          const batchGroups = groupsData.groups || []
+          
+          console.log(`📊 Pass ${pass}, batch ${passApiCalls}: Received ${batchGroups.length} groups`)
+          
+          if (batchGroups.length === 0) {
+            hasMoreGroups = false
+            console.log(`📊 No more groups in pass ${pass}`)
+          } else {
+            allGroups = allGroups.concat(batchGroups)
+            currentOffset += batchSize
+            
+            if (batchGroups.length < batchSize) {
+              hasMoreGroups = false
+              console.log(`📊 Last batch in pass ${pass} (fewer groups than requested)`)
+            }
+          }
+
+        } catch (batchError) {
+          console.error(`❌ Error in pass ${pass}, batch ${passApiCalls}:`, batchError)
+          
+          if (batchError.message.includes('timeout') || batchError.message.includes('429')) {
+            console.log(`🔄 Retrying after error in pass ${pass}...`)
+            await delay(baseDelay * 2)
+            continue
+          } else {
+            console.error(`💥 Fatal error in pass ${pass}, stopping`)
+            break
           }
         }
-      } else {
-        console.log('⚠️ No participants data for group:', groupName)
-        continue;
       }
 
-      // Add to managed groups if user is admin/creator
-      if (isAdmin) {
-        totalMemberCount += participantsCount
+      console.log(`📊 Pass ${pass} collected: ${allGroups.length} groups from ${passApiCalls} API calls`)
 
-        managedGroups.push({
-          user_id: userId,
-          group_id: group.id,
-          name: groupName,
-          description: group.description || null,
-          participants_count: participantsCount,
-          is_admin: true,
-          avatar_url: group.chat_pic || null,
-          last_synced_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+      // Process groups from this pass
+      let passFoundGroups = 0;
+      
+      for (const group of allGroups) {
+        const groupName = group.name || group.subject || `Group ${group.id}`
+        const participantsCount = group.participants?.length || group.size || 0
+        
+        // Skip if already found in previous pass
+        if (allFoundGroups.has(group.id)) {
+          continue;
+        }
+        
+        let isAdmin = false
+        let isCreator = false
+        let userRole = 'member'
+        let foundUser = false
+        
+        // 🎯 ENHANCED group processing with better error handling
+        if (group.participants && Array.isArray(group.participants)) {
+          for (const participant of group.participants) {
+            const participantId = participant.id || participant.phone || participant.number;
+            const participantRank = participant.rank || participant.role || participant.admin || 'member';
+            
+            const normalizedRank = participantRank.toLowerCase();
+            const isAdminRole = normalizedRank === 'admin' || 
+                              normalizedRank === 'administrator' || 
+                              normalizedRank === 'creator' ||
+                              normalizedRank === 'owner' ||
+                              participant.admin === true;
+            
+            const isCreatorRole = normalizedRank === 'creator' || 
+                                 normalizedRank === 'owner';
+            
+            if (isPhoneMatch(userPhoneNumber, participantId)) {
+              foundUser = true;
+              userRole = participantRank;
+              
+              if (isCreatorRole) {
+                isCreator = true;
+                isAdmin = true;
+                console.log(`👑 Pass ${pass}: Found CREATOR role in ${groupName}`);
+              } else if (isAdminRole) {
+                isAdmin = true;
+                console.log(`⭐ Pass ${pass}: Found ADMIN role in ${groupName}`);
+              } else {
+                console.log(`👤 Pass ${pass}: Found MEMBER role in ${groupName}`);
+              }
+              break;
+            }
+          }
+        }
 
-        console.log(`✅ ADDED: ${groupName} (${participantsCount} members)`)
-      } else if (foundUser) {
-        console.log(`⏭️ SKIPPED: ${groupName} (member only)`)
-      } else {
-        console.log(`❌ SKIPPED: ${groupName} (user not found)`)
+        // Add to found groups if admin/creator
+        if (isAdmin) {
+          allFoundGroups.set(group.id, {
+            user_id: userId,
+            group_id: group.id,
+            name: groupName,
+            description: group.description || null,
+            participants_count: participantsCount,
+            is_admin: true,
+            avatar_url: group.chat_pic || null,
+            last_synced_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+          
+          passFoundGroups++;
+          console.log(`✅ Pass ${pass}: ADDED ${groupName} (${participantsCount} members)`)
+        }
+
+        // Add delay for large groups
+        if (participantsCount > 500) {
+          await delay(1000) // 1 second for large groups
+        }
       }
 
-      // Add small delay for very large groups to prevent timeouts
-      if (participantsCount > 800) {
-        await delay(500) // 0.5 second delay for huge groups
+      console.log(`🎯 Pass ${pass} results: Found ${passFoundGroups} new admin groups`)
+      console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups`)
+
+      // If we found groups in this pass, continue to next pass
+      // If no new groups found, we can stop
+      if (passFoundGroups === 0 && pass > 1) {
+        console.log(`🏁 No new groups found in pass ${pass}, stopping`)
+        break;
+      }
+
+      // Add delay between passes
+      if (pass < maxPasses) {
+        const betweenPassDelay = 5000; // 5 seconds between passes
+        console.log(`⏳ Waiting ${betweenPassDelay}ms before pass ${pass + 1}...`)
+        await delay(betweenPassDelay);
       }
     }
 
-    console.log(`\n🎯 COMPREHENSIVE SYNC COMPLETE!`)
-    console.log(`📱 User phone: ${userPhoneNumber}`)
-    console.log(`📊 Total groups scanned: ${allGroups.length}`)
-    console.log(`👑 Creator groups found: ${creatorCount}`)
-    console.log(`⭐ Admin groups found: ${adminCount}`)
-    console.log(`✅ Total managed groups: ${managedGroups.length}`)
-    console.log(`👥 Total members across managed groups: ${totalMemberCount}`)
-    console.log(`⚠️ Large groups skipped (no data): ${skippedLargeGroups}`)
-    console.log(`🔄 API calls made: ${totalApiCalls}`)
+    const managedGroups = Array.from(allFoundGroups.values());
+    const adminCount = managedGroups.filter(g => !g.is_creator).length;
+    const creatorCount = managedGroups.filter(g => g.is_creator).length;
+    const totalMemberCount = managedGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
 
-    // Save ALL managed groups to database
-    console.log('💾 Clearing old groups and saving new ones...')
+    console.log(`\n🎯 MULTI-PASS SYNC COMPLETE!`)
+    console.log(`📱 User phone: ${userPhoneNumber}`)
+    console.log(`🔄 Total passes: ${maxPasses}`)
+    console.log(`📊 Total API calls: ${totalApiCalls}`)
+    console.log(`✅ Final admin groups found: ${managedGroups.length}`)
+    console.log(`👑 Creator groups: ${creatorCount}`)
+    console.log(`⭐ Admin groups: ${adminCount}`)
+    console.log(`👥 Total members: ${totalMemberCount}`)
+
+    // Save ALL found groups to database
+    console.log('💾 Saving all found groups...')
     
     await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
     
     if (managedGroups.length > 0) {
-      // Insert in batches to avoid database limits
+      // Insert in batches
       const dbBatchSize = 100
       for (let i = 0; i < managedGroups.length; i += dbBatchSize) {
         const batch = managedGroups.slice(i, i + dbBatchSize)
-        console.log(`💾 Saving batch ${Math.floor(i/dbBatchSize) + 1}: ${batch.length} groups`)
+        console.log(`💾 Saving batch: ${batch.length} groups`)
         
         const { error: insertError } = await supabase
           .from('whatsapp_groups')
@@ -361,52 +359,44 @@ Deno.serve(async (req) => {
           )
         }
         
-        // Small delay between database batches
         if (i + dbBatchSize < managedGroups.length) {
           await delay(100)
         }
       }
     }
 
-    const totalManagedGroups = adminCount + creatorCount
     const message = managedGroups.length > 0
-      ? `נמצאו ${totalManagedGroups} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
+      ? `נמצאו ${managedGroups.length} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
       : 'לא נמצאו קבוצות בניהולך'
 
-    const summary = {
-      success: true,
-      user_phone: userPhoneNumber,
-      groups_count: managedGroups.length,
-      total_groups_scanned: allGroups.length,
-      admin_groups_count: adminCount,
-      creator_groups_count: creatorCount,
-      total_members_in_managed_groups: totalMemberCount,
-      large_groups_skipped: skippedLargeGroups,
-      api_calls_made: totalApiCalls,
-      processing_time: 'Complete',
-      message: message,
-      managed_groups: managedGroups.map(g => ({
-        name: g.name,
-        members: g.participants_count,
-        id: g.group_id
-      })).slice(0, 20) // Show first 20 groups
-    }
-
-    console.log('🎉 Sync completed successfully!')
-    console.log('📊 Final summary:', JSON.stringify(summary, null, 2))
-
     return new Response(
-      JSON.stringify(summary),
+      JSON.stringify({
+        success: true,
+        user_phone: userPhoneNumber,
+        groups_count: managedGroups.length,
+        total_groups_scanned: `Multi-pass scan completed`,
+        admin_groups_count: adminCount,
+        creator_groups_count: creatorCount,
+        total_members_in_managed_groups: totalMemberCount,
+        sync_passes: maxPasses,
+        total_api_calls: totalApiCalls,
+        message: message,
+        managed_groups: managedGroups.map(g => ({
+          name: g.name,
+          members: g.participants_count,
+          id: g.group_id
+        })).slice(0, 20)
+      }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Comprehensive Sync Error:', error)
+    console.error('💥 Robust Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        suggestion: 'Try again in a few minutes - WHAPI might be experiencing high load'
+        suggestion: 'Multi-pass sync failed - try again in a few minutes'
       }),
       { status: 500, headers: corsHeaders }
     )
