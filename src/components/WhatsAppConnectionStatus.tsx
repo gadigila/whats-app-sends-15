@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Loader2, WifiOff, RefreshCw, Crown } from 'lucide-react';
+import { CheckCircle, Loader2, WifiOff, Crown } from 'lucide-react';
+import { SyncLoadingModal } from '@/components/SyncLoadingModal';
 
 interface WhatsAppConnectionStatusProps {
   onNavigateToCompose: () => void;
@@ -8,7 +10,7 @@ interface WhatsAppConnectionStatusProps {
   onDisconnect: () => void;
   isSyncingGroups: boolean;
   isDisconnecting: boolean;
-  // NEW: Add props for hard disconnect dialog
+  // Hard disconnect dialog props
   showDisconnectDialog?: boolean;
   onOpenDisconnectDialog?: () => void;
   onCloseDisconnectDialog?: () => void;
@@ -22,13 +24,37 @@ const WhatsAppConnectionStatus = ({
   onDisconnect,
   isSyncingGroups,
   isDisconnecting,
-  // NEW: Dialog props
   showDisconnectDialog = false,
   onOpenDisconnectDialog,
   onCloseDisconnectDialog,
   onConfirmHardDisconnect,
   isHardDisconnecting = false
 }: WhatsAppConnectionStatusProps) => {
+  
+  // 🚀 Enhanced sync with loading modal
+  const [showSyncModal, setShowSyncModal] = useState(false);
+
+  const handleEnhancedSyncGroups = async () => {
+    setShowSyncModal(true);
+    
+    try {
+      await onSyncGroups(); // Call the original sync function
+    } catch (error) {
+      console.error('Sync failed:', error);
+    } finally {
+      // Keep modal open a bit longer to show success
+      setTimeout(() => {
+        setShowSyncModal(false);
+      }, 1000);
+    }
+  };
+
+  const handleCloseSyncModal = () => {
+    // Don't allow closing while syncing
+    if (!isSyncingGroups) {
+      setShowSyncModal(false);
+    }
+  };
   
   // Use hard disconnect if available, fallback to old disconnect
   const handleDisconnectClick = () => {
@@ -59,15 +85,27 @@ const WhatsAppConnectionStatus = ({
             >
               התחל לשלוח הודעות
             </Button>
-           <Button
-  onClick={onSyncGroups}
-  variant="outline"
-  disabled={isSyncingGroups}
-  className="border-green-600 text-green-600 hover:bg-green-50"
->
-  {isSyncingGroups ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Crown className="h-4 w-4 mr-2" />}
-  סנכרן קבוצות בניהולי
-</Button>
+            
+            {/* 🚀 ENHANCED: Better sync button with modal */}
+            <Button
+              onClick={handleEnhancedSyncGroups}
+              variant="outline"
+              disabled={isSyncingGroups}
+              className="border-green-600 text-green-600 hover:bg-green-50"
+            >
+              {isSyncingGroups ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  מסנכרן...
+                </>
+              ) : (
+                <>
+                  <Crown className="h-4 w-4 mr-2" />
+                  סנכרן את כל הקבוצות בניהולי
+                </>
+              )}
+            </Button>
+            
             <Button
               onClick={handleDisconnectClick}
               variant="outline"
@@ -85,7 +123,19 @@ const WhatsAppConnectionStatus = ({
         </CardContent>
       </Card>
 
-      {/* NEW: Hard Disconnect Confirmation Dialog */}
+      {/* 🚀 Enhanced Sync Loading Modal */}
+      <SyncLoadingModal
+        isOpen={showSyncModal}
+        onClose={handleCloseSyncModal}
+        // You can add progress tracking later if needed
+        // progress={{
+        //   current: 45,
+        //   total: 100,
+        //   stage: 'בודק קבוצות גדולות...'
+        // }}
+      />
+
+      {/* Existing Hard Disconnect Confirmation Dialog */}
       {showDisconnectDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md mx-4 text-center">
