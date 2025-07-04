@@ -134,19 +134,20 @@ Deno.serve(async (req) => {
 
     console.log(`📱 User phone for matching: ${userPhoneNumber}`)
 
-    // 🚀 ENHANCED 5-PASS TIME-BASED SYNC STRATEGY
-    // Based on WHAPI's 15-second group processing rate
+    // 🚀 OPTIMIZED DYNAMIC SYNC STRATEGY
+    // Faster delays + smart stopping for efficiency
     const passConfig = [
       { pass: 1, delay: 0,     batchSize: 30,  description: "Immediate scan" },
-      { pass: 2, delay: 30000, batchSize: 50,  description: "30s - WHAPI processed ~2 groups" },
-      { pass: 3, delay: 30000, batchSize: 70,  description: "60s - WHAPI processed ~4 groups" },
-      { pass: 4, delay: 60000, batchSize: 90,  description: "120s - WHAPI processed ~8 groups" },
-      { pass: 5, delay: 60000, batchSize: 100, description: "180s - WHAPI processed ~12 groups" }
+      { pass: 2, delay: 20000, batchSize: 50,  description: "20s - Quick discovery" },
+      { pass: 3, delay: 20000, batchSize: 70,  description: "40s - Standard scan" },
+      { pass: 4, delay: 25000, batchSize: 90,  description: "65s - Deep scan" },
+      { pass: 5, delay: 25000, batchSize: 100, description: "90s - Final sweep" }
     ];
 
     let allFoundGroups = new Map(); // Use Map to avoid duplicates
     let totalApiCalls = 0;
     let consecutiveEmptyPasses = 0;
+    const syncStartTime = Date.now();
 
     for (const config of passConfig) {
       // Add delay before pass (except first pass)
@@ -309,21 +310,47 @@ Deno.serve(async (req) => {
       }
 
       const passTime = Math.round((Date.now() - passStartTime) / 1000);
+      const totalElapsedTime = Math.round((Date.now() - syncStartTime) / 1000);
       console.log(`🎯 Pass ${config.pass} completed in ${passTime}s: Found ${passFoundGroups} new admin groups`)
-      console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups`)
+      console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups (${totalElapsedTime}s elapsed)`)
 
-      // Smart stopping logic
+      // 🚀 ENHANCED SMART STOPPING LOGIC
       if (passFoundGroups === 0) {
         consecutiveEmptyPasses++;
         console.log(`📊 No new groups in pass ${config.pass} (${consecutiveEmptyPasses} consecutive empty passes)`);
-        
-        // Stop if 2 consecutive passes found nothing and we're past pass 2
-        if (consecutiveEmptyPasses >= 2 && config.pass >= 3) {
-          console.log(`🏁 Stopping early - no new groups found in 2 consecutive passes`);
-          break;
-        }
       } else {
         consecutiveEmptyPasses = 0; // Reset counter when we find groups
+      }
+
+      // Multiple stopping conditions for efficiency
+      const shouldStopEarly = (
+        // Stop if 2 consecutive empty passes AND we have good results AND past pass 2
+        (consecutiveEmptyPasses >= 2 && allFoundGroups.size >= 6 && config.pass >= 3) ||
+        
+        // Stop if 2 consecutive empty passes and we're past pass 3 (regardless of count)
+        (consecutiveEmptyPasses >= 2 && config.pass >= 4) ||
+        
+        // Stop if approaching timeout (80 seconds)
+        (totalElapsedTime >= 80) ||
+        
+        // Stop if we have many groups and recent passes found little
+        (allFoundGroups.size >= 10 && consecutiveEmptyPasses >= 1 && config.pass >= 4)
+      );
+
+      if (shouldStopEarly) {
+        let stopReason = '';
+        if (consecutiveEmptyPasses >= 2 && allFoundGroups.size >= 6 && config.pass >= 3) {
+          stopReason = `good results (${allFoundGroups.size} groups) with 2 empty passes`;
+        } else if (consecutiveEmptyPasses >= 2 && config.pass >= 4) {
+          stopReason = `2 consecutive empty passes after pass 3`;
+        } else if (totalElapsedTime >= 80) {
+          stopReason = `approaching timeout limit (${totalElapsedTime}s)`;
+        } else {
+          stopReason = `efficient completion (${allFoundGroups.size} groups found)`;
+        }
+        
+        console.log(`🏁 Smart stopping after pass ${config.pass}: ${stopReason}`);
+        break;
       }
 
       // Don't add delay after last pass
@@ -336,9 +363,11 @@ Deno.serve(async (req) => {
     const adminCount = managedGroups.filter(g => !g.is_creator).length;
     const creatorCount = managedGroups.filter(g => g.is_creator).length;
     const totalMemberCount = managedGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
+    const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000);
 
-    console.log(`\n🎯 5-PASS TIME-BASED SYNC COMPLETE!`)
+    console.log(`\n🎯 OPTIMIZED DYNAMIC SYNC COMPLETE!`)
     console.log(`📱 User phone: ${userPhoneNumber}`)
+    console.log(`⏱️ Total sync time: ${totalSyncTime} seconds`)
     console.log(`🔄 Passes completed: ${passConfig.findIndex(p => consecutiveEmptyPasses >= 2 && p.pass >= 3) + 1 || passConfig.length}`)
     console.log(`📊 Total API calls: ${totalApiCalls}`)
     console.log(`✅ Final admin groups found: ${managedGroups.length}`)
@@ -385,7 +414,7 @@ Deno.serve(async (req) => {
         success: true,
         user_phone: userPhoneNumber,
         groups_count: managedGroups.length,
-        total_groups_scanned: `5-pass time-based scan completed`,
+        total_groups_scanned: `Optimized dynamic scan completed in ${totalSyncTime}s`,
         admin_groups_count: adminCount,
         creator_groups_count: creatorCount,
         total_members_in_managed_groups: totalMemberCount,
@@ -408,7 +437,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        suggestion: '5-pass time-based sync failed - WHAPI may be experiencing issues'
+        suggestion: 'Optimized dynamic sync failed - check network connectivity'
       }),
       { status: 500, headers: corsHeaders }
     )
