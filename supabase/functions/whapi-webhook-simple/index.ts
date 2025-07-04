@@ -63,69 +63,111 @@ Deno.serve(async (req) => {
 
     // Handle different event types
     switch (eventType) {
-  case 'ready':
-    console.log('🎉 WhatsApp connected successfully!');
-    console.log('📊 Device info:', eventData.device);
+      case 'ready':
+        console.log('🎉 WhatsApp connected successfully!');
+        console.log('📊 Device info:', eventData.device);
 
-    if (userId) {
-      // Get whapi_token for this user
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('whapi_token')
-        .eq('id', userId)
-        .single();
+        if (userId) {
+          // 🔧 FIXED: Get phone number from /health endpoint immediately
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('whapi_token')
+            .eq('id', userId)
+            .single();
 
-      if (!profileError && profile?.whapi_token) {
-        // Call /health for accurate phone number
-        const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+          if (!profileError && profile?.whapi_token) {
+            console.log('📱 Fetching phone number from /health...');
+            
+            try {
+              const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${profile.whapi_token}`,
+                  'Content-Type': 'application/json'
+                }
+              });
 
-        let phoneNumber;
-        if (healthResponse.ok) {
-          const healthData = await healthResponse.json();
-          phoneNumber = healthData?.user?.id;
-          if (phoneNumber) {
-            await supabase.from('profiles')
-              .update({
-                instance_status: 'connected',
-                phone_number: phoneNumber,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', userId);
-            console.log('✅ Saved phone number from /health:', phoneNumber);
-          } else {
-            // fallback, no phone in /health (very rare)
-            await supabase.from('profiles')
-              .update({
-                instance_status: 'connected',
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', userId);
-            console.log('⚠️ /health call succeeded but no phone number found.');
+              if (healthResponse.ok) {
+                const healthData = await healthResponse.json();
+                console.log('📊 Health data received:', JSON.stringify(healthData, null, 2));
+                
+                // 🎯 FIXED: Extract phone from correct location (user.id)
+                let phoneNumber = null;
+                
+                if (healthData?.user?.id) {
+                  phoneNumber = healthData.user.id;
+                  console.log('📱 Found phone in user.id:', phoneNumber);
+                } else if (healthData?.me?.phone) {
+                  phoneNumber = healthData.me.phone;
+                  console.log('📱 Found phone in me.phone:', phoneNumber);
+                } else if (healthData?.phone) {
+                  phoneNumber = healthData.phone;
+                  console.log('📱 Found phone in phone field:', phoneNumber);
+                }
+
+                // Clean phone number (remove + and ensure 972 format)
+                if (phoneNumber) {
+                  const cleanPhone = phoneNumber.replace(/[^\d]/g, '');
+                  console.log('📱 Cleaned phone number:', cleanPhone);
+                  
+                  // Update profile with connected status AND phone number
+                  const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({
+                      instance_status: 'connected',
+                      phone_number: cleanPhone, // 🎯 STORE PHONE NUMBER
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', userId);
+
+                  if (updateError) {
+                    console.error('❌ Error updating profile:', updateError);
+                  } else {
+                    console.log('✅ Profile updated with connected status and phone:', cleanPhone);
+                  }
+                } else {
+                  console.log('⚠️ No phone number found in health response');
+                  
+                  // Still update to connected, but without phone
+                  await supabase
+                    .from('profiles')
+                    .update({
+                      instance_status: 'connected',
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', userId);
+                }
+              } else {
+                console.log('⚠️ Health endpoint failed:', healthResponse.status);
+                
+                // Still update to connected
+                await supabase
+                  .from('profiles')
+                  .update({
+                    instance_status: 'connected',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', userId);
+              }
+            } catch (healthError) {
+              console.error('❌ Error calling health endpoint:', healthError);
+              
+              // Still update to connected
+              await supabase
+                .from('profiles')
+                .update({
+                  instance_status: 'connected',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', userId);
+            }
           }
         } else {
-          // fallback, /health failed (should be rare)
-          await supabase.from('profiles')
-            .update({
-              instance_status: 'connected',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId);
-          console.log('⚠️ /health call failed.');
-        }
-      }
-    } else {
-          // FALLBACK: Try to find user by phone number
+          // FALLBACK: Try to find user by checking all waiting profiles
           console.log('⚠️ No userId in webhook URL, trying fallback method')
           
           const phoneNumber = eventData.phone
           if (phoneNumber) {
-            // Find users with matching tokens and update to connected
             const { data: waitingProfiles, error: findError } = await supabase
               .from('profiles')
               .select('id, instance_id, whapi_token')
@@ -136,7 +178,6 @@ Deno.serve(async (req) => {
             } else if (waitingProfiles && waitingProfiles.length > 0) {
               console.log(`📊 Found ${waitingProfiles.length} profiles waiting for connection`)
               
-              // Check which token this event belongs to
               for (const profile of waitingProfiles) {
                 try {
                   const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
@@ -149,14 +190,18 @@ Deno.serve(async (req) => {
                   
                   if (healthResponse.ok) {
                     const healthData = await healthResponse.json()
-                    if (healthData.status === 'connected' && healthData.me?.phone === phoneNumber) {
+                    const healthPhone = healthData?.user?.id || healthData?.me?.phone || healthData?.phone;
+                    
+                    if (healthPhone && isPhoneMatch(healthPhone, phoneNumber)) {
                       console.log(`✅ Updating profile ${profile.id} to connected`)
+                      
+                      const cleanPhone = healthPhone.replace(/[^\d]/g, '');
                       
                       const { error: updateError } = await supabase
                         .from('profiles')
                         .update({
                           instance_status: 'connected',
-                          phone_number: phoneNumber, // 🎯 Save phone number
+                          phone_number: cleanPhone, // 🎯 STORE PHONE NUMBER
                           updated_at: new Date().toISOString()
                         })
                         .eq('id', profile.id)
@@ -164,8 +209,8 @@ Deno.serve(async (req) => {
                       if (updateError) {
                         console.error('❌ Error updating profile:', updateError)
                       } else {
-                        console.log('✅ Profile updated to connected status')
-                        break // Found the right profile, stop checking others
+                        console.log('✅ Profile updated to connected status with phone:', cleanPhone)
+                        break
                       }
                     }
                   }
@@ -173,7 +218,6 @@ Deno.serve(async (req) => {
                   console.log(`⚠️ Error checking profile ${profile.id}:`, error.message)
                 }
                 
-                // Small delay to avoid rate limiting
                 await new Promise(resolve => setTimeout(resolve, 50))
               }
             }
@@ -219,7 +263,6 @@ Deno.serve(async (req) => {
           action: eventData.action
         })
         
-        // Handle group creation (when user is added to new groups)
         if (eventData.action === 'add' && userId) {
           console.log('🆕 User added to new group, triggering sync...')
           
@@ -250,11 +293,9 @@ Deno.serve(async (req) => {
         const action = eventData.action
         const participants = eventData.participants || []
         
-        // Handle admin promotions/demotions
         if ((action === 'promote' || action === 'demote') && userId) {
           console.log(`🔄 Processing ${action} for ${participants.length} participants`)
           
-          // Get user's phone number from profile
           const { data: profile } = await supabase
             .from('profiles')
             .select('phone_number')
@@ -262,18 +303,15 @@ Deno.serve(async (req) => {
             .single()
             
           if (profile?.phone_number) {
-            // 🎯 NEW: Use stored phone number instead of fetching from WHAPI
             const userPhone = profile.phone_number
             console.log('📞 User phone for comparison:', userPhone)
             
-            // Check if the promoted/demoted user is the current user
             for (const participantPhone of participants) {
               console.log(`🔍 Checking participant: ${participantPhone}`)
               
               if (isPhoneMatch(userPhone, participantPhone)) {
                 console.log(`🎯 User's own admin status changed: ${action}`)
                 
-                // Update the group's admin status in database
                 const isAdmin = action === 'promote'
                 
                 const { error: updateError } = await supabase
@@ -291,7 +329,7 @@ Deno.serve(async (req) => {
                   console.log(`✅ Updated admin status: ${isAdmin} for group ${groupId}`)
                 }
                 
-                break // Found the user, stop checking other participants
+                break
               }
             }
           } else {
@@ -320,7 +358,6 @@ Deno.serve(async (req) => {
         break
     }
 
-    // Always return 200 OK to WHAPI within 30 seconds
     return new Response(
       JSON.stringify({ 
         received: true, 
@@ -337,7 +374,6 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('💥 Webhook Error:', error)
     
-    // Still return 200 to avoid WHAPI retries for malformed data
     return new Response(
       JSON.stringify({ 
         received: true, 

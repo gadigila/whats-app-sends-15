@@ -51,10 +51,11 @@ Deno.serve(async (req) => {
     }
 
     console.log('📊 Current DB status:', profile.instance_status)
+    console.log('📱 Current stored phone:', profile.phone_number || 'none')
 
-    // 🔧 FIXED: Use /users/profile endpoint to detect connection
-    console.log('📊 Checking users/profile endpoint...')
-    const profileResponse = await fetch(`https://gate.whapi.cloud/users/profile`, {
+    // 🔧 FIXED: Always check /health endpoint and ensure phone is stored
+    console.log('📊 Checking /health endpoint...')
+    const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${profile.whapi_token}`,
@@ -62,13 +63,12 @@ Deno.serve(async (req) => {
       }
     })
 
-    console.log('📊 Profile response status:', profileResponse.status)
+    console.log('📊 Health response status:', healthResponse.status)
 
-    if (!profileResponse.ok) {
-      console.log('❌ Profile endpoint failed:', profileResponse.status)
+    if (!healthResponse.ok) {
+      console.log('❌ Health endpoint failed:', healthResponse.status)
       
-      // If unauthorized, update DB status
-      if (profileResponse.status === 401 || profileResponse.status === 403) {
+      if (healthResponse.status === 401 || healthResponse.status === 403) {
         await supabase
           .from('profiles')
           .update({
@@ -83,29 +83,49 @@ Deno.serve(async (req) => {
           connected: false,
           status: 'unauthorized',
           message: 'WhatsApp not connected',
-          http_status: profileResponse.status
+          http_status: healthResponse.status
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    const profileData = await profileResponse.json()
-    console.log('📊 Profile response data:', JSON.stringify(profileData, null, 2))
+    const healthData = await healthResponse.json()
+    console.log('📊 Health response data:', JSON.stringify(healthData, null, 2))
+
+    // 🎯 FIXED: Extract phone number from correct location
+    let phoneNumber = null;
+    
+    if (healthData?.user?.id) {
+      phoneNumber = healthData.user.id;
+      console.log('📱 Found phone in user.id:', phoneNumber);
+    } else if (healthData?.me?.phone) {
+      phoneNumber = healthData.me.phone;
+      console.log('📱 Found phone in me.phone:', phoneNumber);
+    } else if (healthData?.phone) {
+      phoneNumber = healthData.phone;
+      console.log('📱 Found phone in phone field:', phoneNumber);
+    }
+
+    // Clean phone number if found
+    let cleanPhone = null;
+    if (phoneNumber) {
+      cleanPhone = phoneNumber.replace(/[^\d]/g, '');
+      console.log('📱 Cleaned phone number:', cleanPhone);
+    }
 
     // 🔧 ENHANCED: Better connection detection
     const isConnected = !!(
-      profileData.phone ||                     // Phone number is the strongest indicator
-      profileData.name ||                      // Profile name indicates connection
-      profileData.id ||                        // WhatsApp ID indicates connection
-      (profileData.about !== undefined &&     // Profile data exists
-       profileData.status !== 'unauthorized') // And not unauthorized
+      phoneNumber ||                        // Phone number is the strongest indicator
+      healthData?.user?.name ||             // User name indicates connection
+      healthData?.me?.name ||               // Alternative user name field
+      (healthData?.status === 'connected') || // Explicit connected status
+      (healthData?.user && Object.keys(healthData.user).length > 0) // User object exists with data
     )
 
     if (isConnected) {
-      const phoneNumber = profileData.phone || profileData.id || 'Connected'
-      const userName = profileData.name || 'User'
+      const userName = healthData?.user?.name || healthData?.me?.name || 'User'
       
-      console.log('✅ User is connected:', { phone: phoneNumber, name: userName })
+      console.log('✅ User is connected:', { phone: cleanPhone, name: userName })
       
       // 🚀 CRUCIAL: Update database status AND phone number
       const updateData: any = {
@@ -113,10 +133,13 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString()
       }
       
-      // 🎯 NEW: Save phone number if we have it
-      if (phoneNumber && phoneNumber !== 'Connected') {
-        updateData.phone_number = phoneNumber
-        console.log('📱 Saving phone number to database:', phoneNumber)
+      // 🎯 ALWAYS STORE PHONE NUMBER if we have it
+      if (cleanPhone) {
+        updateData.phone_number = cleanPhone
+        console.log('📱 Storing phone number in database:', cleanPhone)
+      } else if (!profile.phone_number) {
+        // If no phone found and none stored, log warning
+        console.log('⚠️ No phone number found in health response and none stored in DB')
       }
       
       const { error: updateError } = await supabase
@@ -134,17 +157,18 @@ Deno.serve(async (req) => {
         JSON.stringify({
           connected: true,
           status: 'connected',
-          phone: phoneNumber,
+          phone: cleanPhone || profile.phone_number, // Return stored phone if current call didn't find one
           name: userName,
           message: 'WhatsApp is connected',
-          profile_data: profileData // Include for debugging
+          phone_stored: !!cleanPhone, // Indicate if phone was captured this time
+          profile_data: healthData // Include for debugging
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
     // Not connected - profile exists but no user data
-    console.log('📊 Profile endpoint succeeded but no user data found - likely not connected')
+    console.log('📊 Health endpoint succeeded but no user data found - likely not connected')
 
     await supabase
       .from('profiles')
@@ -159,7 +183,7 @@ Deno.serve(async (req) => {
         connected: false,
         status: 'unauthorized',
         message: 'WhatsApp not connected - no profile data',
-        profile_data: profileData // Include for debugging
+        profile_data: healthData // Include for debugging
       }),
       { status: 200, headers: corsHeaders }
     )
