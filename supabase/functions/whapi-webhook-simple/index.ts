@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
         console.log('📊 Device info:', eventData.device);
 
         if (userId) {
-          // 🔧 FIXED: Get phone number from /health endpoint immediately
+          // Get phone number from /health endpoint immediately
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('whapi_token')
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
                 const healthData = await healthResponse.json();
                 console.log('📊 Health data received:', JSON.stringify(healthData, null, 2));
                 
-                // 🎯 FIXED: Extract phone from correct location (user.id)
+                // Extract phone from correct location (user.id)
                 let phoneNumber = null;
                 
                 if (healthData?.user?.id) {
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
                     .from('profiles')
                     .update({
                       instance_status: 'connected',
-                      phone_number: cleanPhone, // 🎯 STORE PHONE NUMBER
+                      phone_number: cleanPhone,
                       updated_at: new Date().toISOString()
                     })
                     .eq('id', userId);
@@ -125,40 +125,38 @@ Deno.serve(async (req) => {
                   } else {
                     console.log('✅ Profile updated with connected status and phone:', cleanPhone);
                     
-                    // 🚀 NEW: TRIGGER BACKGROUND GROUP SYNC IMMEDIATELY
+                    // 🚀 IMPROVED: TRIGGER BACKGROUND GROUP SYNC IMMEDIATELY
                     console.log('🔄 Triggering background group sync...');
                     
-                    try {
-                      // Use setTimeout to make it truly background (non-blocking)
-                      setTimeout(async () => {
-                        try {
-                          console.log('📂 Starting background group sync for user:', userId);
-                          
-                          const { data: syncResult, error: syncError } = await supabase.functions.invoke('sync-whatsapp-groups', {
-                            body: { 
-                              userId: userId,
-                              background: true // Flag to indicate this is background sync
-                            }
-                          });
+                    // 🔧 FIXED: Use direct fetch instead of supabase.functions.invoke for better reliability
+                    const backgroundSyncUrl = `${supabaseUrl}/functions/v1/sync-whatsapp-groups`;
+                    
+                    // Don't await this - truly fire and forget
+                    fetch(backgroundSyncUrl, {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${supabaseServiceKey}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({ 
+                        userId: userId,
+                        background: true
+                      })
+                    }).then(async (response) => {
+                      if (response.ok) {
+                        const result = await response.json();
+                        console.log('✅ Background sync completed successfully:', {
+                          groupsFound: result?.groups_count || 0,
+                          syncTime: result?.sync_time_seconds || 0
+                        });
+                      } else {
+                        console.error('❌ Background sync failed:', response.status, await response.text());
+                      }
+                    }).catch((error) => {
+                      console.error('❌ Background sync error:', error);
+                    });
 
-                          if (syncError) {
-                            console.error('❌ Background sync failed:', syncError);
-                          } else {
-                            console.log('✅ Background sync completed successfully:', {
-                              groupsFound: syncResult?.groups_count || 0,
-                              syncTime: syncResult?.sync_time_seconds || 0
-                            });
-                          }
-                        } catch (backgroundError) {
-                          console.error('❌ Background sync error:', backgroundError);
-                        }
-                      }, 2000); // Wait 2 seconds to let connection fully stabilize
-
-                      console.log('🚀 Background sync triggered (running in background)');
-                      
-                    } catch (triggerError) {
-                      console.error('❌ Failed to trigger background sync:', triggerError);
-                    }
+                    console.log('🚀 Background sync triggered (running in background)');
                   }
                 } else {
                   console.log('⚠️ No phone number found in health response');
@@ -236,7 +234,7 @@ Deno.serve(async (req) => {
                         .from('profiles')
                         .update({
                           instance_status: 'connected',
-                          phone_number: cleanPhone, // 🎯 STORE PHONE NUMBER
+                          phone_number: cleanPhone,
                           updated_at: new Date().toISOString()
                         })
                         .eq('id', profile.id)
@@ -247,22 +245,23 @@ Deno.serve(async (req) => {
                         console.log('✅ Profile updated to connected status with phone:', cleanPhone)
                         
                         // 🚀 TRIGGER BACKGROUND SYNC FOR FALLBACK USER TOO
-                        setTimeout(async () => {
-                          try {
-                            console.log('📂 Starting background sync for fallback user:', profile.id);
-                            
-                            await supabase.functions.invoke('sync-whatsapp-groups', {
-                              body: { 
-                                userId: profile.id,
-                                background: true
-                              }
-                            });
-                            
-                            console.log('✅ Fallback background sync triggered');
-                          } catch (error) {
-                            console.error('❌ Fallback background sync failed:', error);
-                          }
-                        }, 2000);
+                        const backgroundSyncUrl = `${supabaseUrl}/functions/v1/sync-whatsapp-groups`;
+                        
+                        fetch(backgroundSyncUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${supabaseServiceKey}`,
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify({ 
+                            userId: profile.id,
+                            background: true
+                          })
+                        }).then(() => {
+                          console.log('✅ Fallback background sync triggered');
+                        }).catch((error) => {
+                          console.error('❌ Fallback background sync failed:', error);
+                        });
                         
                         break
                       }
@@ -318,17 +317,25 @@ Deno.serve(async (req) => {
         })
         
         if (eventData.action === 'add' && userId) {
-          console.log('🆕 User added to new group, triggering sync...')
+          console.log('🆕 User added to new group, triggering refresh sync...')
           
           try {
-            const { data, error } = await supabase.functions.invoke('sync-whatsapp-groups', {
-              body: { userId }
-            })
+            // 🔧 IMPROVED: Use direct fetch for group sync too
+            const syncUrl = `${supabaseUrl}/functions/v1/sync-whatsapp-groups`;
             
-            if (error) {
-              console.error('❌ Failed to trigger group sync:', error)
+            const response = await fetch(syncUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ userId })
+            });
+            
+            if (response.ok) {
+              console.log('✅ Group refresh sync triggered successfully')
             } else {
-              console.log('✅ Group sync triggered successfully')
+              console.error('❌ Failed to trigger group refresh sync:', response.status)
             }
           } catch (syncError) {
             console.error('❌ Failed to sync new group:', syncError)
