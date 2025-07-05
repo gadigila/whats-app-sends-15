@@ -157,7 +157,6 @@ export type Database = {
           group_id: string
           id: string
           is_admin: boolean | null
-          is_creator: boolean | null
           last_synced_at: string | null
           name: string
           participants_count: number | null
@@ -174,7 +173,6 @@ export type Database = {
           group_id: string
           id?: string
           is_admin?: boolean | null
-          is_creator?: boolean | null
           last_synced_at?: string | null
           name: string
           participants_count?: number | null
@@ -191,7 +189,6 @@ export type Database = {
           group_id?: string
           id?: string
           is_admin?: boolean | null
-          is_creator?: boolean | null
           last_synced_at?: string | null
           name?: string
           participants_count?: number | null

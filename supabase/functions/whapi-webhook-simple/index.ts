@@ -125,36 +125,38 @@ Deno.serve(async (req) => {
                   } else {
                     console.log('✅ Profile updated with connected status and phone:', cleanPhone);
                     
-                    // 🚀 NEW: TRIGGER BACKGROUND GROUP COLLECTION (Phase 1)
-                    console.log('🔄 Triggering background group collection...');
+                    // 🚀 IMPROVED: TRIGGER BACKGROUND GROUP SYNC IMMEDIATELY
+                    console.log('🔄 Triggering background group sync...');
                     
-                    const backgroundCollectionUrl = `${supabaseUrl}/functions/v1/background-group-collection`;
+                    // 🔧 FIXED: Use direct fetch instead of supabase.functions.invoke for better reliability
+                    const backgroundSyncUrl = `${supabaseUrl}/functions/v1/sync-whatsapp-groups`;
                     
                     // Don't await this - truly fire and forget
-                    fetch(backgroundCollectionUrl, {
+                    fetch(backgroundSyncUrl, {
                       method: 'POST',
                       headers: {
                         'Authorization': `Bearer ${supabaseServiceKey}`,
                         'Content-Type': 'application/json'
                       },
                       body: JSON.stringify({ 
-                        userId: userId
+                        userId: userId,
+                        background: true
                       })
                     }).then(async (response) => {
                       if (response.ok) {
                         const result = await response.json();
-                        console.log('✅ Background collection completed successfully:', {
-                          groupsCollected: result?.groups_collected || 0,
-                          collectionTime: result?.collection_time_seconds || 0
+                        console.log('✅ Background sync completed successfully:', {
+                          groupsFound: result?.groups_count || 0,
+                          syncTime: result?.sync_time_seconds || 0
                         });
                       } else {
-                        console.error('❌ Background collection failed:', response.status, await response.text());
+                        console.error('❌ Background sync failed:', response.status, await response.text());
                       }
                     }).catch((error) => {
-                      console.error('❌ Background collection error:', error);
+                      console.error('❌ Background sync error:', error);
                     });
 
-                    console.log('🚀 Background collection triggered (running in background)');
+                    console.log('🚀 Background sync triggered (running in background)');
                   }
                 } else {
                   console.log('⚠️ No phone number found in health response');
@@ -242,22 +244,23 @@ Deno.serve(async (req) => {
                       } else {
                         console.log('✅ Profile updated to connected status with phone:', cleanPhone)
                         
-                        // 🚀 TRIGGER BACKGROUND COLLECTION FOR FALLBACK USER TOO
-                        const backgroundCollectionUrl = `${supabaseUrl}/functions/v1/background-group-collection`;
+                        // 🚀 TRIGGER BACKGROUND SYNC FOR FALLBACK USER TOO
+                        const backgroundSyncUrl = `${supabaseUrl}/functions/v1/sync-whatsapp-groups`;
                         
-                        fetch(backgroundCollectionUrl, {
+                        fetch(backgroundSyncUrl, {
                           method: 'POST',
                           headers: {
                             'Authorization': `Bearer ${supabaseServiceKey}`,
                             'Content-Type': 'application/json'
                           },
                           body: JSON.stringify({ 
-                            userId: profile.id
+                            userId: profile.id,
+                            background: true
                           })
                         }).then(() => {
-                          console.log('✅ Fallback background collection triggered');
+                          console.log('✅ Fallback background sync triggered');
                         }).catch((error) => {
-                          console.error('❌ Fallback background collection failed:', error);
+                          console.error('❌ Fallback background sync failed:', error);
                         });
                         
                         break
@@ -310,80 +313,49 @@ Deno.serve(async (req) => {
       case 'groups':
         console.log('👥 Group event:', {
           groupId: eventData.id,
-          action: eventData.action,
-          groupName: eventData.name || 'Unknown'
+          action: eventData.action
         })
         
-        if (userId && eventData.id) {
-          const groupId = eventData.id
-          const action = eventData.action
+        if (eventData.action === 'add' && userId) {
+          console.log('🆕 User added to new group, triggering refresh sync...')
           
-          if (action === 'add' || action === 'create') {
-            console.log('🆕 User added to new group or group created:', groupId)
+          try {
+            // 🔧 IMPROVED: Use direct fetch for group sync too
+            const syncUrl = `${supabaseUrl}/functions/v1/sync-whatsapp-groups`;
             
-            // Add new group to database immediately
-            try {
-              const { error: insertError } = await supabase
-                .from('whatsapp_groups')
-                .upsert({
-                  user_id: userId,
-                  group_id: groupId,
-                  name: eventData.name || eventData.subject || `Group ${groupId}`,
-                  description: eventData.description || null,
-                  participants_count: eventData.participants?.length || 0,
-                  is_admin: false, // Will be determined later
-                  is_creator: false, // Will be determined later  
-                  admin_status: 'unknown', // Needs admin check
-                  avatar_url: eventData.chat_pic || null,
-                  last_synced_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                }, {
-                  onConflict: 'user_id,group_id',
-                  ignoreDuplicates: false
-                })
-
-              if (insertError) {
-                console.error('❌ Failed to add new group:', insertError)
-              } else {
-                console.log('✅ New group added to database:', groupId)
-              }
-            } catch (error) {
-              console.error('❌ Error processing new group:', error)
-            }
-          }
-          
-          if (action === 'remove' || action === 'delete') {
-            console.log('🗑️ User removed from group or group deleted:', groupId)
+            const response = await fetch(syncUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ userId })
+            });
             
-            // Remove group from database
-            try {
-              await supabase
-                .from('whatsapp_groups')
-                .delete()
-                .eq('user_id', userId)
-                .eq('group_id', groupId)
-                
-              console.log('✅ Removed group from database:', groupId)
-            } catch (error) {
-              console.error('❌ Error removing group:', error)
+            if (response.ok) {
+              console.log('✅ Group refresh sync triggered successfully')
+            } else {
+              console.error('❌ Failed to trigger group refresh sync:', response.status)
             }
+          } catch (syncError) {
+            console.error('❌ Failed to sync new group:', syncError)
           }
         }
         break
 
       case 'groups_participants':
-        console.log('👥 Group participant change:', {
+        console.log('👥 Group participant change detected:', {
           groupId: eventData.id,
           action: eventData.action,
-          participants: eventData.participants?.length || 0
+          participants: eventData.participants
         })
         
         const groupId = eventData.id || eventData.group_id
         const action = eventData.action
         const participants = eventData.participants || []
         
-        if ((action === 'promote' || action === 'demote') && userId && groupId) {
-          console.log(`🔄 Processing ${action} for ${participants.length} participants in group ${groupId}`)
+        if ((action === 'promote' || action === 'demote') && userId) {
+          console.log(`🔄 Processing ${action} for ${participants.length} participants`)
           
           const { data: profile } = await supabase
             .from('profiles')
@@ -393,26 +365,36 @@ Deno.serve(async (req) => {
             
           if (profile?.phone_number) {
             const userPhone = profile.phone_number
+            console.log('📞 User phone for comparison:', userPhone)
             
-            // Check if the user's admin status changed
             for (const participantPhone of participants) {
+              console.log(`🔍 Checking participant: ${participantPhone}`)
+              
               if (isPhoneMatch(userPhone, participantPhone)) {
-                console.log(`🎯 User's admin status changed: ${action} in group ${groupId}`)
+                console.log(`🎯 User's own admin status changed: ${action}`)
                 
-                // Mark group for admin status recheck
-                await supabase
+                const isAdmin = action === 'promote'
+                
+                const { error: updateError } = await supabase
                   .from('whatsapp_groups')
                   .update({
-                    admin_status: 'unknown', // Force recheck
+                    is_admin: isAdmin,
                     updated_at: new Date().toISOString()
                   })
                   .eq('user_id', userId)
                   .eq('group_id', groupId)
                 
-                console.log(`✅ Marked group ${groupId} for admin status recheck`)
+                if (updateError) {
+                  console.error('❌ Failed to update admin status:', updateError)
+                } else {
+                  console.log(`✅ Updated admin status: ${isAdmin} for group ${groupId}`)
+                }
+                
                 break
               }
             }
+          } else {
+            console.log('⚠️ No phone number stored for user, cannot check admin status')
           }
         }
         break
