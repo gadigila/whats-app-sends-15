@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 ENHANCED 5-PASS TIME-BASED SYNC: Respecting WHAPI processing timing...')
+    console.log('🚀 FAST 3-PASS SYNC: Maximum speed optimization...')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('👤 Starting enhanced 5-pass sync for user:', userId)
+    console.log('👤 Starting fast 3-pass sync for user:', userId)
 
     // Get user's WHAPI token AND phone number
     const { data: profile, error: profileError } = await supabase
@@ -134,14 +134,11 @@ Deno.serve(async (req) => {
 
     console.log(`📱 User phone for matching: ${userPhoneNumber}`)
 
-    // 🚀 OPTIMIZED DYNAMIC SYNC STRATEGY
-    // Faster delays + smart stopping for efficiency
+    // 🚀 FAST 3-PASS STRATEGY - Maximum speed optimization
     const passConfig = [
-      { pass: 1, delay: 0,     batchSize: 30,  description: "Immediate scan" },
-      { pass: 2, delay: 20000, batchSize: 50,  description: "20s - Quick discovery" },
-      { pass: 3, delay: 20000, batchSize: 70,  description: "40s - Standard scan" },
-      { pass: 4, delay: 25000, batchSize: 90,  description: "65s - Deep scan" },
-      { pass: 5, delay: 25000, batchSize: 100, description: "90s - Final sweep" }
+      { pass: 1, delay: 0,     batchSize: 50,  description: "Immediate fast scan" },
+      { pass: 2, delay: 15000, batchSize: 100, description: "15s - Quick discovery" },
+      { pass: 3, delay: 15000, batchSize: 150, description: "30s - Final sweep" }
     ];
 
     let allFoundGroups = new Map(); // Use Map to avoid duplicates
@@ -156,7 +153,7 @@ Deno.serve(async (req) => {
         await delay(config.delay);
       }
 
-      console.log(`\n🔄 === PASS ${config.pass}/5 === (${config.description})`)
+      console.log(`\n🔄 === PASS ${config.pass}/3 === (${config.description})`)
       
       const passStartTime = Date.now();
       let passFoundGroups = 0;
@@ -166,7 +163,7 @@ Deno.serve(async (req) => {
       let currentOffset = 0
       let hasMoreGroups = true
       let passApiCalls = 0
-      const maxPassApiCalls = 10 // Limit per pass
+      const maxPassApiCalls = 8 // Reduced limit for speed
 
       while (hasMoreGroups && passApiCalls < maxPassApiCalls) {
         passApiCalls++
@@ -175,8 +172,8 @@ Deno.serve(async (req) => {
         console.log(`📊 Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          // Progressive delay between API calls within pass
-          const apiDelay = Math.min(2000 + (config.pass * 500), 5000); // 2s to 4.5s
+          // Reduced API delays for speed
+          const apiDelay = Math.min(1500 + (config.pass * 300), 3000); // 1.5s to 2.4s max
           if (passApiCalls > 1) {
             console.log(`⏳ API delay: ${apiDelay}ms...`)
             await delay(apiDelay)
@@ -197,7 +194,7 @@ Deno.serve(async (req) => {
             console.error(`❌ Groups API failed (pass ${config.pass}, call ${passApiCalls}):`, groupsResponse.status)
             
             if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
-              const retryDelay = apiDelay * 2;
+              const retryDelay = apiDelay * 1.5; // Reduced retry delay
               console.log(`🔄 Rate limited, waiting ${retryDelay}ms and retrying...`)
               await delay(retryDelay)
               continue // Retry same offset
@@ -230,7 +227,7 @@ Deno.serve(async (req) => {
           
           if (batchError.message.includes('timeout') || batchError.message.includes('429')) {
             console.log(`🔄 Retrying after error in pass ${config.pass}...`)
-            await delay(apiDelay * 2)
+            await delay(apiDelay * 1.5)
             continue
           } else {
             console.error(`💥 Fatal error in pass ${config.pass}, stopping`)
@@ -314,7 +311,7 @@ Deno.serve(async (req) => {
       console.log(`🎯 Pass ${config.pass} completed in ${passTime}s: Found ${passFoundGroups} new admin groups`)
       console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups (${totalElapsedTime}s elapsed)`)
 
-      // 🚀 ENHANCED SMART STOPPING LOGIC
+      // 🚀 AGGRESSIVE FAST STOPPING LOGIC
       if (passFoundGroups === 0) {
         consecutiveEmptyPasses++;
         console.log(`📊 No new groups in pass ${config.pass} (${consecutiveEmptyPasses} consecutive empty passes)`);
@@ -322,34 +319,29 @@ Deno.serve(async (req) => {
         consecutiveEmptyPasses = 0; // Reset counter when we find groups
       }
 
-      // Multiple stopping conditions for efficiency
+      // Fast stopping conditions - more aggressive for speed
       const shouldStopEarly = (
-        // Stop if 2 consecutive empty passes AND we have good results AND past pass 2
-        (consecutiveEmptyPasses >= 2 && allFoundGroups.size >= 6 && config.pass >= 3) ||
+        // Stop after 2 empty passes (always)
+        (consecutiveEmptyPasses >= 2) ||
         
-        // Stop if 2 consecutive empty passes and we're past pass 3 (regardless of count)
-        (consecutiveEmptyPasses >= 2 && config.pass >= 4) ||
+        // Stop if we have good results and 1 empty pass after pass 2
+        (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1 && config.pass >= 2) ||
         
-        // Stop if approaching timeout (80 seconds)
-        (totalElapsedTime >= 80) ||
-        
-        // Stop if we have many groups and recent passes found little
-        (allFoundGroups.size >= 10 && consecutiveEmptyPasses >= 1 && config.pass >= 4)
+        // Stop if approaching 40 seconds (safety)
+        (totalElapsedTime >= 40)
       );
 
       if (shouldStopEarly) {
         let stopReason = '';
-        if (consecutiveEmptyPasses >= 2 && allFoundGroups.size >= 6 && config.pass >= 3) {
-          stopReason = `good results (${allFoundGroups.size} groups) with 2 empty passes`;
-        } else if (consecutiveEmptyPasses >= 2 && config.pass >= 4) {
-          stopReason = `2 consecutive empty passes after pass 3`;
-        } else if (totalElapsedTime >= 80) {
-          stopReason = `approaching timeout limit (${totalElapsedTime}s)`;
-        } else {
-          stopReason = `efficient completion (${allFoundGroups.size} groups found)`;
+        if (consecutiveEmptyPasses >= 2) {
+          stopReason = `2 consecutive empty passes`;
+        } else if (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1) {
+          stopReason = `good results (${allFoundGroups.size} groups) with 1 empty pass`;
+        } else if (totalElapsedTime >= 40) {
+          stopReason = `40 second safety limit`;
         }
         
-        console.log(`🏁 Smart stopping after pass ${config.pass}: ${stopReason}`);
+        console.log(`🏁 Fast stopping after pass ${config.pass}: ${stopReason}`);
         break;
       }
 
@@ -365,10 +357,10 @@ Deno.serve(async (req) => {
     const totalMemberCount = managedGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
     const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000);
 
-    console.log(`\n🎯 OPTIMIZED DYNAMIC SYNC COMPLETE!`)
+    console.log(`\n🎯 FAST 3-PASS SYNC COMPLETE!`)
     console.log(`📱 User phone: ${userPhoneNumber}`)
-    console.log(`⏱️ Total sync time: ${totalSyncTime} seconds`)
-    console.log(`🔄 Passes completed: ${passConfig.findIndex(p => consecutiveEmptyPasses >= 2 && p.pass >= 3) + 1 || passConfig.length}`)
+    console.log(`⚡ Total sync time: ${totalSyncTime} seconds`)
+    console.log(`🔄 Passes completed: ${passConfig.length}`)
     console.log(`📊 Total API calls: ${totalApiCalls}`)
     console.log(`✅ Final admin groups found: ${managedGroups.length}`)
     console.log(`👑 Creator groups: ${creatorCount}`)
@@ -400,7 +392,7 @@ Deno.serve(async (req) => {
         }
         
         if (i + dbBatchSize < managedGroups.length) {
-          await delay(100)
+          await delay(50) // Reduced delay for speed
         }
       }
     }
@@ -414,12 +406,13 @@ Deno.serve(async (req) => {
         success: true,
         user_phone: userPhoneNumber,
         groups_count: managedGroups.length,
-        total_groups_scanned: `Optimized dynamic scan completed in ${totalSyncTime}s`,
+        total_groups_scanned: `Fast 3-pass scan completed in ${totalSyncTime}s`,
         admin_groups_count: adminCount,
         creator_groups_count: creatorCount,
         total_members_in_managed_groups: totalMemberCount,
-        sync_passes: passConfig.length,
+        sync_passes: 3,
         total_api_calls: totalApiCalls,
+        sync_time_seconds: totalSyncTime,
         message: message,
         managed_groups: managedGroups.map(g => ({
           name: g.name,
@@ -432,12 +425,12 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 Enhanced 5-Pass Sync Error:', error)
+    console.error('💥 Fast 3-Pass Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        suggestion: 'Optimized dynamic sync failed - check network connectivity'
+        suggestion: 'Fast 3-pass sync failed - check network connectivity'
       }),
       { status: 500, headers: corsHeaders }
     )
