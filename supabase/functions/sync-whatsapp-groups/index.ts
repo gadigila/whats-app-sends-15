@@ -7,7 +7,6 @@ const corsHeaders = {
 
 interface SyncGroupsRequest {
   userId: string
-  background?: boolean // NEW: Flag for background sync
 }
 
 // Helper function to add delays between requests
@@ -48,7 +47,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { userId, background }: SyncGroupsRequest = await req.json()
+    console.log('🚀 FAST 3-PASS SYNC: Maximum speed optimization...')
+    
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    const { userId }: SyncGroupsRequest = await req.json()
 
     if (!userId) {
       return new Response(
@@ -57,18 +62,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🚀 DIFFERENT STRATEGIES FOR BACKGROUND VS MANUAL SYNC
-    if (background) {
-      console.log('🔄 BACKGROUND SYNC: Comprehensive 4-pass strategy for completeness...')
-    } else {
-      console.log('⚡ MANUAL SYNC: Checking if background sync already completed...')
-    }
-    
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    console.log('👤 Starting sync for user:', userId, background ? '(background)' : '(manual)')
+    console.log('👤 Starting fast 3-pass sync for user:', userId)
 
     // Get user's WHAPI token AND phone number
     const { data: profile, error: profileError } = await supabase
@@ -89,60 +83,6 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'WhatsApp instance is not connected' }),
         { status: 400, headers: corsHeaders }
       )
-    }
-
-    // 🎯 MANUAL SYNC: Check if we already have recent data
-    if (!background) {
-      const { data: existingGroups, error: groupsError } = await supabase
-        .from('whatsapp_groups')
-        .select('*')
-        .eq('user_id', userId)
-        .order('last_synced_at', { ascending: false })
-        .limit(1)
-
-      if (!groupsError && existingGroups && existingGroups.length > 0) {
-        const lastSync = new Date(existingGroups[0].last_synced_at)
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
-        
-        if (lastSync > fiveMinutesAgo) {
-          console.log('⚡ Recent sync data found, returning cached results...')
-          
-          const { data: allGroups } = await supabase
-            .from('whatsapp_groups')
-            .select('*')
-            .eq('user_id', userId)
-
-          const adminCount = allGroups?.filter(g => !g.is_creator).length || 0
-          const creatorCount = allGroups?.filter(g => g.is_creator).length || 0
-          const totalMemberCount = allGroups?.reduce((sum, g) => sum + (g.participants_count || 0), 0) || 0
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              cached: true,
-              user_phone: profile.phone_number,
-              groups_count: allGroups?.length || 0,
-              total_groups_scanned: 'Cached results from recent background sync',
-              admin_groups_count: adminCount,
-              creator_groups_count: creatorCount,
-              total_members_in_managed_groups: totalMemberCount,
-              sync_passes: 0,
-              total_api_calls: 0,
-              sync_time_seconds: 0,
-              message: allGroups?.length ? `נמצאו ${allGroups.length} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)` : 'לא נמצאו קבוצות בניהולך',
-              managed_groups: allGroups?.map(g => ({
-                name: g.name,
-                members: g.participants_count,
-                id: g.group_id,
-                role: g.is_creator ? 'creator' : 'admin'
-              })).slice(0, 20) || []
-            }),
-            { status: 200, headers: corsHeaders }
-          )
-        }
-      }
-      
-      console.log('📊 No recent sync data found, performing fresh sync...')
     }
 
     // Get phone number with fallback
@@ -194,27 +134,14 @@ Deno.serve(async (req) => {
 
     console.log(`📱 User phone for matching: ${userPhoneNumber}`)
 
-    // 🚀 ADAPTIVE SYNC STRATEGY BASED ON CONTEXT
-    let passConfig;
-    
-    if (background) {
-      // BACKGROUND: Comprehensive 4-pass strategy for maximum completeness
-      passConfig = [
-        { pass: 1, delay: 0,     batchSize: 50,  description: "Background immediate scan" },
-        { pass: 2, delay: 25000, batchSize: 80,  description: "Background 25s scan" },
-        { pass: 3, delay: 30000, batchSize: 120, description: "Background 55s comprehensive" },
-        { pass: 4, delay: 35000, batchSize: 150, description: "Background 90s final sweep" }
-      ];
-    } else {
-      // MANUAL: Fast 3-pass strategy for speed
-      passConfig = [
-        { pass: 1, delay: 0,     batchSize: 60,  description: "Manual immediate scan" },
-        { pass: 2, delay: 15000, batchSize: 100, description: "Manual 15s quick scan" },
-        { pass: 3, delay: 20000, batchSize: 150, description: "Manual 35s final scan" }
-      ];
-    }
+    // 🚀 FAST 3-PASS STRATEGY - Maximum speed optimization
+    const passConfig = [
+      { pass: 1, delay: 0,     batchSize: 50,  description: "Immediate fast scan" },
+      { pass: 2, delay: 15000, batchSize: 100, description: "15s - Quick discovery" },
+      { pass: 3, delay: 15000, batchSize: 150, description: "30s - Final sweep" }
+    ];
 
-    let allFoundGroups = new Map();
+    let allFoundGroups = new Map(); // Use Map to avoid duplicates
     let totalApiCalls = 0;
     let consecutiveEmptyPasses = 0;
     const syncStartTime = Date.now();
@@ -226,7 +153,7 @@ Deno.serve(async (req) => {
         await delay(config.delay);
       }
 
-      console.log(`\n🔄 === PASS ${config.pass}/${passConfig.length} === (${config.description})`)
+      console.log(`\n🔄 === PASS ${config.pass}/3 === (${config.description})`)
       
       const passStartTime = Date.now();
       let passFoundGroups = 0;
@@ -236,7 +163,7 @@ Deno.serve(async (req) => {
       let currentOffset = 0
       let hasMoreGroups = true
       let passApiCalls = 0
-      const maxPassApiCalls = background ? 10 : 8 // More calls for background
+      const maxPassApiCalls = 8 // Reduced limit for speed
 
       while (hasMoreGroups && passApiCalls < maxPassApiCalls) {
         passApiCalls++
@@ -245,11 +172,8 @@ Deno.serve(async (req) => {
         console.log(`📊 Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          // API delays - more patient for background sync
-          const apiDelay = background ? 
-            Math.min(2000 + (config.pass * 400), 4000) : // Background: 2s-3.6s
-            Math.min(1500 + (config.pass * 300), 3000);  // Manual: 1.5s-2.4s
-            
+          // Reduced API delays for speed
+          const apiDelay = Math.min(1500 + (config.pass * 300), 3000); // 1.5s to 2.4s max
           if (passApiCalls > 1) {
             console.log(`⏳ API delay: ${apiDelay}ms...`)
             await delay(apiDelay)
@@ -270,10 +194,10 @@ Deno.serve(async (req) => {
             console.error(`❌ Groups API failed (pass ${config.pass}, call ${passApiCalls}):`, groupsResponse.status)
             
             if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
-              const retryDelay = apiDelay * 1.5;
+              const retryDelay = apiDelay * 1.5; // Reduced retry delay
               console.log(`🔄 Rate limited, waiting ${retryDelay}ms and retrying...`)
               await delay(retryDelay)
-              continue
+              continue // Retry same offset
             } else {
               console.log(`💥 Non-retryable error, stopping pass ${config.pass}`)
               break
@@ -326,8 +250,9 @@ Deno.serve(async (req) => {
         
         let isAdmin = false
         let isCreator = false
+        let userRole = 'member'
         
-        // Enhanced group processing
+        // 🎯 ENHANCED group processing with better error handling
         if (group.participants && Array.isArray(group.participants)) {
           for (const participant of group.participants) {
             const participantId = participant.id || participant.phone || participant.number;
@@ -344,6 +269,8 @@ Deno.serve(async (req) => {
                                  normalizedRank === 'owner';
             
             if (isPhoneMatch(userPhoneNumber, participantId)) {
+              userRole = participantRank;
+              
               if (isCreatorRole) {
                 isCreator = true;
                 isAdmin = true;
@@ -384,43 +311,37 @@ Deno.serve(async (req) => {
       console.log(`🎯 Pass ${config.pass} completed in ${passTime}s: Found ${passFoundGroups} new admin groups`)
       console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups (${totalElapsedTime}s elapsed)`)
 
-      // Smart stopping logic - different for background vs manual
+      // 🚀 AGGRESSIVE FAST STOPPING LOGIC
       if (passFoundGroups === 0) {
         consecutiveEmptyPasses++;
         console.log(`📊 No new groups in pass ${config.pass} (${consecutiveEmptyPasses} consecutive empty passes)`);
       } else {
-        consecutiveEmptyPasses = 0;
+        consecutiveEmptyPasses = 0; // Reset counter when we find groups
       }
 
-      // Stopping conditions based on sync type
-      let shouldStopEarly = false;
-      
-      if (background) {
-        // BACKGROUND: More patient, only stop if really necessary
-        shouldStopEarly = (
-          (consecutiveEmptyPasses >= 2 && config.pass >= 3) ||
-          (totalElapsedTime >= 120) // 2 minute safety for background
-        );
-      } else {
-        // MANUAL: More aggressive stopping for speed
-        shouldStopEarly = (
-          (consecutiveEmptyPasses >= 2) ||
-          (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1 && config.pass >= 2) ||
-          (totalElapsedTime >= 45) // 45 second limit for manual
-        );
-      }
+      // Fast stopping conditions - more aggressive for speed
+      const shouldStopEarly = (
+        // Stop after 2 empty passes (always)
+        (consecutiveEmptyPasses >= 2) ||
+        
+        // Stop if we have good results and 1 empty pass after pass 2
+        (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1 && config.pass >= 2) ||
+        
+        // Stop if approaching 40 seconds (safety)
+        (totalElapsedTime >= 40)
+      );
 
       if (shouldStopEarly) {
         let stopReason = '';
         if (consecutiveEmptyPasses >= 2) {
           stopReason = `2 consecutive empty passes`;
-        } else if (!background && allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1) {
+        } else if (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1) {
           stopReason = `good results (${allFoundGroups.size} groups) with 1 empty pass`;
-        } else if (totalElapsedTime >= (background ? 120 : 45)) {
-          stopReason = `${background ? '2 minute' : '45 second'} safety limit`;
+        } else if (totalElapsedTime >= 40) {
+          stopReason = `40 second safety limit`;
         }
         
-        console.log(`🏁 ${background ? 'Background' : 'Manual'} stopping after pass ${config.pass}: ${stopReason}`);
+        console.log(`🏁 Fast stopping after pass ${config.pass}: ${stopReason}`);
         break;
       }
 
@@ -436,7 +357,7 @@ Deno.serve(async (req) => {
     const totalMemberCount = managedGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
     const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000);
 
-    console.log(`\n🎯 ${background ? 'BACKGROUND' : 'MANUAL'} SYNC COMPLETE!`)
+    console.log(`\n🎯 FAST 3-PASS SYNC COMPLETE!`)
     console.log(`📱 User phone: ${userPhoneNumber}`)
     console.log(`⚡ Total sync time: ${totalSyncTime} seconds`)
     console.log(`🔄 Passes completed: ${passConfig.length}`)
@@ -471,7 +392,7 @@ Deno.serve(async (req) => {
         }
         
         if (i + dbBatchSize < managedGroups.length) {
-          await delay(50)
+          await delay(50) // Reduced delay for speed
         }
       }
     }
@@ -483,14 +404,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        background: background || false,
         user_phone: userPhoneNumber,
         groups_count: managedGroups.length,
-        total_groups_scanned: `${background ? 'Background' : 'Manual'} sync completed in ${totalSyncTime}s`,
+        total_groups_scanned: `Fast 3-pass scan completed in ${totalSyncTime}s`,
         admin_groups_count: adminCount,
         creator_groups_count: creatorCount,
         total_members_in_managed_groups: totalMemberCount,
-        sync_passes: passConfig.length,
+        sync_passes: 3,
         total_api_calls: totalApiCalls,
         sync_time_seconds: totalSyncTime,
         message: message,
@@ -505,12 +425,12 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 Sync Error:', error)
+    console.error('💥 Fast 3-Pass Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        suggestion: 'Sync failed - check network connectivity'
+        suggestion: 'Fast 3-pass sync failed - check network connectivity'
       }),
       { status: 500, headers: corsHeaders }
     )
