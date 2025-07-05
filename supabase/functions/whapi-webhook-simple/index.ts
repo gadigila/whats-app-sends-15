@@ -124,6 +124,41 @@ Deno.serve(async (req) => {
                     console.error('❌ Error updating profile:', updateError);
                   } else {
                     console.log('✅ Profile updated with connected status and phone:', cleanPhone);
+                    
+                    // 🚀 NEW: TRIGGER BACKGROUND GROUP SYNC IMMEDIATELY
+                    console.log('🔄 Triggering background group sync...');
+                    
+                    try {
+                      // Use setTimeout to make it truly background (non-blocking)
+                      setTimeout(async () => {
+                        try {
+                          console.log('📂 Starting background group sync for user:', userId);
+                          
+                          const { data: syncResult, error: syncError } = await supabase.functions.invoke('sync-whatsapp-groups', {
+                            body: { 
+                              userId: userId,
+                              background: true // Flag to indicate this is background sync
+                            }
+                          });
+
+                          if (syncError) {
+                            console.error('❌ Background sync failed:', syncError);
+                          } else {
+                            console.log('✅ Background sync completed successfully:', {
+                              groupsFound: syncResult?.groups_count || 0,
+                              syncTime: syncResult?.sync_time_seconds || 0
+                            });
+                          }
+                        } catch (backgroundError) {
+                          console.error('❌ Background sync error:', backgroundError);
+                        }
+                      }, 2000); // Wait 2 seconds to let connection fully stabilize
+
+                      console.log('🚀 Background sync triggered (running in background)');
+                      
+                    } catch (triggerError) {
+                      console.error('❌ Failed to trigger background sync:', triggerError);
+                    }
                   }
                 } else {
                   console.log('⚠️ No phone number found in health response');
@@ -210,6 +245,25 @@ Deno.serve(async (req) => {
                         console.error('❌ Error updating profile:', updateError)
                       } else {
                         console.log('✅ Profile updated to connected status with phone:', cleanPhone)
+                        
+                        // 🚀 TRIGGER BACKGROUND SYNC FOR FALLBACK USER TOO
+                        setTimeout(async () => {
+                          try {
+                            console.log('📂 Starting background sync for fallback user:', profile.id);
+                            
+                            await supabase.functions.invoke('sync-whatsapp-groups', {
+                              body: { 
+                                userId: profile.id,
+                                background: true
+                              }
+                            });
+                            
+                            console.log('✅ Fallback background sync triggered');
+                          } catch (error) {
+                            console.error('❌ Fallback background sync failed:', error);
+                          }
+                        }, 2000);
+                        
                         break
                       }
                     }
