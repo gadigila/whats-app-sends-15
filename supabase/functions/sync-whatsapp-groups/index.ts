@@ -9,6 +9,19 @@ interface SyncGroupsRequest {
   userId: string
 }
 
+interface SyncProgress {
+  userId: string
+  status: 'starting' | 'syncing' | 'completed' | 'failed'
+  groupsFound: number
+  totalScanned: number
+  currentPass: number
+  totalPasses: number
+  message: string
+  error?: string
+  startedAt: string
+  completedAt?: string
+}
+
 // Helper function to add delays between requests
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -41,28 +54,165 @@ function isPhoneMatch(phone1: string, phone2: string): boolean {
   return false;
 }
 
+// Update progress in database - WITH ERROR HANDLING
+async function updateProgress(supabase: any, progress: SyncProgress): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('sync_progress')
+      .upsert(progress, { 
+        onConflict: 'user_id',
+        ignoreDuplicates: false 
+      });
+
+    if (error) {
+      console.error('❌ Failed to update progress:', error);
+      return false;
+    } else {
+      console.log(`📊 Progress updated: ${progress.status} - ${progress.groupsFound} groups found`);
+      return true;
+    }
+  } catch (err) {
+    console.error('❌ Exception updating progress:', err);
+    return false;
+  }
+}
+
+// Check for SYNC_ERROR and handle recovery - ENHANCED
+async function checkAndHandleSyncError(token: string, supabase: any, userId: string): Promise<boolean> {
+  try {
+    console.log('🔍 Checking for SYNC_ERROR status...');
+    
+    const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      signal: AbortSignal.timeout(10000) // 10 second timeout
+    });
+
+    if (!healthResponse.ok) {
+      console.log('⚠️ Health check failed:', healthResponse.status);
+      return healthResponse.status !== 401; // Continue unless unauthorized
+    }
+
+    const healthData = await healthResponse.json();
+    console.log('📊 Health status:', healthData.status);
+    
+    if (healthData.status === 'SYNC_ERROR') {
+      console.log('⚠️ SYNC_ERROR detected - implementing recovery strategy');
+      
+      await updateProgress(supabase, {
+        userId,
+        status: 'failed',
+        groupsFound: 0,
+        totalScanned: 0,
+        currentPass: 0,
+        totalPasses: 3,
+        message: 'הסנכרון נכשל עם שגיאה',
+        error: error.message,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString()
+      });
+    } catch (progressError) {
+      console.error('❌ Failed to update progress on error:', progressError)
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        error: 'Enhanced sync failed', 
+        details: error.message,
+        suggestion: 'Please try again or contact support if issue persists'
+      }),
+      { status: 500, headers: corsHeaders }
+    )
+  }
+})supabase, {
+        userId,
+        status: 'syncing',
+        groupsFound: 0,
+        totalScanned: 0,
+        currentPass: 0,
+        totalPasses: 3,
+        message: 'מזהה שגיאת סנכרון, מתאושש...',
+        startedAt: new Date().toISOString()
+      });
+
+      // Recovery strategy: wait and check again
+      console.log('🔄 Waiting 30 seconds for SYNC_ERROR recovery...');
+      await delay(30000);
+      
+      // Check again with timeout
+      const retryHealthResponse = await fetch(`https://gate.whapi.cloud/health`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (retryHealthResponse.ok) {
+        const retryHealthData = await retryHealthResponse.json();
+        console.log('📊 Post-recovery health status:', retryHealthData.status);
+        
+        if (retryHealthData.status === 'SYNC_ERROR') {
+          console.log('❌ SYNC_ERROR persists after recovery attempt');
+          return false;
+        }
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Error checking sync status:', error);
+    // Continue anyway if it's just a network error
+    return !error.message.includes('401') && !error.message.includes('unauthorized');
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
+  let userId = 'unknown'; // For error handling
+
   try {
-    console.log('🚀 FAST 3-PASS SYNC: Maximum speed optimization...')
+    console.log('🚀 ENHANCED GROUP SYNC: Starting intelligent sync with progress tracking...')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { userId }: SyncGroupsRequest = await req.json()
+    const requestBody: SyncGroupsRequest = await req.json()
+    userId = requestBody.userId; // Store for error handling
 
-    if (!userId) {
+    if (!userId || userId === 'unknown') {
       return new Response(
         JSON.stringify({ error: 'User ID is required' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    console.log('👤 Starting fast 3-pass sync for user:', userId)
+    console.log('👤 Starting enhanced sync for user:', userId)
+
+    // Initialize progress tracking
+    const startTime = new Date().toISOString();
+    const progressUpdateSuccess = await updateProgress(supabase, {
+      userId,
+      status: 'starting',
+      groupsFound: 0,
+      totalScanned: 0,
+      currentPass: 0,
+      totalPasses: 3,
+      message: 'מתחיל סנכרון קבוצות...',
+      startedAt: startTime
+    });
+
+    if (!progressUpdateSuccess) {
+      console.log('⚠️ Progress tracking failed, but continuing sync...');
+    }
 
     // Get user's WHAPI token AND phone number
     const { data: profile, error: profileError } = await supabase
@@ -72,6 +222,21 @@ Deno.serve(async (req) => {
       .single()
 
     if (profileError || !profile?.whapi_token) {
+      console.error('❌ Profile error:', profileError);
+      
+      await updateProgress(supabase, {
+        userId,
+        status: 'failed',
+        groupsFound: 0,
+        totalScanned: 0,
+        currentPass: 0,
+        totalPasses: 3,
+        message: 'לא נמצא חיבור וואטסאפ',
+        error: 'No WHAPI token found',
+        startedAt: startTime,
+        completedAt: new Date().toISOString()
+      });
+
       return new Response(
         JSON.stringify({ error: 'WhatsApp instance not found or not connected' }),
         { status: 400, headers: corsHeaders }
@@ -79,34 +244,72 @@ Deno.serve(async (req) => {
     }
 
     if (profile.instance_status !== 'connected') {
+      console.error('❌ Instance not connected:', profile.instance_status);
+      
+      await updateProgress(supabase, {
+        userId,
+        status: 'failed',
+        groupsFound: 0,
+        totalScanned: 0,
+        currentPass: 0,
+        totalPasses: 3,
+        message: 'וואטסאפ לא מחובר',
+        error: `Instance status: ${profile.instance_status}`,
+        startedAt: startTime,
+        completedAt: new Date().toISOString()
+      });
+
       return new Response(
         JSON.stringify({ error: 'WhatsApp instance is not connected' }),
         { status: 400, headers: corsHeaders }
       )
     }
 
-    // Get phone number with fallback
+    // Get phone number with enhanced fallback
     let userPhoneNumber = profile.phone_number
 
     if (!userPhoneNumber) {
       console.log('📱 No phone stored, fetching from /health...')
       
+      await updateProgress(supabase, {
+        userId,
+        status: 'syncing',
+        groupsFound: 0,
+        totalScanned: 0,
+        currentPass: 0,
+        totalPasses: 3,
+        message: 'מקבל את מספר הטלפון שלך...',
+        startedAt: startTime
+      });
+
       try {
         const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${profile.whapi_token}`,
             'Content-Type': 'application/json'
-          }
+          },
+          signal: AbortSignal.timeout(15000) // 15 second timeout
         })
 
         if (healthResponse.ok) {
           const healthData = await healthResponse.json()
+          console.log('📱 Health data for phone extraction:', JSON.stringify(healthData, null, 2));
           
+          // Multiple ways to get phone number
           if (healthData?.user?.id) {
             userPhoneNumber = healthData.user.id.replace(/[^\d]/g, '');
-            
-            await supabase
+            console.log('📱 Phone from user.id:', userPhoneNumber);
+          } else if (healthData?.me?.phone) {
+            userPhoneNumber = healthData.me.phone.replace(/[^\d]/g, '');
+            console.log('📱 Phone from me.phone:', userPhoneNumber);
+          } else if (healthData?.phone) {
+            userPhoneNumber = healthData.phone.replace(/[^\d]/g, '');
+            console.log('📱 Phone from phone field:', userPhoneNumber);
+          }
+          
+          if (userPhoneNumber) {
+            const { error: updateError } = await supabase
               .from('profiles')
               .update({
                 phone_number: userPhoneNumber,
@@ -114,8 +317,14 @@ Deno.serve(async (req) => {
               })
               .eq('id', userId)
             
-            console.log('📱 Phone retrieved and saved:', userPhoneNumber)
+            if (updateError) {
+              console.error('⚠️ Failed to save phone number:', updateError);
+            } else {
+              console.log('✅ Phone retrieved and saved:', userPhoneNumber);
+            }
           }
+        } else {
+          console.error('❌ Health endpoint failed:', healthResponse.status, await healthResponse.text());
         }
       } catch (healthError) {
         console.error('❌ Error calling /health:', healthError)
@@ -123,6 +332,21 @@ Deno.serve(async (req) => {
     }
 
     if (!userPhoneNumber) {
+      console.error('❌ No phone number available');
+      
+      await updateProgress(supabase, {
+        userId,
+        status: 'failed',
+        groupsFound: 0,
+        totalScanned: 0,
+        currentPass: 0,
+        totalPasses: 3,
+        message: 'לא ניתן לקבוע את מספר הטלפון',
+        error: 'Phone number not found in health endpoint',
+        startedAt: startTime,
+        completedAt: new Date().toISOString()
+      });
+
       return new Response(
         JSON.stringify({ 
           error: 'Could not determine your phone number',
@@ -134,27 +358,87 @@ Deno.serve(async (req) => {
 
     console.log(`📱 User phone for matching: ${userPhoneNumber}`)
 
-    // 🚀 FAST 3-PASS STRATEGY - Maximum speed optimization
+    // Check for SYNC_ERROR before starting
+    const canProceed = await checkAndHandleSyncError(profile.whapi_token, supabase, userId);
+    if (!canProceed) {
+      await updateProgress(supabase, {
+        userId,
+        status: 'failed',
+        groupsFound: 0,
+        totalScanned: 0,
+        currentPass: 0,
+        totalPasses: 3,
+        message: 'זוהתה שגיאת סנכרון, נסה שוב מאוחר יותר',
+        error: 'SYNC_ERROR persists after recovery',
+        startedAt: startTime,
+        completedAt: new Date().toISOString()
+      });
+
+      return new Response(
+        JSON.stringify({ 
+          error: 'WhatsApp backend sync error detected',
+          suggestion: 'Please wait a few minutes and try again'
+        }),
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    // 🚀 INTELLIGENT 3-PASS STRATEGY with enhanced progress updates
     const passConfig = [
-      { pass: 1, delay: 0,     batchSize: 50,  description: "Immediate fast scan" },
-      { pass: 2, delay: 15000, batchSize: 100, description: "15s - Quick discovery" },
-      { pass: 3, delay: 15000, batchSize: 150, description: "30s - Final sweep" }
+      { pass: 1, delay: 5000,  batchSize: 50,  description: "סריקה ראשונית מהירה" },
+      { pass: 2, delay: 15000, batchSize: 100, description: "גילוי מפורט" },
+      { pass: 3, delay: 20000, batchSize: 150, description: "סריקה מקיפה אחרונה" }
     ];
 
-    let allFoundGroups = new Map(); // Use Map to avoid duplicates
+    let allFoundGroups = new Map();
     let totalApiCalls = 0;
+    let totalGroupsScanned = 0;
     let consecutiveEmptyPasses = 0;
     const syncStartTime = Date.now();
 
+    await updateProgress(supabase, {
+      userId,
+      status: 'syncing',
+      groupsFound: 0,
+      totalScanned: 0,
+      currentPass: 1,
+      totalPasses: 3,
+      message: 'מתחיל לגלות קבוצות...',
+      startedAt: startTime
+    });
+
     for (const config of passConfig) {
       // Add delay before pass (except first pass)
-      if (config.delay > 0) {
-        console.log(`⏳ Waiting ${config.delay/1000}s before pass ${config.pass} (${config.description})...`)
+      if (config.delay > 0 && config.pass > 1) {
+        console.log(`⏳ Waiting ${config.delay/1000}s before pass ${config.pass}...`)
+        
+        await updateProgress(supabase, {
+          userId,
+          status: 'syncing',
+          groupsFound: allFoundGroups.size,
+          totalScanned: totalGroupsScanned,
+          currentPass: config.pass,
+          totalPasses: 3,
+          message: `ממתין ${config.delay/1000} שניות לפני ${config.description}...`,
+          startedAt: startTime
+        });
+
         await delay(config.delay);
       }
 
       console.log(`\n🔄 === PASS ${config.pass}/3 === (${config.description})`)
       
+      await updateProgress(supabase, {
+        userId,
+        status: 'syncing',
+        groupsFound: allFoundGroups.size,
+        totalScanned: totalGroupsScanned,
+        currentPass: config.pass,
+        totalPasses: 3,
+        message: `${config.description} מתבצעת...`,
+        startedAt: startTime
+      });
+
       const passStartTime = Date.now();
       let passFoundGroups = 0;
 
@@ -163,7 +447,7 @@ Deno.serve(async (req) => {
       let currentOffset = 0
       let hasMoreGroups = true
       let passApiCalls = 0
-      const maxPassApiCalls = 8 // Reduced limit for speed
+      const maxPassApiCalls = 10 // Increased slightly
 
       while (hasMoreGroups && passApiCalls < maxPassApiCalls) {
         passApiCalls++
@@ -172,8 +456,17 @@ Deno.serve(async (req) => {
         console.log(`📊 Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          // Reduced API delays for speed
-          const apiDelay = Math.min(1500 + (config.pass * 300), 3000); // 1.5s to 2.4s max
+          // Check for SYNC_ERROR during sync (less frequently to avoid overhead)
+          if (passApiCalls > 3 && passApiCalls % 3 === 0) {
+            const canContinue = await checkAndHandleSyncError(profile.whapi_token, supabase, userId);
+            if (!canContinue) {
+              console.log('❌ SYNC_ERROR detected during sync, stopping');
+              break;
+            }
+          }
+
+          // Progressive API delays to be gentler on WHAPI
+          const apiDelay = Math.min(2000 + (config.pass * 500) + (passApiCalls * 200), 5000);
           if (passApiCalls > 1) {
             console.log(`⏳ API delay: ${apiDelay}ms...`)
             await delay(apiDelay)
@@ -186,20 +479,26 @@ Deno.serve(async (req) => {
               headers: {
                 'Authorization': `Bearer ${profile.whapi_token}`,
                 'Content-Type': 'application/json'
-              }
+              },
+              signal: AbortSignal.timeout(30000) // 30 second timeout
             }
           )
 
           if (!groupsResponse.ok) {
             console.error(`❌ Groups API failed (pass ${config.pass}, call ${passApiCalls}):`, groupsResponse.status)
             
-            if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
-              const retryDelay = apiDelay * 1.5; // Reduced retry delay
-              console.log(`🔄 Rate limited, waiting ${retryDelay}ms and retrying...`)
+            if (groupsResponse.status === 429) {
+              const retryDelay = Math.min(apiDelay * 3, 10000);
+              console.log(`🔄 Rate limited (429), waiting ${retryDelay}ms and retrying...`)
               await delay(retryDelay)
               continue // Retry same offset
+            } else if (groupsResponse.status >= 500) {
+              const retryDelay = Math.min(apiDelay * 2, 8000);
+              console.log(`🔄 Server error (${groupsResponse.status}), waiting ${retryDelay}ms and retrying...`)
+              await delay(retryDelay)
+              continue
             } else {
-              console.log(`💥 Non-retryable error, stopping pass ${config.pass}`)
+              console.log(`💥 Non-retryable error (${groupsResponse.status}), stopping pass ${config.pass}`)
               break
             }
           }
@@ -208,6 +507,21 @@ Deno.serve(async (req) => {
           const batchGroups = groupsData.groups || []
           
           console.log(`📊 Pass ${config.pass}, batch ${passApiCalls}: Received ${batchGroups.length} groups`)
+          totalGroupsScanned += batchGroups.length;
+          
+          // Update progress with current scan count (less frequently to reduce overhead)
+          if (passApiCalls % 2 === 0 || batchGroups.length === 0) {
+            await updateProgress(supabase, {
+              userId,
+              status: 'syncing',
+              groupsFound: allFoundGroups.size,
+              totalScanned: totalGroupsScanned,
+              currentPass: config.pass,
+              totalPasses: 3,
+              message: `${config.description} - סורק קבוצות ${currentOffset}-${currentOffset + batchGroups.length}`,
+              startedAt: startTime
+            });
+          }
           
           if (batchGroups.length === 0) {
             hasMoreGroups = false
@@ -225,9 +539,10 @@ Deno.serve(async (req) => {
         } catch (batchError) {
           console.error(`❌ Error in pass ${config.pass}, batch ${passApiCalls}:`, batchError)
           
-          if (batchError.message.includes('timeout') || batchError.message.includes('429')) {
-            console.log(`🔄 Retrying after error in pass ${config.pass}...`)
-            await delay(apiDelay * 1.5)
+          if (batchError.message.includes('timeout') || batchError.message.includes('429') || batchError.name === 'TimeoutError') {
+            const retryDelay = Math.min(apiDelay * 2, 8000);
+            console.log(`🔄 Retrying after error in pass ${config.pass} (delay: ${retryDelay}ms)...`)
+            await delay(retryDelay)
             continue
           } else {
             console.error(`💥 Fatal error in pass ${config.pass}, stopping`)
@@ -252,37 +567,44 @@ Deno.serve(async (req) => {
         let isCreator = false
         let userRole = 'member'
         
-        // 🎯 ENHANCED group processing with better error handling
+        // Enhanced group participants processing with better error handling
         if (group.participants && Array.isArray(group.participants)) {
-          for (const participant of group.participants) {
-            const participantId = participant.id || participant.phone || participant.number;
-            const participantRank = participant.rank || participant.role || participant.admin || 'member';
-            
-            const normalizedRank = participantRank.toLowerCase();
-            const isAdminRole = normalizedRank === 'admin' || 
-                              normalizedRank === 'administrator' || 
-                              normalizedRank === 'creator' ||
-                              normalizedRank === 'owner' ||
-                              participant.admin === true;
-            
-            const isCreatorRole = normalizedRank === 'creator' || 
-                                 normalizedRank === 'owner';
-            
-            if (isPhoneMatch(userPhoneNumber, participantId)) {
-              userRole = participantRank;
+          try {
+            for (const participant of group.participants) {
+              const participantId = participant.id || participant.phone || participant.number;
+              const participantRank = participant.rank || participant.role || participant.admin || 'member';
               
-              if (isCreatorRole) {
-                isCreator = true;
-                isAdmin = true;
-                console.log(`👑 Pass ${config.pass}: Found CREATOR role in ${groupName}`);
-              } else if (isAdminRole) {
-                isAdmin = true;
-                console.log(`⭐ Pass ${config.pass}: Found ADMIN role in ${groupName}`);
-              } else {
-                console.log(`👤 Pass ${config.pass}: Found MEMBER role in ${groupName} (skipping)`);
+              if (!participantId) continue; // Skip invalid participants
+              
+              const normalizedRank = participantRank.toString().toLowerCase();
+              const isAdminRole = normalizedRank === 'admin' || 
+                                normalizedRank === 'administrator' || 
+                                normalizedRank === 'creator' ||
+                                normalizedRank === 'owner' ||
+                                participant.admin === true;
+              
+              const isCreatorRole = normalizedRank === 'creator' || 
+                                   normalizedRank === 'owner';
+              
+              if (isPhoneMatch(userPhoneNumber, participantId)) {
+                userRole = participantRank;
+                
+                if (isCreatorRole) {
+                  isCreator = true;
+                  isAdmin = true;
+                  console.log(`👑 Pass ${config.pass}: Found CREATOR role in ${groupName}`);
+                } else if (isAdminRole) {
+                  isAdmin = true;
+                  console.log(`⭐ Pass ${config.pass}: Found ADMIN role in ${groupName}`);
+                } else {
+                  console.log(`👤 Pass ${config.pass}: Found MEMBER role in ${groupName} (skipping)`);
+                }
+                break;
               }
-              break;
             }
+          } catch (participantError) {
+            console.error(`⚠️ Error processing participants for ${groupName}:`, participantError);
+            // Continue with next group
           }
         }
 
@@ -303,51 +625,39 @@ Deno.serve(async (req) => {
           
           passFoundGroups++;
           console.log(`✅ Pass ${config.pass}: ADDED ${groupName} (${participantsCount} members) - ${isCreator ? 'CREATOR' : 'ADMIN'}`)
+          
+          // Update progress immediately when group found (but throttled)
+          if (passFoundGroups % 3 === 0 || passFoundGroups === 1) {
+            await updateProgress(supabase, {
+              userId,
+              status: 'syncing',
+              groupsFound: allFoundGroups.size,
+              totalScanned: totalGroupsScanned,
+              currentPass: config.pass,
+              totalPasses: 3,
+              message: `נמצאו ${allFoundGroups.size} קבוצות בניהולך עד כה...`,
+              startedAt: startTime
+            });
+          }
         }
       }
 
       const passTime = Math.round((Date.now() - passStartTime) / 1000);
-      const totalElapsedTime = Math.round((Date.now() - syncStartTime) / 1000);
       console.log(`🎯 Pass ${config.pass} completed in ${passTime}s: Found ${passFoundGroups} new admin groups`)
-      console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups (${totalElapsedTime}s elapsed)`)
-
-      // 🚀 AGGRESSIVE FAST STOPPING LOGIC
+      
+      // Enhanced early stopping logic
       if (passFoundGroups === 0) {
         consecutiveEmptyPasses++;
         console.log(`📊 No new groups in pass ${config.pass} (${consecutiveEmptyPasses} consecutive empty passes)`);
       } else {
-        consecutiveEmptyPasses = 0; // Reset counter when we find groups
+        consecutiveEmptyPasses = 0; // Reset counter
       }
 
-      // Fast stopping conditions - more aggressive for speed
-      const shouldStopEarly = (
-        // Stop after 2 empty passes (always)
-        (consecutiveEmptyPasses >= 2) ||
-        
-        // Stop if we have good results and 1 empty pass after pass 2
-        (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1 && config.pass >= 2) ||
-        
-        // Stop if approaching 40 seconds (safety)
-        (totalElapsedTime >= 40)
-      );
-
-      if (shouldStopEarly) {
-        let stopReason = '';
-        if (consecutiveEmptyPasses >= 2) {
-          stopReason = `2 consecutive empty passes`;
-        } else if (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1) {
-          stopReason = `good results (${allFoundGroups.size} groups) with 1 empty pass`;
-        } else if (totalElapsedTime >= 40) {
-          stopReason = `40 second safety limit`;
-        }
-        
-        console.log(`🏁 Fast stopping after pass ${config.pass}: ${stopReason}`);
+      // Early stopping conditions
+      if (consecutiveEmptyPasses >= 2 || 
+          (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1 && config.pass >= 2)) {
+        console.log(`🏁 Early stopping: ${consecutiveEmptyPasses >= 2 ? 'Two empty passes' : 'Good results with empty pass'}`);
         break;
-      }
-
-      // Don't add delay after last pass
-      if (config.pass < passConfig.length) {
-        console.log(`📊 Pass ${config.pass} summary: ${passFoundGroups} new groups, ${allFoundGroups.size} total`);
       }
     }
 
@@ -357,82 +667,129 @@ Deno.serve(async (req) => {
     const totalMemberCount = managedGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
     const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000);
 
-    console.log(`\n🎯 FAST 3-PASS SYNC COMPLETE!`)
+    console.log(`\n🎯 ENHANCED SYNC COMPLETE!`)
     console.log(`📱 User phone: ${userPhoneNumber}`)
     console.log(`⚡ Total sync time: ${totalSyncTime} seconds`)
-    console.log(`🔄 Passes completed: ${passConfig.length}`)
     console.log(`📊 Total API calls: ${totalApiCalls}`)
     console.log(`✅ Final admin groups found: ${managedGroups.length}`)
-    console.log(`👑 Creator groups: ${creatorCount}`)
-    console.log(`⭐ Admin groups: ${adminCount}`)
-    console.log(`👥 Total members: ${totalMemberCount}`)
 
-    // Save ALL found groups to database
+    // Save groups to database with enhanced error handling
     console.log('💾 Saving all found groups...')
     
-    await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
+    await updateProgress(supabase, {
+      userId,
+      status: 'syncing',
+      groupsFound: managedGroups.length,
+      totalScanned: totalGroupsScanned,
+      currentPass: 3,
+      totalPasses: 3,
+      message: 'שומר קבוצות במסד הנתונים...',
+      startedAt: startTime
+    });
+    
+    // Clear existing groups
+    const { error: deleteError } = await supabase.from('whatsapp_groups').delete().eq('user_id', userId);
+    if (deleteError) {
+      console.error('⚠️ Error clearing existing groups:', deleteError);
+    }
     
     if (managedGroups.length > 0) {
-      // Insert in batches
-      const dbBatchSize = 100
+      const dbBatchSize = 50 // Smaller batches for reliability
+      let savedCount = 0;
+      
       for (let i = 0; i < managedGroups.length; i += dbBatchSize) {
         const batch = managedGroups.slice(i, i + dbBatchSize)
-        console.log(`💾 Saving batch: ${batch.length} groups`)
+        console.log(`💾 Saving batch ${Math.floor(i/dbBatchSize) + 1}: ${batch.length} groups`)
         
-        const { error: insertError } = await supabase
-          .from('whatsapp_groups')
-          .insert(batch)
+        try {
+          const { error: insertError } = await supabase
+            .from('whatsapp_groups')
+            .insert(batch)
 
-        if (insertError) {
-          console.error('❌ Database batch error:', insertError)
-          return new Response(
-            JSON.stringify({ error: 'Failed to save groups to database', details: insertError.message }),
-            { status: 500, headers: corsHeaders }
-          )
+          if (insertError) {
+            console.error('❌ Database batch error:', insertError)
+            
+            await updateProgress(supabase, {
+              userId,
+              status: 'failed',
+              groupsFound: managedGroups.length,
+              totalScanned: totalGroupsScanned,
+              currentPass: 3,
+              totalPasses: 3,
+              message: `שגיאה בשמירת קבוצות (נשמרו ${savedCount}/${managedGroups.length})`,
+              error: insertError.message,
+              startedAt: startTime,
+              completedAt: new Date().toISOString()
+            });
+
+            return new Response(
+              JSON.stringify({ 
+                error: 'Failed to save groups to database', 
+                details: insertError.message,
+                saved_count: savedCount,
+                total_found: managedGroups.length
+              }),
+              { status: 500, headers: corsHeaders }
+            )
+          } else {
+            savedCount += batch.length;
+            console.log(`✅ Saved batch successfully (${savedCount}/${managedGroups.length})`);
+          }
+        } catch (batchError) {
+          console.error('❌ Exception saving batch:', batchError);
         }
         
+        // Small delay between batches
         if (i + dbBatchSize < managedGroups.length) {
-          await delay(50) // Reduced delay for speed
+          await delay(200)
         }
       }
+      
+      console.log(`💾 Database save complete: ${savedCount}/${managedGroups.length} groups saved`);
     }
 
-    const message = managedGroups.length > 0
+    // Mark as completed
+    const completedMessage = managedGroups.length > 0
       ? `נמצאו ${managedGroups.length} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
-      : 'לא נמצאו קבוצות בניהולך'
+      : 'לא נמצאו קבוצות בניהולך';
+
+    await updateProgress(supabase, {
+      userId,
+      status: 'completed',
+      groupsFound: managedGroups.length,
+      totalScanned: totalGroupsScanned,
+      currentPass: 3,
+      totalPasses: 3,
+      message: completedMessage,
+      startedAt: startTime,
+      completedAt: new Date().toISOString()
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
         user_phone: userPhoneNumber,
         groups_count: managedGroups.length,
-        total_groups_scanned: `Fast 3-pass scan completed in ${totalSyncTime}s`,
         admin_groups_count: adminCount,
         creator_groups_count: creatorCount,
         total_members_in_managed_groups: totalMemberCount,
-        sync_passes: 3,
         total_api_calls: totalApiCalls,
         sync_time_seconds: totalSyncTime,
-        message: message,
-        managed_groups: managedGroups.map(g => ({
-          name: g.name,
-          members: g.participants_count,
-          id: g.group_id,
-          role: g.is_creator ? 'creator' : 'admin'
-        })).slice(0, 20)
+        message: completedMessage,
+        enhanced_sync: true,
+        total_groups_scanned: totalGroupsScanned
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Fast 3-Pass Sync Error:', error)
-    return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error', 
-        details: error.message,
-        suggestion: 'Fast 3-pass sync failed - check network connectivity'
-      }),
-      { status: 500, headers: corsHeaders }
-    )
-  }
-})
+    console.error('💥 Enhanced Sync Error:', error)
+    
+    // Enhanced error handling with progress update
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!, 
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      )
+      
+      await updateProgress(
