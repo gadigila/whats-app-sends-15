@@ -9,58 +9,36 @@ interface SyncGroupsRequest {
   userId: string
 }
 
-// 🚀 IMPROVED: Conservative timing to avoid rate limits
+// Helper function to add delays between requests
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 🎯 ENHANCED: Better phone matching with multiple strategies
+// Enhanced phone matching
 function isPhoneMatch(phone1: string, phone2: string): boolean {
   if (!phone1 || !phone2) return false;
   
   const clean1 = phone1.replace(/[^\d]/g, '');
   const clean2 = phone2.replace(/[^\d]/g, '');
   
-  // Multiple matching strategies for better accuracy
-  const strategies = [
-    () => clean1 === clean2, // Exact match
-    () => clean1.endsWith(clean2.slice(-9)) && clean2.length >= 9, // User ends with participant's last 9
-    () => clean2.endsWith(clean1.slice(-9)) && clean1.length >= 9, // Participant ends with user's last 9
-    () => clean1.slice(-8) === clean2.slice(-8) && clean1.length >= 8 && clean2.length >= 8, // Last 8 digits
-    () => { // Israeli format: 972 vs 0 prefix
-      if (clean1.startsWith('972') && clean2.startsWith('0')) {
-        return clean1.substring(3) === clean2.substring(1);
-      }
-      if (clean2.startsWith('972') && clean1.startsWith('0')) {
-        return clean2.substring(3) === clean1.substring(1);
-      }
-      return false;
-    }
-  ];
+  // Direct exact match
+  if (clean1 === clean2) return true;
   
-  return strategies.some(strategy => strategy());
-}
-
-// 🛡️ ENHANCED: Better admin role detection
-function detectAdminRole(participant: any): { isAdmin: boolean, isCreator: boolean, role: string } {
-  const rank = participant.rank || participant.role || participant.admin || 'member';
-  const rankText = rank.toString().toLowerCase();
+  // Israeli format handling (972 vs 0 prefix)
+  if (clean1.startsWith('972') && clean2.startsWith('0')) {
+    return clean1.substring(3) === clean2.substring(1);
+  }
   
-  // Multiple ways to detect admin status
-  const isAdminByRank = ['admin', 'administrator', 'creator', 'owner', 'superadmin'].some(
-    keyword => rankText.includes(keyword)
-  );
-  const isAdminByBoolean = participant.admin === true || participant.isAdmin === true;
-  const isCreatorByRank = ['creator', 'owner'].some(keyword => rankText.includes(keyword));
+  if (clean2.startsWith('972') && clean1.startsWith('0')) {
+    return clean2.substring(3) === clean1.substring(1);
+  }
   
-  const isAdmin = isAdminByRank || isAdminByBoolean;
-  const isCreator = isCreatorByRank;
+  // Last 9 digits match (Israeli mobile standard)
+  if (clean1.length >= 9 && clean2.length >= 9) {
+    return clean1.slice(-9) === clean2.slice(-9);
+  }
   
-  return {
-    isAdmin: isAdmin,
-    isCreator: isCreator,
-    role: rank
-  };
+  return false;
 }
 
 Deno.serve(async (req) => {
@@ -69,7 +47,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 ENHANCED WHATSAPP GROUPS SYNC - Rate Limit Optimized v2.0')
+    console.log('🚀 FAST 3-PASS SYNC: Maximum speed optimization...')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -84,7 +62,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('👤 Starting ENHANCED sync for user:', userId)
+    console.log('👤 Starting fast 3-pass sync for user:', userId)
 
     // Get user's WHAPI token AND phone number
     const { data: profile, error: profileError } = await supabase
@@ -107,7 +85,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🎯 Get phone number with enhanced fallback
+    // Get phone number with fallback
     let userPhoneNumber = profile.phone_number
 
     if (!userPhoneNumber) {
@@ -125,16 +103,9 @@ Deno.serve(async (req) => {
         if (healthResponse.ok) {
           const healthData = await healthResponse.json()
           
-          // Multiple ways to extract phone number
-          const phoneNumber = healthData?.user?.id || 
-                            healthData?.me?.phone || 
-                            healthData?.phone ||
-                            healthData?.profile?.phone;
-          
-          if (phoneNumber) {
-            userPhoneNumber = phoneNumber.replace(/[^\d]/g, '');
+          if (healthData?.user?.id) {
+            userPhoneNumber = healthData.user.id.replace(/[^\d]/g, '');
             
-            // Save phone number for future use
             await supabase
               .from('profiles')
               .update({
@@ -163,60 +134,49 @@ Deno.serve(async (req) => {
 
     console.log(`📱 User phone for matching: ${userPhoneNumber}`)
 
-    // 🚀 CONSERVATIVE 2-PHASE STRATEGY - Optimized for rate limits
-    const phaseConfig = [
-      { 
-        pass: 1, 
-        delay: 0, 
-        batchSize: 50, 
-        maxCalls: 5, 
-        apiDelay: 4000, // 4 seconds between calls
-        description: "Initial discovery" 
-      },
-      { 
-        pass: 2, 
-        delay: 20000, // 20 second break between phases
-        batchSize: 100, 
-        maxCalls: 8, 
-        apiDelay: 5000, // 5 seconds between calls
-        description: "Deep scan" 
-      }
+    // 🚀 FAST 3-PASS STRATEGY - Maximum speed optimization
+    const passConfig = [
+      { pass: 1, delay: 0,     batchSize: 50,  description: "Immediate fast scan" },
+      { pass: 2, delay: 15000, batchSize: 100, description: "15s - Quick discovery" },
+      { pass: 3, delay: 15000, batchSize: 150, description: "30s - Final sweep" }
     ];
 
-    let allFoundGroups = new Map();
+    let allFoundGroups = new Map(); // Use Map to avoid duplicates
     let totalApiCalls = 0;
     let consecutiveEmptyPasses = 0;
     const syncStartTime = Date.now();
 
-    for (const config of phaseConfig) {
+    for (const config of passConfig) {
       // Add delay before pass (except first pass)
       if (config.delay > 0) {
         console.log(`⏳ Waiting ${config.delay/1000}s before pass ${config.pass} (${config.description})...`)
         await delay(config.delay);
       }
 
-      console.log(`\n🔄 === PASS ${config.pass}/2 === (${config.description})`)
+      console.log(`\n🔄 === PASS ${config.pass}/3 === (${config.description})`)
       
       const passStartTime = Date.now();
       let passFoundGroups = 0;
 
-      // Get groups with pagination for this pass
+      // Get all groups with pagination for this pass
       let allGroups: any[] = []
       let currentOffset = 0
       let hasMoreGroups = true
       let passApiCalls = 0
+      const maxPassApiCalls = 8 // Reduced limit for speed
 
-      while (hasMoreGroups && passApiCalls < config.maxCalls) {
+      while (hasMoreGroups && passApiCalls < maxPassApiCalls) {
         passApiCalls++
         totalApiCalls++
         
         console.log(`📊 Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          // 🛡️ CONSERVATIVE API DELAYS - Always wait before API calls (except first)
+          // Reduced API delays for speed
+          const apiDelay = Math.min(1500 + (config.pass * 300), 3000); // 1.5s to 2.4s max
           if (passApiCalls > 1) {
-            console.log(`⏳ Conservative API delay: ${config.apiDelay}ms...`)
-            await delay(config.apiDelay)
+            console.log(`⏳ API delay: ${apiDelay}ms...`)
+            await delay(apiDelay)
           }
 
           const groupsResponse = await fetch(
@@ -233,17 +193,11 @@ Deno.serve(async (req) => {
           if (!groupsResponse.ok) {
             console.error(`❌ Groups API failed (pass ${config.pass}, call ${passApiCalls}):`, groupsResponse.status)
             
-            if (groupsResponse.status === 429) {
-              // 🔄 ENHANCED rate limit handling
-              const backoffDelay = Math.min(config.apiDelay * 3, 15000); // 3x delay, max 15s
-              console.log(`🚨 Rate limited! Backing off for ${backoffDelay}ms...`)
-              await delay(backoffDelay)
+            if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
+              const retryDelay = apiDelay * 1.5; // Reduced retry delay
+              console.log(`🔄 Rate limited, waiting ${retryDelay}ms and retrying...`)
+              await delay(retryDelay)
               continue // Retry same offset
-            } else if (groupsResponse.status >= 500) {
-              // Server error - retry with longer delay
-              console.log(`🔄 Server error, retrying with longer delay...`)
-              await delay(config.apiDelay * 2)
-              continue
             } else {
               console.log(`💥 Non-retryable error, stopping pass ${config.pass}`)
               break
@@ -271,10 +225,9 @@ Deno.serve(async (req) => {
         } catch (batchError) {
           console.error(`❌ Error in pass ${config.pass}, batch ${passApiCalls}:`, batchError)
           
-          // 🛡️ Enhanced error handling
           if (batchError.message.includes('timeout') || batchError.message.includes('429')) {
             console.log(`🔄 Retrying after error in pass ${config.pass}...`)
-            await delay(config.apiDelay * 2)
+            await delay(apiDelay * 1.5)
             continue
           } else {
             console.error(`💥 Fatal error in pass ${config.pass}, stopping`)
@@ -285,7 +238,7 @@ Deno.serve(async (req) => {
 
       console.log(`📊 Pass ${config.pass} collected: ${allGroups.length} groups from ${passApiCalls} API calls`)
 
-      // 🎯 ENHANCED group processing with better error handling
+      // Process groups from this pass
       for (const group of allGroups) {
         const groupName = group.name || group.subject || `Group ${group.id}`
         const participantsCount = group.participants?.length || group.size || 0
@@ -295,35 +248,46 @@ Deno.serve(async (req) => {
           continue;
         }
         
-        let userAdminStatus = { isAdmin: false, isCreator: false, role: 'member' };
+        let isAdmin = false
+        let isCreator = false
+        let userRole = 'member'
         
-        // Enhanced group processing with better error handling
+        // 🎯 ENHANCED group processing with better error handling
         if (group.participants && Array.isArray(group.participants)) {
           for (const participant of group.participants) {
-            try {
-              const participantId = participant.id || participant.phone || participant.number;
+            const participantId = participant.id || participant.phone || participant.number;
+            const participantRank = participant.rank || participant.role || participant.admin || 'member';
+            
+            const normalizedRank = participantRank.toLowerCase();
+            const isAdminRole = normalizedRank === 'admin' || 
+                              normalizedRank === 'administrator' || 
+                              normalizedRank === 'creator' ||
+                              normalizedRank === 'owner' ||
+                              participant.admin === true;
+            
+            const isCreatorRole = normalizedRank === 'creator' || 
+                                 normalizedRank === 'owner';
+            
+            if (isPhoneMatch(userPhoneNumber, participantId)) {
+              userRole = participantRank;
               
-              if (participantId && isPhoneMatch(userPhoneNumber, participantId)) {
-                userAdminStatus = detectAdminRole(participant);
-                
-                if (userAdminStatus.isCreator) {
-                  console.log(`👑 Pass ${config.pass}: Found CREATOR role in ${groupName}`);
-                } else if (userAdminStatus.isAdmin) {
-                  console.log(`⭐ Pass ${config.pass}: Found ADMIN role in ${groupName}`);
-                } else {
-                  console.log(`👤 Pass ${config.pass}: Found MEMBER role in ${groupName} (skipping)`);
-                }
-                break;
+              if (isCreatorRole) {
+                isCreator = true;
+                isAdmin = true;
+                console.log(`👑 Pass ${config.pass}: Found CREATOR role in ${groupName}`);
+              } else if (isAdminRole) {
+                isAdmin = true;
+                console.log(`⭐ Pass ${config.pass}: Found ADMIN role in ${groupName}`);
+              } else {
+                console.log(`👤 Pass ${config.pass}: Found MEMBER role in ${groupName} (skipping)`);
               }
-            } catch (participantError) {
-              console.error(`⚠️ Error processing participant in ${groupName}:`, participantError);
-              continue;
+              break;
             }
           }
         }
 
         // Add to found groups if admin/creator
-        if (userAdminStatus.isAdmin) {
+        if (isAdmin) {
           allFoundGroups.set(group.id, {
             user_id: userId,
             group_id: group.id,
@@ -331,14 +295,14 @@ Deno.serve(async (req) => {
             description: group.description || null,
             participants_count: participantsCount,
             is_admin: true,
-            is_creator: userAdminStatus.isCreator,
+            is_creator: isCreator,
             avatar_url: group.chat_pic || null,
             last_synced_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
           
           passFoundGroups++;
-          console.log(`✅ Pass ${config.pass}: ADDED ${groupName} (${participantsCount} members) - ${userAdminStatus.isCreator ? 'CREATOR' : 'ADMIN'}`)
+          console.log(`✅ Pass ${config.pass}: ADDED ${groupName} (${participantsCount} members) - ${isCreator ? 'CREATOR' : 'ADMIN'}`)
         }
       }
 
@@ -347,7 +311,7 @@ Deno.serve(async (req) => {
       console.log(`🎯 Pass ${config.pass} completed in ${passTime}s: Found ${passFoundGroups} new admin groups`)
       console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups (${totalElapsedTime}s elapsed)`)
 
-      // 🎯 IMPROVED stopping logic - more conservative
+      // 🚀 AGGRESSIVE FAST STOPPING LOGIC
       if (passFoundGroups === 0) {
         consecutiveEmptyPasses++;
         console.log(`📊 No new groups in pass ${config.pass} (${consecutiveEmptyPasses} consecutive empty passes)`);
@@ -355,30 +319,35 @@ Deno.serve(async (req) => {
         consecutiveEmptyPasses = 0; // Reset counter when we find groups
       }
 
-      // Conservative stopping conditions
+      // Fast stopping conditions - more aggressive for speed
       const shouldStopEarly = (
-        // Stop after 2 empty passes always
+        // Stop after 2 empty passes (always)
         (consecutiveEmptyPasses >= 2) ||
         
-        // Stop if we have many results and 1 empty pass after pass 1
-        (allFoundGroups.size >= 10 && consecutiveEmptyPasses >= 1 && config.pass >= 1) ||
+        // Stop if we have good results and 1 empty pass after pass 2
+        (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1 && config.pass >= 2) ||
         
-        // Safety timeout
-        (totalElapsedTime >= 90)
+        // Stop if approaching 40 seconds (safety)
+        (totalElapsedTime >= 40)
       );
 
       if (shouldStopEarly) {
         let stopReason = '';
         if (consecutiveEmptyPasses >= 2) {
           stopReason = `2 consecutive empty passes`;
-        } else if (allFoundGroups.size >= 10 && consecutiveEmptyPasses >= 1) {
+        } else if (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1) {
           stopReason = `good results (${allFoundGroups.size} groups) with 1 empty pass`;
-        } else if (totalElapsedTime >= 90) {
-          stopReason = `90 second safety limit`;
+        } else if (totalElapsedTime >= 40) {
+          stopReason = `40 second safety limit`;
         }
         
-        console.log(`🏁 Conservative stopping after pass ${config.pass}: ${stopReason}`);
+        console.log(`🏁 Fast stopping after pass ${config.pass}: ${stopReason}`);
         break;
+      }
+
+      // Don't add delay after last pass
+      if (config.pass < passConfig.length) {
+        console.log(`📊 Pass ${config.pass} summary: ${passFoundGroups} new groups, ${allFoundGroups.size} total`);
       }
     }
 
@@ -388,54 +357,44 @@ Deno.serve(async (req) => {
     const totalMemberCount = managedGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
     const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000);
 
-    console.log(`\n🎯 ENHANCED SYNC COMPLETE!`)
+    console.log(`\n🎯 FAST 3-PASS SYNC COMPLETE!`)
     console.log(`📱 User phone: ${userPhoneNumber}`)
     console.log(`⚡ Total sync time: ${totalSyncTime} seconds`)
-    console.log(`🔄 Passes completed: ${phaseConfig.length}`)
+    console.log(`🔄 Passes completed: ${passConfig.length}`)
     console.log(`📊 Total API calls: ${totalApiCalls}`)
     console.log(`✅ Final admin groups found: ${managedGroups.length}`)
     console.log(`👑 Creator groups: ${creatorCount}`)
     console.log(`⭐ Admin groups: ${adminCount}`)
     console.log(`👥 Total members: ${totalMemberCount}`)
 
-    // Save ALL found groups to database with better error handling
+    // Save ALL found groups to database
     console.log('💾 Saving all found groups...')
     
-    try {
-      // Clear existing groups
-      await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
-      
-      if (managedGroups.length > 0) {
-        // Insert in smaller batches to avoid timeouts
-        const dbBatchSize = 50
-        for (let i = 0; i < managedGroups.length; i += dbBatchSize) {
-          const batch = managedGroups.slice(i, i + dbBatchSize)
-          console.log(`💾 Saving batch: ${batch.length} groups`)
-          
-          const { error: insertError } = await supabase
-            .from('whatsapp_groups')
-            .insert(batch)
+    await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
+    
+    if (managedGroups.length > 0) {
+      // Insert in batches
+      const dbBatchSize = 100
+      for (let i = 0; i < managedGroups.length; i += dbBatchSize) {
+        const batch = managedGroups.slice(i, i + dbBatchSize)
+        console.log(`💾 Saving batch: ${batch.length} groups`)
+        
+        const { error: insertError } = await supabase
+          .from('whatsapp_groups')
+          .insert(batch)
 
-          if (insertError) {
-            console.error('❌ Database batch error:', insertError)
-            return new Response(
-              JSON.stringify({ error: 'Failed to save groups to database', details: insertError.message }),
-              { status: 500, headers: corsHeaders }
-            )
-          }
-          
-          // Small delay between batches
-          if (i + dbBatchSize < managedGroups.length) {
-            await delay(100)
-          }
+        if (insertError) {
+          console.error('❌ Database batch error:', insertError)
+          return new Response(
+            JSON.stringify({ error: 'Failed to save groups to database', details: insertError.message }),
+            { status: 500, headers: corsHeaders }
+          )
+        }
+        
+        if (i + dbBatchSize < managedGroups.length) {
+          await delay(50) // Reduced delay for speed
         }
       }
-    } catch (dbError) {
-      console.error('❌ Database operation failed:', dbError)
-      return new Response(
-        JSON.stringify({ error: 'Database operation failed', details: dbError.message }),
-        { status: 500, headers: corsHeaders }
-      )
     }
 
     const message = managedGroups.length > 0
@@ -447,11 +406,11 @@ Deno.serve(async (req) => {
         success: true,
         user_phone: userPhoneNumber,
         groups_count: managedGroups.length,
-        total_groups_scanned: `Enhanced 2-phase scan completed in ${totalSyncTime}s`,
+        total_groups_scanned: `Fast 3-pass scan completed in ${totalSyncTime}s`,
         admin_groups_count: adminCount,
         creator_groups_count: creatorCount,
         total_members_in_managed_groups: totalMemberCount,
-        sync_phases: phaseConfig.length,
+        sync_passes: 3,
         total_api_calls: totalApiCalls,
         sync_time_seconds: totalSyncTime,
         message: message,
@@ -466,12 +425,12 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 Enhanced Sync Error:', error)
+    console.error('💥 Fast 3-Pass Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        suggestion: 'Enhanced sync failed - wait 2 minutes before retrying'
+        suggestion: 'Fast 3-pass sync failed - check network connectivity'
       }),
       { status: 500, headers: corsHeaders }
     )

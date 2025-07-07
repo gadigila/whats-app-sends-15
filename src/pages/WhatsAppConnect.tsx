@@ -17,17 +17,7 @@ const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
-  const { 
-    syncGroups, 
-    triggerAutoSync, 
-    isSyncing, 
-    isAutoSyncing, 
-    cooldownRemaining, 
-    isSyncAvailable, 
-    cooldownStatus,
-    hasAutoSynced,
-    setHasAutoSynced 
-  } = useWhatsAppGroups();
+  const { syncGroups } = useWhatsAppGroups();
   const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -39,8 +29,6 @@ const WhatsAppConnect = () => {
   const [manualReconnectStarted, setManualReconnectStarted] = useState(false);
   // 🆕 NEW: Track if this was a fresh channel creation
   const [justCreatedChannel, setJustCreatedChannel] = useState(false);
-  // 🚀 NEW: Auto-sync management
-  const [autoSyncScheduled, setAutoSyncScheduled] = useState(false);
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
@@ -52,43 +40,8 @@ const WhatsAppConnect = () => {
     pollingAttempts,
     isPollingConnection,
     connectionPollingAttempts,
-    manualReconnectStarted,
-    hasAutoSynced,
-    autoSyncScheduled
+    manualReconnectStarted
   });
-
-  // 🚀 NEW: Auto-sync after connection with 90-second delay
-  useEffect(() => {
-    if (profile?.instance_status === 'connected' && !hasAutoSynced && !autoSyncScheduled) {
-      console.log('🎯 Connection detected, scheduling auto-sync in 90 seconds...');
-      setAutoSyncScheduled(true);
-      
-      const autoSyncTimer = setTimeout(async () => {
-        try {
-          console.log('🤖 Executing scheduled auto-sync...');
-          await triggerAutoSync.mutateAsync();
-        } catch (error) {
-          console.log('🤖 Auto-sync failed, user can manually retry:', error);
-        }
-      }, 90000); // 90 seconds delay
-      
-      // Show info toast about upcoming auto-sync
-      toast({
-        title: "🤖 סנכרון אוטומטי מתוכנן",
-        description: "הקבוצות שלך יסונכרנו אוטומטית בעוד 90 שניות",
-      });
-      
-      return () => clearTimeout(autoSyncTimer);
-    }
-  }, [profile?.instance_status, hasAutoSynced, autoSyncScheduled, triggerAutoSync]);
-
-  // Reset auto-sync flags when disconnected
-  useEffect(() => {
-    if (profile?.instance_status !== 'connected') {
-      setAutoSyncScheduled(false);
-      setHasAutoSynced(false);
-    }
-  }, [profile?.instance_status, setHasAutoSynced]);
 
   // Simplified QR polling
   const pollForQR = async () => {
@@ -318,13 +271,19 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Connected state with enhanced sync button
+  // Connected state
   if (profile?.instance_status === 'connected') {
     return (
       <WhatsAppConnectedView
         profile={profile}
         onNavigateToCompose={() => window.location.href = '/compose'}
-        onSyncGroups={syncGroups}
+        onSyncGroups={async () => {
+          try {
+            await syncGroups.mutateAsync();
+          } catch (error) {
+            console.error('Failed to sync groups:', error);
+          }
+        }}
         onDisconnect={async () => {
           // This is now just a fallback - the main disconnect uses the dialog
           try {
@@ -338,21 +297,13 @@ const WhatsAppConnect = () => {
             setIsPollingConnection(false);
             setConnectionPollingAttempts(0);
             setManualReconnectStarted(false); // Reset manual flag
-            setAutoSyncScheduled(false); // Reset auto-sync
-            setHasAutoSynced(false);
             
           } catch (error) {
             console.error('❌ Disconnect failed:', error);
           }
         }}
-        isSyncingGroups={isSyncing || isAutoSyncing}
+        isSyncingGroups={syncGroups.isPending}
         isDisconnecting={deleteInstance.isPending}
-        // 🚀 NEW: Enhanced sync button props
-        syncCooldownRemaining={cooldownRemaining}
-        syncCooldownStatus={cooldownStatus}
-        isSyncAvailable={isSyncAvailable}
-        hasAutoSynced={hasAutoSynced}
-        autoSyncScheduled={autoSyncScheduled}
       />
     );
   }
@@ -405,7 +356,7 @@ const WhatsAppConnect = () => {
               isRefreshing={isPollingForQR}
             />
             
-            {/* Enhanced connection status indicator */}
+            {/* Connection status indicator */}
             {isPollingConnection && (
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <div className="flex items-center justify-center space-x-2 mb-2">
@@ -423,16 +374,6 @@ const WhatsAppConnect = () => {
                     style={{ width: `${(connectionPollingAttempts / 60) * 100}%` }}
                   ></div>
                 </div>
-              </div>
-            )}
-
-            {/* Auto-sync info */}
-            {!hasAutoSynced && (
-              <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                <h4 className="font-medium text-green-800 mb-1">🤖 סנכרון אוטומטי</h4>
-                <p className="text-sm text-green-600">
-                  לאחר החיבור, הקבוצות שלך יסונכרנו אוטומטי תוך 90 שניות
-                </p>
               </div>
             )}
           </div>
@@ -463,7 +404,7 @@ const WhatsAppConnect = () => {
               isRefreshing={isPollingForQR}
             />
             
-            {/* Enhanced connection status indicator */}
+            {/* Connection status indicator */}
             {isPollingConnection && (
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <div className="flex items-center justify-center space-x-2 mb-2">
@@ -663,7 +604,7 @@ const WhatsAppConnect = () => {
               isRefreshing={isPollingForQR}
             />
             
-            {/* Enhanced connection status indicator */}
+            {/* Connection status indicator */}
             {isPollingConnection && (
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <div className="flex items-center justify-center space-x-2 mb-2">
@@ -681,16 +622,6 @@ const WhatsAppConnect = () => {
                     style={{ width: `${(connectionPollingAttempts / 60) * 100}%` }}
                   ></div>
                 </div>
-              </div>
-            )}
-
-            {/* Auto-sync preview info */}
-            {!hasAutoSynced && (
-              <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                <h4 className="font-medium text-green-800 mb-1">🤖 סנכרון אוטומטי</h4>
-                <p className="text-sm text-green-600">
-                  לאחר החיבור, הקבוצות שלך יסונכרנו אוטומטי תוך 90 שניות עם הגנה מפני הגבלות API
-                </p>
               </div>
             )}
           </div>
