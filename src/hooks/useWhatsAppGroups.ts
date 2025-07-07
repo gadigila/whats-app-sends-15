@@ -2,30 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { useState, useEffect, useCallback } from 'react';
-
-interface SyncProgress {
-  userId: string;
-  status: 'running' | 'completed' | 'failed' | 'cancelled';
-  progress: number;
-  groupsFound: number;
-  totalScanned: number;
-  currentBatch: number;
-  message: string;
-  startedAt: string;
-  completedAt?: string;
-  error?: string;
-}
 
 export const useWhatsAppGroups = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  
-  // 🆕 Background sync state
-  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
-  const [isPollingProgress, setIsPollingProgress] = useState(false);
 
-  // Fetch groups from database (existing)
+  // Fetch groups from database
   const {
     data: groups,
     isLoading: isLoadingGroups,
@@ -35,6 +17,8 @@ export const useWhatsAppGroups = () => {
     queryFn: async () => {
       if (!user?.id) return [];
       
+      console.log('Fetching WhatsApp groups for user:', user.id);
+      
       const { data, error } = await supabase
         .from('whatsapp_groups')
         .select('*')
@@ -42,113 +26,99 @@ export const useWhatsAppGroups = () => {
         .order('name');
       
       if (error) throw error;
+      
+      console.log('Fetched groups:', data);
       return data || [];
     },
     enabled: !!user?.id
   });
 
-  // 🆕 Poll for sync progress
-  const pollProgress = useCallback(async () => {
-    if (!user?.id || !isPollingProgress) return;
-
-    try {
-      const { data, error } = await supabase.functions.invoke('background-group-sync', {
-        body: { userId: user.id, action: 'status' }
-      });
-
-      if (error) {
-        console.error('Error polling progress:', error);
-        return;
-      }
-
-      if (data.status === 'not_running') {
-        setIsPollingProgress(false);
-        setSyncProgress(null);
-        return;
-      }
-
-      setSyncProgress(data);
-
-      // Stop polling if completed/failed/cancelled
-      if (['completed', 'failed', 'cancelled'].includes(data.status)) {
-        setIsPollingProgress(false);
-        
-        // Refresh groups data
-        queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
-
-        // Show completion toast
-        if (data.status === 'completed') {
-          toast({
-            title: "🎉 Sync Completed!",
-            description: `Found ${data.groupsFound} admin groups from ${data.totalScanned} total groups`,
-          });
-        } else if (data.status === 'failed') {
-          toast({
-            title: "❌ Sync Failed",
-            description: data.error || "Sync failed for unknown reason",
-            variant: "destructive",
-          });
-        }
-      }
-
-    } catch (error) {
-      console.error('Polling error:', error);
-    }
-  }, [user?.id, isPollingProgress, queryClient]);
-
-  // 🆕 Progress polling effect
-  useEffect(() => {
-    if (!isPollingProgress) return;
-
-    const interval = setInterval(pollProgress, 3000); // Poll every 3 seconds
-    
-    return () => clearInterval(interval);
-  }, [isPollingProgress, pollProgress]);
-
-  // 🆕 Background sync mutation
-  const startBackgroundSync = useMutation({
+  // 🚀 ENHANCED: Comprehensive sync with proper loading states
+  const syncGroups = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('🚀 Starting background sync...');
+      console.log('🚀 Starting comprehensive group sync for user:', user.id);
       
-      const { data, error } = await supabase.functions.invoke('background-group-sync', {
-        body: { userId: user.id, action: 'start' }
+      // Show initial loading toast
+      toast({
+        title: "🔄 מתחיל סנכרון קבוצות",
+        description: "מחפש את כל הקבוצות שלך... זה יכול לקחת עד דקה",
+      });
+
+      const { data, error } = await supabase.functions.invoke('sync-whatsapp-groups', {
+        body: { userId: user.id }
       });
       
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
       return data;
     },
     onSuccess: (data) => {
-      console.log('🎉 Background sync started:', data);
+      console.log('🎉 Comprehensive sync completed:', data);
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
       
-      if (data.success) {
-        setSyncProgress(data.progress);
-        setIsPollingProgress(true);
-        
-        toast({
-          title: "🚀 Background Sync Started",
-          description: "Scanning all your groups in the background. You can continue using the app!",
-        });
-      } else {
-        toast({
-          title: "ℹ️ Sync Status",
-          description: data.message,
-        });
+      // Enhanced success message with detailed info
+      const {
+        groups_count = 0,
+        total_groups_scanned = 0,
+        admin_groups_count = 0,
+        creator_groups_count = 0,
+        total_members_in_managed_groups = 0,
+        large_groups_skipped = 0,
+        api_calls_made = 0
+      } = data;
+
+      // Success toast with comprehensive info
+      toast({
+        title: "✅ סנכרון הושלם בהצלחה!",
+        description: `נמצאו ${groups_count} קבוצות בניהולך מתוך ${total_groups_scanned} קבוצות סה"כ`,
+      });
+
+      // Additional info toast for power users
+      if (groups_count > 0) {
+        setTimeout(() => {
+          toast({
+            title: "📊 פרטי הסנכרון",
+            description: `${creator_groups_count} קבוצות כיוצר • ${admin_groups_count} קבוצות כמנהל • ${total_members_in_managed_groups.toLocaleString()} חברים סה"כ`,
+          });
+        }, 2000);
+      }
+
+      // Warning if large groups were skipped
+      if (large_groups_skipped > 0) {
+        setTimeout(() => {
+          toast({
+            title: "⚠️ שים לב",
+            description: `${large_groups_skipped} קבוצות גדולות לא נסרקו בגלל מגבלות API`,
+            variant: "destructive",
+          });
+        }, 4000);
       }
     },
     onError: (error: any) => {
-      console.error('❌ Background sync failed to start:', error);
+      console.error('❌ Comprehensive sync failed:', error);
       
-      let errorTitle = "Failed to Start Sync";
-      let errorDescription = "Try again in a few minutes";
+      // Enhanced error handling with helpful suggestions
+      let errorTitle = "שגיאה בסנכרון קבוצות";
+      let errorDescription = "נסה שוב בעוד כמה דקות";
       
-      if (error.message?.includes('Connection too fresh')) {
-        errorTitle = "Connection Too Recent";
-        errorDescription = error.message;
-      } else if (error.message?.includes('not connected')) {
-        errorTitle = "WhatsApp Not Connected";
-        errorDescription = "Check your connection and try again";
+      if (error.message?.includes('not connected')) {
+        errorTitle = "וואטסאפ לא מחובר";
+        errorDescription = "בדוק את החיבור ונסה שוב";
+      } else if (error.message?.includes('phone number')) {
+        errorTitle = "לא נמצא מספר טלפון";
+        errorDescription = "בדוק סטטוס החיבור תחילה";
+      } else if (error.message?.includes('rate limit') || error.message?.includes('429')) {
+        errorTitle = "יותר מדי בקשות";
+        errorDescription = "המתן 5 דקות ונסה שוב";
+      } else if (error.message?.includes('timeout')) {
+        errorTitle = "פג זמן הבקשה";
+        errorDescription = "הרשת עמוסה, נסה שוב בעוד כמה דקות";
+      } else if (error.message?.includes('high load')) {
+        errorTitle = "השרת עמוס";
+        errorDescription = "שירות WHAPI עמוס כרגע, נסה שוב מאוחר יותר";
       }
       
       toast({
@@ -156,68 +126,27 @@ export const useWhatsAppGroups = () => {
         description: errorDescription,
         variant: "destructive",
       });
-    }
-  });
-
-  // 🆕 Cancel sync mutation
-  const cancelSync = useMutation({
-    mutationFn: async () => {
-      if (!user?.id) throw new Error('No user ID');
-      
-      const { data, error } = await supabase.functions.invoke('background-group-sync', {
-        body: { userId: user.id, action: 'cancel' }
-      });
-      
-      if (error) throw error;
-      return data;
     },
-    onSuccess: () => {
-      setIsPollingProgress(false);
-      setSyncProgress(null);
-      
-      toast({
-        title: "Sync Cancelled",
-        description: "Background sync has been stopped",
-      });
-    }
-  });
-
-  // 🆕 Legacy sync (for backward compatibility)
-  const syncGroups = useMutation({
-    mutationFn: async () => {
-      // Just redirect to background sync
-      return startBackgroundSync.mutateAsync();
-    },
-    onSuccess: startBackgroundSync.onSuccess,
-    onError: startBackgroundSync.onError
+    // 🎯 IMPORTANT: Longer timeout for comprehensive sync
+    mutationKey: ['sync-groups-comprehensive'],
+    retry: 1, // Only retry once for failed syncs
+    retryDelay: 10000, // Wait 10 seconds before retry
   });
 
   return {
     groups: groups || [],
     isLoadingGroups,
     groupsError,
+    syncGroups,
     
-    // 🆕 Background sync functionality
-    syncGroups, // Backward compatibility
-    startBackgroundSync,
-    cancelSync,
-    syncProgress,
-    isPollingProgress,
-    
-    // State indicators
-    isSyncing: startBackgroundSync.isPending || isPollingProgress,
-    syncError: startBackgroundSync.error,
+    // 🚀 Enhanced state indicators
+    isSyncing: syncGroups.isPending,
+    syncError: syncGroups.error,
+    lastSyncData: syncGroups.data,
     
     // Helper computed values
     totalGroups: groups?.length || 0,
     adminGroups: groups?.filter(g => g.is_admin)?.length || 0,
     totalMembers: groups?.reduce((sum, g) => sum + (g.participants_count || 0), 0) || 0,
-    
-    // 🆕 Background sync specific values
-    isBackgroundSyncRunning: syncProgress?.status === 'running',
-    backgroundSyncProgress: syncProgress?.progress || 0,
-    backgroundSyncMessage: syncProgress?.message || '',
-    groupsFoundSoFar: syncProgress?.groupsFound || 0,
-    totalScannedSoFar: syncProgress?.totalScanned || 0,
   };
 };
