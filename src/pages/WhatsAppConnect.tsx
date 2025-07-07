@@ -7,7 +7,7 @@ import WhatsAppInitialState from '@/components/WhatsAppInitialState';
 import WhatsAppQRDisplay from '@/components/WhatsAppQRDisplay';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
-import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups'; // 🆕 Import enhanced hook
+import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,15 +17,7 @@ const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
-  
-  // 🆕 Use enhanced groups hook with cooldown functionality
-  const { 
-    syncGroups, 
-    startPostConnectionCooldown,
-    isInCooldown,
-    syncCooldownSeconds 
-  } = useWhatsAppGroups();
-  
+  const { syncGroups } = useWhatsAppGroups();
   const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -33,11 +25,10 @@ const WhatsAppConnect = () => {
   const [pollingAttempts, setPollingAttempts] = useState(0);
   const [isPollingConnection, setIsPollingConnection] = useState(false);
   const [connectionPollingAttempts, setConnectionPollingAttempts] = useState(0);
+  // 🆕 NEW: Track if user manually started reconnection
   const [manualReconnectStarted, setManualReconnectStarted] = useState(false);
+  // 🆕 NEW: Track if this was a fresh channel creation
   const [justCreatedChannel, setJustCreatedChannel] = useState(false);
-  
-  // 🆕 Track if we've already triggered cooldown for this connection
-  const [cooldownTriggered, setCooldownTriggered] = useState(false);
 
   console.log('🔄 WhatsAppConnect render:', {
     isAuthReady,
@@ -49,32 +40,8 @@ const WhatsAppConnect = () => {
     pollingAttempts,
     isPollingConnection,
     connectionPollingAttempts,
-    manualReconnectStarted,
-    cooldownTriggered,
-    isInCooldown,
-    syncCooldownSeconds
+    manualReconnectStarted
   });
-
-  // 🆕 Trigger cooldown when user becomes connected (only once per connection)
-  useEffect(() => {
-    if (profile?.instance_status === 'connected' && !cooldownTriggered) {
-      console.log('🎉 Connection detected! Starting post-connection cooldown...');
-      startPostConnectionCooldown();
-      setCooldownTriggered(true);
-      
-      // Reset other states
-      setQrCode(null);
-      setIsPollingConnection(false);
-      setConnectionPollingAttempts(0);
-      setManualReconnectStarted(false);
-      setJustCreatedChannel(false);
-    }
-    
-    // Reset cooldown trigger when disconnected
-    if (profile?.instance_status !== 'connected') {
-      setCooldownTriggered(false);
-    }
-  }, [profile?.instance_status, cooldownTriggered, startPostConnectionCooldown]);
 
   // Simplified QR polling
   const pollForQR = async () => {
@@ -82,7 +49,7 @@ const WhatsAppConnect = () => {
       console.error('❌ Max polling attempts reached');
       setIsPollingForQR(false);
       setPollingAttempts(0);
-      setManualReconnectStarted(false);
+      setManualReconnectStarted(false); // Reset manual flag
       toast({
         title: "שגיאה",
         description: "לא הצלחנו לקבל קוד QR. נסה ליצור ערוץ חדש",
@@ -105,7 +72,7 @@ const WhatsAppConnect = () => {
         console.log('✅ Already connected!');
         setIsPollingForQR(false);
         setPollingAttempts(0);
-        setManualReconnectStarted(false);
+        setManualReconnectStarted(false); // Reset manual flag
         await refetchProfile();
         return;
       }
@@ -170,7 +137,7 @@ const WhatsAppConnect = () => {
         setIsPollingConnection(false);
         setConnectionPollingAttempts(0);
         setQrCode(null); // Hide QR code
-        setManualReconnectStarted(false);
+        setManualReconnectStarted(false); // Reset manual flag
         
         // Show success toast
         toast({
@@ -304,15 +271,13 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // 🆕 Connected state with enhanced sync functionality
+  // Connected state
   if (profile?.instance_status === 'connected') {
     return (
       <WhatsAppConnectedView
         profile={profile}
         onNavigateToCompose={() => window.location.href = '/compose'}
         onSyncGroups={async () => {
-          // 🆕 This is now handled by the enhanced hook automatically
-          // Keep for backward compatibility but not used
           try {
             await syncGroups.mutateAsync();
           } catch (error) {
@@ -331,8 +296,7 @@ const WhatsAppConnect = () => {
             setPollingAttempts(0);
             setIsPollingConnection(false);
             setConnectionPollingAttempts(0);
-            setManualReconnectStarted(false);
-            setCooldownTriggered(false); // 🆕 Reset cooldown trigger
+            setManualReconnectStarted(false); // Reset manual flag
             
           } catch (error) {
             console.error('❌ Disconnect failed:', error);

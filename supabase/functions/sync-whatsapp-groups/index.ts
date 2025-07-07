@@ -7,8 +7,6 @@ const corsHeaders = {
 
 interface SyncGroupsRequest {
   userId: string
-  isAutoRetry?: boolean
-  retryAttempt?: number
 }
 
 // Helper function to add delays between requests
@@ -49,13 +47,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 ENHANCED SMART SYNC: Adaptive timing based on connection age...')
+    console.log('🚀 FAST 3-PASS SYNC: Maximum speed optimization...')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { userId, isAutoRetry = false, retryAttempt = 0 }: SyncGroupsRequest = await req.json()
+    const { userId }: SyncGroupsRequest = await req.json()
 
     if (!userId) {
       return new Response(
@@ -64,13 +62,12 @@ Deno.serve(async (req) => {
       )
     }
 
-    const syncType = isAutoRetry ? `AUTO-RETRY ${retryAttempt + 1}` : 'MANUAL';
-    console.log(`👤 Starting ${syncType} sync for user:`, userId)
+    console.log('👤 Starting fast 3-pass sync for user:', userId)
 
-    // Get user's WHAPI token AND phone number AND connection timing
+    // Get user's WHAPI token AND phone number
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('instance_id, whapi_token, instance_status, phone_number, updated_at')
+      .select('instance_id, whapi_token, instance_status, phone_number')
       .eq('id', userId)
       .single()
 
@@ -87,13 +84,6 @@ Deno.serve(async (req) => {
         { status: 400, headers: corsHeaders }
       )
     }
-
-    // 🆕 SMART TIMING: Calculate how long since connection
-    const now = new Date();
-    const lastUpdated = new Date(profile.updated_at);
-    const connectionAgeMinutes = Math.floor((now.getTime() - lastUpdated.getTime()) / (1000 * 60));
-    
-    console.log(`⏰ Connection age: ${connectionAgeMinutes} minutes`);
 
     // Get phone number with fallback
     let userPhoneNumber = profile.phone_number
@@ -144,101 +134,53 @@ Deno.serve(async (req) => {
 
     console.log(`📱 User phone for matching: ${userPhoneNumber}`)
 
-    // 🚀 ADAPTIVE STRATEGY based on connection age and retry attempt
-    let strategy;
-    
-    if (connectionAgeMinutes < 2) {
-      // Very fresh connection - be patient
-      strategy = {
-        passes: 2,
-        delays: [10000, 20000], // 10s, then 20s
-        batchSizes: [30, 50],
-        maxApiCalls: 6,
-        description: "Fresh connection - patient approach"
-      };
-    } else if (connectionAgeMinutes < 5) {
-      // Recent connection - balanced approach
-      strategy = {
-        passes: 3,
-        delays: [5000, 10000, 15000], // 5s, 10s, 15s
-        batchSizes: [50, 75, 100],
-        maxApiCalls: 10,
-        description: "Recent connection - balanced approach"
-      };
-    } else if (isAutoRetry) {
-      // Auto-retry - focused approach
-      strategy = {
-        passes: 2,
-        delays: [2000, 8000], // 2s, 8s
-        batchSizes: [75, 125],
-        maxApiCalls: 8,
-        description: `Auto-retry ${retryAttempt + 1} - focused approach`
-      };
-    } else {
-      // Established connection - aggressive approach
-      strategy = {
-        passes: 3,
-        delays: [1000, 3000, 5000], // 1s, 3s, 5s
-        batchSizes: [100, 150, 200],
-        maxApiCalls: 12,
-        description: "Established connection - aggressive approach"
-      };
-    }
-
-    console.log(`🎯 Using strategy: ${strategy.description}`);
+    // 🚀 FAST 3-PASS STRATEGY - Maximum speed optimization
+    const passConfig = [
+      { pass: 1, delay: 0,     batchSize: 50,  description: "Immediate fast scan" },
+      { pass: 2, delay: 15000, batchSize: 100, description: "15s - Quick discovery" },
+      { pass: 3, delay: 15000, batchSize: 150, description: "30s - Final sweep" }
+    ];
 
     let allFoundGroups = new Map(); // Use Map to avoid duplicates
     let totalApiCalls = 0;
     let consecutiveEmptyPasses = 0;
     const syncStartTime = Date.now();
 
-    for (let passIndex = 0; passIndex < strategy.passes; passIndex++) {
-      const pass = passIndex + 1;
-      
+    for (const config of passConfig) {
       // Add delay before pass (except first pass)
-      if (passIndex > 0) {
-        const delayMs = strategy.delays[passIndex];
-        console.log(`⏳ Waiting ${delayMs/1000}s before pass ${pass}...`);
-        await delay(delayMs);
+      if (config.delay > 0) {
+        console.log(`⏳ Waiting ${config.delay/1000}s before pass ${config.pass} (${config.description})...`)
+        await delay(config.delay);
       }
 
-      console.log(`\n🔄 === PASS ${pass}/${strategy.passes} === (${strategy.description})`);
+      console.log(`\n🔄 === PASS ${config.pass}/3 === (${config.description})`)
       
       const passStartTime = Date.now();
       let passFoundGroups = 0;
-      const batchSize = strategy.batchSizes[passIndex];
 
       // Get all groups with pagination for this pass
       let allGroups: any[] = []
       let currentOffset = 0
       let hasMoreGroups = true
       let passApiCalls = 0
-      const maxPassApiCalls = Math.floor(strategy.maxApiCalls / strategy.passes) + 2; // Distribute API calls
+      const maxPassApiCalls = 8 // Reduced limit for speed
 
       while (hasMoreGroups && passApiCalls < maxPassApiCalls) {
         passApiCalls++
         totalApiCalls++
         
-        console.log(`📊 Pass ${pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + batchSize}`)
+        console.log(`📊 Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          // 🚀 ADAPTIVE API DELAYS based on connection age
-          let apiDelay;
-          if (connectionAgeMinutes < 2) {
-            apiDelay = 3000 + (passApiCalls * 500); // Start slow for fresh connections
-          } else if (isAutoRetry) {
-            apiDelay = 1500 + (passApiCalls * 300); // Faster for retries
-          } else {
-            apiDelay = 1000 + (passApiCalls * 200); // Fastest for established connections
-          }
-          
+          // Reduced API delays for speed
+          const apiDelay = Math.min(1500 + (config.pass * 300), 3000); // 1.5s to 2.4s max
           if (passApiCalls > 1) {
             console.log(`⏳ API delay: ${apiDelay}ms...`)
             await delay(apiDelay)
           }
 
           const groupsResponse = await fetch(
-            `https://gate.whapi.cloud/groups?count=${batchSize}&offset=${currentOffset}`,
+            `https://gate.whapi.cloud/groups?count=${config.batchSize}&offset=${currentOffset}`,
             {
               method: 'GET',
               headers: {
@@ -249,15 +191,15 @@ Deno.serve(async (req) => {
           )
 
           if (!groupsResponse.ok) {
-            console.error(`❌ Groups API failed (pass ${pass}, call ${passApiCalls}):`, groupsResponse.status)
+            console.error(`❌ Groups API failed (pass ${config.pass}, call ${passApiCalls}):`, groupsResponse.status)
             
             if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
-              const retryDelay = apiDelay * 2; // Double delay for rate limits
+              const retryDelay = apiDelay * 1.5; // Reduced retry delay
               console.log(`🔄 Rate limited, waiting ${retryDelay}ms and retrying...`)
               await delay(retryDelay)
               continue // Retry same offset
             } else {
-              console.log(`💥 Non-retryable error, stopping pass ${pass}`)
+              console.log(`💥 Non-retryable error, stopping pass ${config.pass}`)
               break
             }
           }
@@ -265,36 +207,36 @@ Deno.serve(async (req) => {
           const groupsData = await groupsResponse.json()
           const batchGroups = groupsData.groups || []
           
-          console.log(`📊 Pass ${pass}, batch ${passApiCalls}: Received ${batchGroups.length} groups`)
+          console.log(`📊 Pass ${config.pass}, batch ${passApiCalls}: Received ${batchGroups.length} groups`)
           
           if (batchGroups.length === 0) {
             hasMoreGroups = false
-            console.log(`📊 No more groups in pass ${pass}`)
+            console.log(`📊 No more groups in pass ${config.pass}`)
           } else {
             allGroups = allGroups.concat(batchGroups)
-            currentOffset += batchSize
+            currentOffset += config.batchSize
             
-            if (batchGroups.length < batchSize) {
+            if (batchGroups.length < config.batchSize) {
               hasMoreGroups = false
-              console.log(`📊 Last batch in pass ${pass} (fewer groups than requested)`)
+              console.log(`📊 Last batch in pass ${config.pass} (fewer groups than requested)`)
             }
           }
 
         } catch (batchError) {
-          console.error(`❌ Error in pass ${pass}, batch ${passApiCalls}:`, batchError)
+          console.error(`❌ Error in pass ${config.pass}, batch ${passApiCalls}:`, batchError)
           
           if (batchError.message.includes('timeout') || batchError.message.includes('429')) {
-            console.log(`🔄 Retrying after error in pass ${pass}...`)
+            console.log(`🔄 Retrying after error in pass ${config.pass}...`)
             await delay(apiDelay * 1.5)
             continue
           } else {
-            console.error(`💥 Fatal error in pass ${pass}, stopping`)
+            console.error(`💥 Fatal error in pass ${config.pass}, stopping`)
             break
           }
         }
       }
 
-      console.log(`📊 Pass ${pass} collected: ${allGroups.length} groups from ${passApiCalls} API calls`)
+      console.log(`📊 Pass ${config.pass} collected: ${allGroups.length} groups from ${passApiCalls} API calls`)
 
       // Process groups from this pass
       for (const group of allGroups) {
@@ -332,12 +274,12 @@ Deno.serve(async (req) => {
               if (isCreatorRole) {
                 isCreator = true;
                 isAdmin = true;
-                console.log(`👑 Pass ${pass}: Found CREATOR role in ${groupName}`);
+                console.log(`👑 Pass ${config.pass}: Found CREATOR role in ${groupName}`);
               } else if (isAdminRole) {
                 isAdmin = true;
-                console.log(`⭐ Pass ${pass}: Found ADMIN role in ${groupName}`);
+                console.log(`⭐ Pass ${config.pass}: Found ADMIN role in ${groupName}`);
               } else {
-                console.log(`👤 Pass ${pass}: Found MEMBER role in ${groupName} (skipping)`);
+                console.log(`👤 Pass ${config.pass}: Found MEMBER role in ${groupName} (skipping)`);
               }
               break;
             }
@@ -360,57 +302,52 @@ Deno.serve(async (req) => {
           });
           
           passFoundGroups++;
-          console.log(`✅ Pass ${pass}: ADDED ${groupName} (${participantsCount} members) - ${isCreator ? 'CREATOR' : 'ADMIN'}`)
+          console.log(`✅ Pass ${config.pass}: ADDED ${groupName} (${participantsCount} members) - ${isCreator ? 'CREATOR' : 'ADMIN'}`)
         }
       }
 
       const passTime = Math.round((Date.now() - passStartTime) / 1000);
       const totalElapsedTime = Math.round((Date.now() - syncStartTime) / 1000);
-      console.log(`🎯 Pass ${pass} completed in ${passTime}s: Found ${passFoundGroups} new admin groups`)
+      console.log(`🎯 Pass ${config.pass} completed in ${passTime}s: Found ${passFoundGroups} new admin groups`)
       console.log(`📊 Total found so far: ${allFoundGroups.size} admin groups (${totalElapsedTime}s elapsed)`)
 
-      // 🚀 ENHANCED STOPPING LOGIC based on strategy
+      // 🚀 AGGRESSIVE FAST STOPPING LOGIC
       if (passFoundGroups === 0) {
         consecutiveEmptyPasses++;
-        console.log(`📊 No new groups in pass ${pass} (${consecutiveEmptyPasses} consecutive empty passes)`);
+        console.log(`📊 No new groups in pass ${config.pass} (${consecutiveEmptyPasses} consecutive empty passes)`);
       } else {
         consecutiveEmptyPasses = 0; // Reset counter when we find groups
       }
 
-      // Adaptive stopping conditions
+      // Fast stopping conditions - more aggressive for speed
       const shouldStopEarly = (
         // Stop after 2 empty passes (always)
         (consecutiveEmptyPasses >= 2) ||
         
-        // For fresh connections, be more patient
-        (connectionAgeMinutes < 2 && allFoundGroups.size >= 3 && consecutiveEmptyPasses >= 1 && pass >= 2) ||
+        // Stop if we have good results and 1 empty pass after pass 2
+        (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1 && config.pass >= 2) ||
         
-        // For established connections, stop faster with good results
-        (connectionAgeMinutes >= 5 && allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1) ||
-        
-        // For auto-retry, stop if we got some results
-        (isAutoRetry && allFoundGroups.size >= 2 && consecutiveEmptyPasses >= 1) ||
-        
-        // Safety timeout
-        (totalElapsedTime >= 60)
+        // Stop if approaching 40 seconds (safety)
+        (totalElapsedTime >= 40)
       );
 
       if (shouldStopEarly) {
         let stopReason = '';
         if (consecutiveEmptyPasses >= 2) {
           stopReason = `2 consecutive empty passes`;
-        } else if (connectionAgeMinutes < 2) {
-          stopReason = `fresh connection with ${allFoundGroups.size} groups found`;
-        } else if (isAutoRetry) {
-          stopReason = `auto-retry with ${allFoundGroups.size} groups found`;
-        } else if (totalElapsedTime >= 60) {
-          stopReason = `60 second safety limit`;
-        } else {
-          stopReason = `good results (${allFoundGroups.size} groups)`;
+        } else if (allFoundGroups.size >= 5 && consecutiveEmptyPasses >= 1) {
+          stopReason = `good results (${allFoundGroups.size} groups) with 1 empty pass`;
+        } else if (totalElapsedTime >= 40) {
+          stopReason = `40 second safety limit`;
         }
         
-        console.log(`🏁 Stopping after pass ${pass}: ${stopReason}`);
+        console.log(`🏁 Fast stopping after pass ${config.pass}: ${stopReason}`);
         break;
+      }
+
+      // Don't add delay after last pass
+      if (config.pass < passConfig.length) {
+        console.log(`📊 Pass ${config.pass} summary: ${passFoundGroups} new groups, ${allFoundGroups.size} total`);
       }
     }
 
@@ -420,16 +357,15 @@ Deno.serve(async (req) => {
     const totalMemberCount = managedGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
     const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000);
 
-    console.log(`\n🎯 ENHANCED SYNC COMPLETE!`)
+    console.log(`\n🎯 FAST 3-PASS SYNC COMPLETE!`)
     console.log(`📱 User phone: ${userPhoneNumber}`)
     console.log(`⚡ Total sync time: ${totalSyncTime} seconds`)
-    console.log(`🔄 Strategy used: ${strategy.description}`)
+    console.log(`🔄 Passes completed: ${passConfig.length}`)
     console.log(`📊 Total API calls: ${totalApiCalls}`)
     console.log(`✅ Final admin groups found: ${managedGroups.length}`)
     console.log(`👑 Creator groups: ${creatorCount}`)
     console.log(`⭐ Admin groups: ${adminCount}`)
     console.log(`👥 Total members: ${totalMemberCount}`)
-    console.log(`⏰ Connection age: ${connectionAgeMinutes} minutes`)
 
     // Save ALL found groups to database
     console.log('💾 Saving all found groups...')
@@ -456,30 +392,25 @@ Deno.serve(async (req) => {
         }
         
         if (i + dbBatchSize < managedGroups.length) {
-          await delay(50) // Small delay between batches
+          await delay(50) // Reduced delay for speed
         }
       }
     }
 
     const message = managedGroups.length > 0
       ? `נמצאו ${managedGroups.length} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
-      : isAutoRetry 
-        ? `ניסיון אוטומטי ${retryAttempt + 1} - לא נמצאו קבוצות נוספות`
-        : 'לא נמצאו קבוצות בניהולך'
+      : 'לא נמצאו קבוצות בניהולך'
 
     return new Response(
       JSON.stringify({
         success: true,
         user_phone: userPhoneNumber,
         groups_count: managedGroups.length,
-        total_groups_scanned: `${strategy.description} completed in ${totalSyncTime}s`,
+        total_groups_scanned: `Fast 3-pass scan completed in ${totalSyncTime}s`,
         admin_groups_count: adminCount,
         creator_groups_count: creatorCount,
         total_members_in_managed_groups: totalMemberCount,
-        sync_strategy: strategy.description,
-        connection_age_minutes: connectionAgeMinutes,
-        is_auto_retry: isAutoRetry,
-        retry_attempt: retryAttempt,
+        sync_passes: 3,
         total_api_calls: totalApiCalls,
         sync_time_seconds: totalSyncTime,
         message: message,
@@ -488,20 +419,18 @@ Deno.serve(async (req) => {
           members: g.participants_count,
           id: g.group_id,
           role: g.is_creator ? 'creator' : 'admin'
-        })).slice(0, 20),
-        // 🆕 Indicate if this looks like an incomplete result
-        looks_incomplete: managedGroups.length < 3 && totalSyncTime < 30 && !isAutoRetry
+        })).slice(0, 20)
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Enhanced Smart Sync Error:', error)
+    console.error('💥 Fast 3-Pass Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message,
-        suggestion: 'Enhanced sync failed - check network connectivity'
+        suggestion: 'Fast 3-pass sync failed - check network connectivity'
       }),
       { status: 500, headers: corsHeaders }
     )
