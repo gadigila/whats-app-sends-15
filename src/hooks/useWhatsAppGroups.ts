@@ -2,10 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { useState, useEffect, useCallback } from 'react';
 
 export const useWhatsAppGroups = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  
+  // 🆕 Smart cooldown state
+  const [syncCooldownSeconds, setSyncCooldownSeconds] = useState(0);
+  const [isInCooldown, setIsInCooldown] = useState(false);
+  const [autoRetryActive, setAutoRetryActive] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   // Fetch groups from database
   const {
@@ -33,33 +40,112 @@ export const useWhatsAppGroups = () => {
     enabled: !!user?.id
   });
 
-  // 🚀 ENHANCED: Comprehensive sync with proper loading states
+  // 🆕 Cooldown countdown effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (syncCooldownSeconds > 0) {
+      setIsInCooldown(true);
+      interval = setInterval(() => {
+        setSyncCooldownSeconds((prev) => {
+          if (prev <= 1) {
+            setIsInCooldown(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [syncCooldownSeconds]);
+
+  // 🆕 Auto-retry logic with intelligent stopping
+  const performSmartSync = useCallback(async (isAutoRetry = false) => {
+    if (!user?.id) return null;
+
+    console.log(`🚀 ${isAutoRetry ? 'Auto-retry' : 'Manual'} sync attempt ${retryAttempt + 1}`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-whatsapp-groups', {
+        body: { 
+          userId: user.id,
+          isAutoRetry,
+          retryAttempt: retryAttempt
+        }
+      });
+      
+      if (error) throw error;
+      
+      const groupsFound = data?.groups_count || 0;
+      console.log(`📊 Sync result: ${groupsFound} groups found`);
+      
+      // 🎯 Intelligent stopping conditions
+      const shouldStopRetrying = (
+        groupsFound >= 5 ||  // Good result threshold
+        retryAttempt >= 8 ||  // Max retry limit
+        data?.sync_time_seconds > 45  // Took too long, probably got everything
+      );
+      
+      if (isAutoRetry && !shouldStopRetrying) {
+        // Continue auto-retry with progressive delay
+        const nextDelay = Math.min(15000 + (retryAttempt * 5000), 30000); // 15s to 30s
+        console.log(`🔄 Scheduling next auto-retry in ${nextDelay/1000}s...`);
+        
+        setTimeout(() => {
+          setRetryAttempt(prev => prev + 1);
+          performSmartSync(true);
+        }, nextDelay);
+      } else {
+        // Stop auto-retry
+        setAutoRetryActive(false);
+        setRetryAttempt(0);
+        
+        if (isAutoRetry) {
+          console.log(`🏁 Auto-retry complete: ${groupsFound} groups found after ${retryAttempt + 1} attempts`);
+          
+          if (groupsFound > 0) {
+            toast({
+              title: "סנכרון הושלם אוטומטית!",
+              description: `נמצאו ${groupsFound} קבוצות לאחר ${retryAttempt + 1} ניסיונות`,
+            });
+          }
+        }
+      }
+      
+      return data;
+      
+    } catch (error) {
+      console.error('❌ Smart sync failed:', error);
+      
+      if (isAutoRetry && retryAttempt < 3) {
+        // Retry on error (limited retries for auto-retry)
+        setTimeout(() => {
+          setRetryAttempt(prev => prev + 1);
+          performSmartSync(true);
+        }, 10000);
+      } else {
+        setAutoRetryActive(false);
+        setRetryAttempt(0);
+        throw error;
+      }
+    }
+  }, [user?.id, retryAttempt]);
+
+  // 🚀 Enhanced sync with smart cooldown
   const syncGroups = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('🚀 Starting comprehensive group sync for user:', user.id);
-      
-      // Show initial loading toast
-      toast({
-        title: "🔄 מתחיל סנכרון קבוצות",
-        description: "מחפש את כל הקבוצות שלך... זה יכול לקחת עד דקה",
-      });
-
-      const { data, error } = await supabase.functions.invoke('sync-whatsapp-groups', {
-        body: { userId: user.id }
-      });
-      
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      
-      return data;
+      // Start manual sync
+      return await performSmartSync(false);
     },
     onSuccess: (data) => {
-      console.log('🎉 Comprehensive sync completed:', data);
+      console.log('🎉 Manual sync completed:', data);
       queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
       
-      // Enhanced success message with detailed info
       const {
         groups_count = 0,
         total_groups_scanned = 0,
@@ -67,14 +153,32 @@ export const useWhatsAppGroups = () => {
         creator_groups_count = 0,
         total_members_in_managed_groups = 0,
         large_groups_skipped = 0,
-        api_calls_made = 0
+        api_calls_made = 0,
+        sync_time_seconds = 0
       } = data;
 
       // Success toast with comprehensive info
       toast({
-        title: "✅ סנכרון הושלם בהצלחה!",
-        description: `נמצאו ${groups_count} קבוצות בניהולך מתוך ${total_groups_scanned} קבוצות סה"כ`,
+        title: "✅ סנכרון ידני הושלם!",
+        description: `נמצאו ${groups_count} קבוצות בניהולך`,
       });
+
+      // 🆕 Start auto-retry if results seem incomplete
+      if (groups_count < 3 && sync_time_seconds < 30) {
+        console.log('🔄 Starting auto-retry sequence for better results...');
+        setAutoRetryActive(true);
+        setRetryAttempt(0);
+        
+        // Start first auto-retry after 15 seconds
+        setTimeout(() => {
+          performSmartSync(true);
+        }, 15000);
+        
+        toast({
+          title: "🔄 מתחיל חיפוש נוסף",
+          description: "מחפש עוד קבוצות ברקע...",
+        });
+      }
 
       // Additional info toast for power users
       if (groups_count > 0) {
@@ -98,7 +202,7 @@ export const useWhatsAppGroups = () => {
       }
     },
     onError: (error: any) => {
-      console.error('❌ Comprehensive sync failed:', error);
+      console.error('❌ Manual sync failed:', error);
       
       // Enhanced error handling with helpful suggestions
       let errorTitle = "שגיאה בסנכרון קבוצות";
@@ -127,11 +231,29 @@ export const useWhatsAppGroups = () => {
         variant: "destructive",
       });
     },
-    // 🎯 IMPORTANT: Longer timeout for comprehensive sync
-    mutationKey: ['sync-groups-comprehensive'],
-    retry: 1, // Only retry once for failed syncs
-    retryDelay: 10000, // Wait 10 seconds before retry
+    retry: 1,
+    retryDelay: 10000,
   });
+
+  // 🆕 Function to start post-connection cooldown
+  const startPostConnectionCooldown = useCallback(() => {
+    console.log('🕐 Starting post-connection cooldown (60 seconds)');
+    setSyncCooldownSeconds(60);
+    setAutoRetryActive(false);
+    setRetryAttempt(0);
+    
+    toast({
+      title: "חיבור הצליח!",
+      description: "כפתור הסנכרון יהיה זמין בעוד 60 שניות",
+    });
+  }, []);
+
+  // 🆕 Function to trigger immediate sync (for testing)
+  const triggerImmediateSync = useCallback(() => {
+    if (!isInCooldown && !syncGroups.isPending) {
+      syncGroups.mutate();
+    }
+  }, [isInCooldown, syncGroups]);
 
   return {
     groups: groups || [],
@@ -139,10 +261,20 @@ export const useWhatsAppGroups = () => {
     groupsError,
     syncGroups,
     
-    // 🚀 Enhanced state indicators
+    // 🆕 Enhanced state indicators
     isSyncing: syncGroups.isPending,
     syncError: syncGroups.error,
     lastSyncData: syncGroups.data,
+    
+    // 🆕 Cooldown and auto-retry state
+    isInCooldown,
+    syncCooldownSeconds,
+    autoRetryActive,
+    retryAttempt,
+    
+    // 🆕 Control functions
+    startPostConnectionCooldown,
+    triggerImmediateSync,
     
     // Helper computed values
     totalGroups: groups?.length || 0,
