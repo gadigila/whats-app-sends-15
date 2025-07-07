@@ -7,7 +7,6 @@ import WhatsAppInitialState from '@/components/WhatsAppInitialState';
 import WhatsAppQRDisplay from '@/components/WhatsAppQRDisplay';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
-import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +16,6 @@ const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
-  const { syncGroups } = useWhatsAppGroups();
   const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -25,9 +23,7 @@ const WhatsAppConnect = () => {
   const [pollingAttempts, setPollingAttempts] = useState(0);
   const [isPollingConnection, setIsPollingConnection] = useState(false);
   const [connectionPollingAttempts, setConnectionPollingAttempts] = useState(0);
-  // 🆕 NEW: Track if user manually started reconnection
   const [manualReconnectStarted, setManualReconnectStarted] = useState(false);
-  // 🆕 NEW: Track if this was a fresh channel creation
   const [justCreatedChannel, setJustCreatedChannel] = useState(false);
 
   console.log('🔄 WhatsAppConnect render:', {
@@ -43,7 +39,6 @@ const WhatsAppConnect = () => {
     manualReconnectStarted
   });
 
-  // Simplified QR polling
   const pollForQR = async () => {
     if (pollingAttempts >= 30) { // Max 30 attempts = 1.5 minutes
       console.error('❌ Max polling attempts reached');
@@ -106,7 +101,6 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // Connection status polling function (using supabase directly)
   const pollForConnection = async () => {
     if (connectionPollingAttempts >= 60) { // Max 60 attempts = 5 minutes
       console.log('❌ Max connection polling attempts reached');
@@ -170,7 +164,6 @@ const WhatsAppConnect = () => {
     }
   };
 
-  // 🔧 FIXED: Updated useEffect to handle new channels vs reconnection
   useEffect(() => {
     console.log('🔍 useEffect triggered:', {
       status: profile?.instance_status,
@@ -181,7 +174,6 @@ const WhatsAppConnect = () => {
       isPollingForQR
     });
     
-    // For fresh channel creation, immediately start QR polling
     if (justCreatedChannel && profile?.instance_id && profile?.instance_status === 'unauthorized' && !qrCode && !isPollingForQR) {
       console.log('🚀 Fresh channel detected - auto-starting QR polling');
       setIsPollingForQR(true);
@@ -192,7 +184,6 @@ const WhatsAppConnect = () => {
       return;
     }
     
-    // Don't auto-start QR after hard disconnect, UNLESS user manually started reconnection
     if (profile?.instance_status === 'unauthorized' && !manualReconnectStarted && !justCreatedChannel) {
       console.log('⚠️ User is unauthorized (hard disconnected) - waiting for manual reconnection');
       return;
@@ -210,29 +201,24 @@ const WhatsAppConnect = () => {
       setIsPollingForQR(true);
       setPollingAttempts(0);
       
-      // Start polling after a short delay
       setTimeout(async () => {
         await pollForQR();
       }, 2000);
     }
   }, [profile?.instance_status, profile?.instance_id, qrCode, isPollingForQR, manualReconnectStarted, justCreatedChannel]);
 
-  // Start connection polling when QR is displayed
   useEffect(() => {
-    // Start connection polling when QR is displayed
     if (qrCode && !isPollingConnection && profile?.instance_status !== 'connected') {
       console.log('🚀 Starting connection status polling...');
       setIsPollingConnection(true);
       setConnectionPollingAttempts(0);
       
-      // Start polling after showing QR
       setTimeout(() => {
         pollForConnection();
       }, 3000);
     }
   }, [qrCode, isPollingConnection, profile?.instance_status]);
 
-  // 🆕 NEW: Reset flags when user becomes connected
   useEffect(() => {
     if (profile?.instance_status === 'connected') {
       setManualReconnectStarted(false);
@@ -240,7 +226,6 @@ const WhatsAppConnect = () => {
     }
   }, [profile?.instance_status]);
 
-  // 🆕 NEW: Manual reconnection function
   const handleManualReconnect = () => {
     console.log('🔄 Manual reconnection started by user');
     setManualReconnectStarted(true);
@@ -250,13 +235,11 @@ const WhatsAppConnect = () => {
     setIsPollingConnection(false);
     setConnectionPollingAttempts(0);
     
-    // Start polling immediately for manual reconnection
     setTimeout(async () => {
       await pollForQR();
     }, 500);
   };
 
-  // Loading states
   if (!isAuthReady || (profileLoading && !profileError)) {
     return <WhatsAppLoadingState />;
   }
@@ -271,26 +254,16 @@ const WhatsAppConnect = () => {
     );
   }
 
-  // Connected state
   if (profile?.instance_status === 'connected') {
     return (
       <WhatsAppConnectedView
         profile={profile}
         onNavigateToCompose={() => window.location.href = '/compose'}
-        onSyncGroups={async () => {
-          try {
-            await syncGroups.mutateAsync();
-          } catch (error) {
-            console.error('Failed to sync groups:', error);
-          }
-        }}
         onDisconnect={async () => {
-          // This is now just a fallback - the main disconnect uses the dialog
           try {
             await deleteInstance.mutateAsync();
             await refetchProfile();
             
-            // STOP all polling when disconnecting
             setQrCode(null);
             setIsPollingForQR(false);
             setPollingAttempts(0);
@@ -302,17 +275,14 @@ const WhatsAppConnect = () => {
             console.error('❌ Disconnect failed:', error);
           }
         }}
-        isSyncingGroups={syncGroups.isPending}
         isDisconnecting={deleteInstance.isPending}
       />
     );
   }
 
-  // 🔧 FIXED: Disconnected/Unauthorized state - handle new vs disconnected users
   if (profile?.instance_status === 'unauthorized') {
     console.log('🔍 Unauthorized state:', { justCreatedChannel, manualReconnectStarted, hasQrCode: !!qrCode, isPollingForQR });
     
-    // For fresh channels that just got created, show loading state
     if (justCreatedChannel && !qrCode && isPollingForQR) {
       return (
         <Layout>
@@ -333,7 +303,6 @@ const WhatsAppConnect = () => {
       );
     }
 
-    // For fresh channels with QR ready, show QR directly
     if (justCreatedChannel && qrCode) {
       return (
         <Layout>
@@ -356,7 +325,6 @@ const WhatsAppConnect = () => {
               isRefreshing={isPollingForQR}
             />
             
-            {/* Connection status indicator */}
             {isPollingConnection && (
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <div className="flex items-center justify-center space-x-2 mb-2">
@@ -381,7 +349,6 @@ const WhatsAppConnect = () => {
       );
     }
 
-    // If user started manual reconnection and we have QR, show it
     if (manualReconnectStarted && qrCode) {
       return (
         <Layout>
@@ -404,7 +371,6 @@ const WhatsAppConnect = () => {
               isRefreshing={isPollingForQR}
             />
             
-            {/* Connection status indicator */}
             {isPollingConnection && (
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <div className="flex items-center justify-center space-x-2 mb-2">
@@ -425,7 +391,6 @@ const WhatsAppConnect = () => {
               </div>
             )}
             
-            {/* Back to disconnect view button */}
             <div className="text-center">
               <button
                 onClick={() => {
@@ -446,7 +411,6 @@ const WhatsAppConnect = () => {
       );
     }
 
-    // If user started manual reconnection but no QR yet, show loading
     if (manualReconnectStarted && isPollingForQR) {
       return (
         <Layout>
@@ -467,7 +431,6 @@ const WhatsAppConnect = () => {
       );
     }
 
-    // Default disconnected state - show reconnect button (ONLY for hard disconnected users)
     if (!justCreatedChannel) {
       return (
         <Layout>
@@ -514,24 +477,21 @@ const WhatsAppConnect = () => {
     }
   }
 
-  // Channel creation
   const handleCreateChannel = async () => {
     try {
-      setJustCreatedChannel(true); // 🆕 Mark as fresh creation
+      setJustCreatedChannel(true);
       await createChannel.mutateAsync();
       await refetchProfile();
     } catch (error) {
       console.error('❌ Channel creation failed:', error);
-      setJustCreatedChannel(false); // Reset on error
+      setJustCreatedChannel(false);
     }
   };
 
-  // Manual QR refresh
   const handleRefreshQR = async () => {
     setQrCode(null);
     setIsPollingForQR(true);
     setPollingAttempts(0);
-    // Stop connection polling when refreshing QR
     setIsPollingConnection(false);
     setConnectionPollingAttempts(0);
     await pollForQR();
@@ -547,12 +507,10 @@ const WhatsAppConnect = () => {
           </p>
         </div>
 
-        {/* No channel */}
         {!profile?.instance_id && (
           <WhatsAppInitialState onCreateChannel={handleCreateChannel} />
         )}
 
-        {/* Channel creating */}
         {isCreatingChannel && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -561,7 +519,6 @@ const WhatsAppConnect = () => {
           </div>
         )}
 
-        {/* Waiting for QR */}
         {profile?.instance_id && 
          ['qr', 'active', 'ready', 'initializing'].includes(profile?.instance_status || '') && 
          !qrCode && 
@@ -595,7 +552,6 @@ const WhatsAppConnect = () => {
           </div>
         )}
 
-        {/* QR Code Display */}
         {qrCode && !manualReconnectStarted && (
           <div>
             <WhatsAppQRDisplay 
@@ -604,7 +560,6 @@ const WhatsAppConnect = () => {
               isRefreshing={isPollingForQR}
             />
             
-            {/* Connection status indicator */}
             {isPollingConnection && (
               <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                 <div className="flex items-center justify-center space-x-2 mb-2">

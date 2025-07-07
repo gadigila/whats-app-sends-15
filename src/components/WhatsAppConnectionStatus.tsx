@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle, Loader2, WifiOff, Crown } from 'lucide-react';
-import { SyncLoadingModal } from '@/components/SyncLoadingModal';
+import { CheckCircle, WifiOff, Users } from 'lucide-react';
 
 interface WhatsAppConnectionStatusProps {
   onNavigateToCompose: () => void;
-  onSyncGroups: () => void;
+  onNavigateToGroups: () => void;
   onDisconnect: () => void;
-  isSyncingGroups: boolean;
   isDisconnecting: boolean;
   // Hard disconnect dialog props
   showDisconnectDialog?: boolean;
@@ -20,9 +18,8 @@ interface WhatsAppConnectionStatusProps {
 
 const WhatsAppConnectionStatus = ({
   onNavigateToCompose,
-  onSyncGroups,
+  onNavigateToGroups,
   onDisconnect,
-  isSyncingGroups,
   isDisconnecting,
   showDisconnectDialog = false,
   onOpenDisconnectDialog,
@@ -30,31 +27,6 @@ const WhatsAppConnectionStatus = ({
   onConfirmHardDisconnect,
   isHardDisconnecting = false
 }: WhatsAppConnectionStatusProps) => {
-  
-  // 🚀 Enhanced sync with loading modal
-  const [showSyncModal, setShowSyncModal] = useState(false);
-
-  const handleEnhancedSyncGroups = async () => {
-    setShowSyncModal(true);
-    
-    try {
-      await onSyncGroups(); // Call the original sync function
-    } catch (error) {
-      console.error('Sync failed:', error);
-    } finally {
-      // Keep modal open a bit longer to show success
-      setTimeout(() => {
-        setShowSyncModal(false);
-      }, 1000);
-    }
-  };
-
-  const handleCloseSyncModal = () => {
-    // Don't allow closing while syncing
-    if (!isSyncingGroups) {
-      setShowSyncModal(false);
-    }
-  };
   
   // Use hard disconnect if available, fallback to old disconnect
   const handleDisconnectClick = () => {
@@ -86,24 +58,14 @@ const WhatsAppConnectionStatus = ({
               התחל לשלוח הודעות
             </Button>
             
-            {/* 🚀 ENHANCED: Better sync button with modal */}
+            {/* Updated: Navigate to Groups page instead of sync */}
             <Button
-              onClick={handleEnhancedSyncGroups}
+              onClick={onNavigateToGroups}
               variant="outline"
-              disabled={isSyncingGroups}
               className="border-green-600 text-green-600 hover:bg-green-50"
             >
-              {isSyncingGroups ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  מסנכרן...
-                </>
-              ) : (
-                <>
-                  <Crown className="h-4 w-4 mr-2" />
-                  סנכרן את כל הקבוצות בניהולי
-                </>
-              )}
+              <Users className="h-4 w-4 mr-2" />
+              קבוצות
             </Button>
             
             <Button
@@ -113,7 +75,7 @@ const WhatsAppConnectionStatus = ({
               className="text-red-600 border-red-600 hover:bg-red-50"
             >
               {(isDisconnecting || isHardDisconnecting) ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
               ) : (
                 <WifiOff className="h-4 w-4 mr-2" />
               )}
@@ -122,18 +84,6 @@ const WhatsAppConnectionStatus = ({
           </div>
         </CardContent>
       </Card>
-
-      {/* 🚀 Enhanced Sync Loading Modal */}
-      <SyncLoadingModal
-        isOpen={showSyncModal}
-        onClose={handleCloseSyncModal}
-        // You can add progress tracking later if needed
-        // progress={{
-        //   current: 45,
-        //   total: 100,
-        //   stage: 'בודק קבוצות גדולות...'
-        // }}
-      />
 
       {/* Existing Hard Disconnect Confirmation Dialog */}
       {showDisconnectDialog && (
@@ -176,7 +126,7 @@ const WhatsAppConnectionStatus = ({
               >
                 {isHardDisconnecting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white ml-2"></div>
                     מנתק...
                   </>
                 ) : (

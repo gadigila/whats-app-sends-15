@@ -1,3 +1,4 @@
+
 import Layout from '@/components/Layout';
 import WhatsAppConnectionStatus from '@/components/WhatsAppConnectionStatus';
 import WhatsAppConnectionDetails from '@/components/WhatsAppConnectionDetails';
@@ -11,21 +12,17 @@ interface Profile {
 interface WhatsAppConnectedViewProps {
   profile: Profile | null | undefined;
   onNavigateToCompose: () => void;
-  onSyncGroups: () => void;
   onDisconnect: () => void;
-  isSyncingGroups: boolean;
   isDisconnecting: boolean;
 }
 
 const WhatsAppConnectedView = ({
   profile,
   onNavigateToCompose,
-  onSyncGroups,
   onDisconnect,
-  isSyncingGroups,
   isDisconnecting
 }: WhatsAppConnectedViewProps) => {
-  // NEW: Use the hard disconnect hook
+  // Use the hard disconnect hook
   const {
     showDisconnectDialog,
     openDisconnectDialog,
@@ -33,6 +30,10 @@ const WhatsAppConnectedView = ({
     confirmHardDisconnect,
     isHardDisconnecting
   } = useWhatsAppInstance();
+
+  const handleNavigateToGroups = () => {
+    window.location.href = '/segments';
+  };
 
   return (
     <Layout>
@@ -44,11 +45,10 @@ const WhatsAppConnectedView = ({
         
         <WhatsAppConnectionStatus
           onNavigateToCompose={onNavigateToCompose}
-          onSyncGroups={onSyncGroups}
+          onNavigateToGroups={handleNavigateToGroups}
           onDisconnect={onDisconnect}
-          isSyncingGroups={isSyncingGroups}
           isDisconnecting={isDisconnecting}
-          // NEW: Pass hard disconnect props
+          // Hard disconnect props
           showDisconnectDialog={showDisconnectDialog}
           onOpenDisconnectDialog={openDisconnectDialog}
           onCloseDisconnectDialog={closeDisconnectDialog}
