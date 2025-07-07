@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Star, Crown, Loader2, RefreshCw } from 'lucide-react';
+import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Star, Crown, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { SyncLoadingModal } from '@/components/SyncLoadingModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,13 +29,26 @@ interface Segment {
 const Segments = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { data: profile } = useUserProfile();
   const { groups: allGroups, isLoadingGroups, syncGroups, isSyncing } = useWhatsAppGroups();
+  
+  // Check if WhatsApp is connected
+  const isWhatsAppConnected = profile?.instance_status === 'connected';
   
   // Sync modal state
   const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Enhanced sync with loading modal
   const handleEnhancedSyncGroups = async () => {
+    if (!isWhatsAppConnected) {
+      toast({
+        title: "וואטסאפ לא מחובר",
+        description: "אנא חבר את הוואטסאפ שלך תחילה כדי לסנכרן קבוצות",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setShowSyncModal(true);
     
     try {
@@ -319,22 +333,29 @@ const Segments = () => {
             <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
           </div>
           <div className="flex gap-3">
-            {/* NEW: Sync Groups Button */}
+            {/* Updated Sync Groups Button */}
             <Button
               onClick={handleEnhancedSyncGroups}
               variant="outline"
-              disabled={isSyncing}
-              className="border-green-600 text-green-600 hover:bg-green-50"
+              disabled={isSyncing || !isWhatsAppConnected}
+              className={`border-green-600 text-green-600 hover:bg-green-50 ${
+                !isWhatsAppConnected ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               {isSyncing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   מסנכרן...
                 </>
+              ) : !isWhatsAppConnected ? (
+                <>
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  סנכרן קבוצות בניהולי
+                </>
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  סנכרן קבוצות
+                  סנכרן קבוצות בניהולי
                 </>
               )}
             </Button>
@@ -358,6 +379,7 @@ const Segments = () => {
                     {editingSegment ? 'ערוך קטגוריה' : 'צור קטגוריה חדשה'}
                   </DialogTitle>
                 </DialogHeader>
+                
                 <div className="space-y-6">
                   <div>
                     <Label htmlFor="segmentName">שם הקטגוריה</Label>
@@ -482,6 +504,25 @@ const Segments = () => {
             </Dialog>
           </div>
         </div>
+
+        {/* Connection Status Warning */}
+        {!isWhatsAppConnected && (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="text-sm font-medium text-amber-900">
+                    וואטסאפ לא מחובר
+                  </p>
+                  <p className="text-sm text-amber-700">
+                    כדי לסנכרן קבוצות, תחילה חבר את הוואטסאפ שלך בעמוד החיבור
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -617,12 +658,6 @@ const Segments = () => {
       <SyncLoadingModal
         isOpen={showSyncModal}
         onClose={handleCloseSyncModal}
-        // You can add progress tracking later if needed
-        // progress={{
-        //   current: 45,
-        //   total: 100,
-        //   stage: 'בודק קבוצות גדולות...'
-        // }}
       />
     </Layout>
   );
