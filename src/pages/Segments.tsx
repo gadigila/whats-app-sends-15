@@ -45,10 +45,32 @@ const Segments = () => {
   // Track previous connection status to detect new connections
   const [prevConnectedStatus, setPrevConnectedStatus] = useState(isWhatsAppConnected);
 
+  // Initialize cooldown from localStorage on component mount
+  useEffect(() => {
+    const cooldownStartTime = localStorage.getItem('whatsapp_sync_cooldown_start');
+    if (cooldownStartTime) {
+      const startTime = parseInt(cooldownStartTime);
+      const now = Date.now();
+      const elapsed = Math.floor((now - startTime) / 1000);
+      const remaining = Math.max(0, 60 - elapsed);
+      
+      if (remaining > 0) {
+        setIsCooldown(true);
+        setCooldownTime(remaining);
+      } else {
+        // Cooldown expired, clean up localStorage
+        localStorage.removeItem('whatsapp_sync_cooldown_start');
+      }
+    }
+  }, []);
+
   // Effect to detect new WhatsApp connections and start cooldown
   useEffect(() => {
     // If WhatsApp just got connected (was disconnected, now connected)
     if (!prevConnectedStatus && isWhatsAppConnected) {
+      const startTime = Date.now();
+      localStorage.setItem('whatsapp_sync_cooldown_start', startTime.toString());
+      
       setIsCooldown(true);
       setCooldownTime(60); // 1 minute cooldown
       
@@ -70,6 +92,8 @@ const Segments = () => {
         setCooldownTime(prev => {
           if (prev <= 1) {
             setIsCooldown(false);
+            // Clean up localStorage when cooldown ends
+            localStorage.removeItem('whatsapp_sync_cooldown_start');
             return 0;
           }
           return prev - 1;
