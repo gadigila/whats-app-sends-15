@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,52 @@ const Segments = () => {
   
   // Sync modal state
   const [showSyncModal, setShowSyncModal] = useState(false);
+  
+  // Cooldown timer states
+  const [isCooldown, setIsCooldown] = useState(false);
+  const [cooldownTime, setCooldownTime] = useState(0);
+  
+  // Track previous connection status to detect new connections
+  const [prevConnectedStatus, setPrevConnectedStatus] = useState(isWhatsAppConnected);
+
+  // Effect to detect new WhatsApp connections and start cooldown
+  useEffect(() => {
+    // If WhatsApp just got connected (was disconnected, now connected)
+    if (!prevConnectedStatus && isWhatsAppConnected) {
+      setIsCooldown(true);
+      setCooldownTime(60); // 1 minute cooldown
+      
+      toast({
+        title: "וואטסאפ מחובר!",
+        description: "הכפתור סנכרן יהיה זמין בעוד דקה",
+      });
+    }
+    
+    setPrevConnectedStatus(isWhatsAppConnected);
+  }, [isWhatsAppConnected, prevConnectedStatus]);
+
+  // Effect to handle cooldown timer countdown
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (isCooldown && cooldownTime > 0) {
+      interval = setInterval(() => {
+        setCooldownTime(prev => {
+          if (prev <= 1) {
+            setIsCooldown(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isCooldown, cooldownTime]);
 
   // Enhanced sync with loading modal
   const handleEnhancedSyncGroups = async () => {
@@ -337,15 +383,20 @@ const Segments = () => {
             <Button
               onClick={handleEnhancedSyncGroups}
               variant="outline"
-              disabled={isSyncing || !isWhatsAppConnected}
+              disabled={isSyncing || !isWhatsAppConnected || isCooldown}
               className={`border-green-600 text-green-600 hover:bg-green-50 ${
-                !isWhatsAppConnected ? 'opacity-50 cursor-not-allowed' : ''
+                !isWhatsAppConnected || isCooldown ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               {isSyncing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   מסנכרן...
+                </>
+              ) : isCooldown ? (
+                <>
+                  <AlertCircle className="h-4 w-4 mr-2" />
+                  סנכרן קבוצות בניהולי ({String(Math.floor(cooldownTime / 60)).padStart(2, '0')}:{String(cooldownTime % 60).padStart(2, '0')})
                 </>
               ) : !isWhatsAppConnected ? (
                 <>
