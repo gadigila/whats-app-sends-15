@@ -56,9 +56,61 @@ class PhoneMatcher {
   }
 }
 
-// 🚀 OPTIMIZED: Smart group processor
+// 🧠 SMART: Group processing cache to avoid duplicate work
+class SmartGroupCache {
+  private processedGroups = new Set<string>(); // Groups we already checked
+  private memberOnlyGroups = new Set<string>(); // Groups where user is just member
+  private adminGroups = new Map<string, any>(); // Groups where user is admin
+  private noParticipantsGroups = new Set<string>(); // Groups with no participants loaded
+
+  isAlreadyProcessed(groupId: string): boolean {
+    return this.processedGroups.has(groupId);
+  }
+
+  isMemberOnly(groupId: string): boolean {
+    return this.memberOnlyGroups.has(groupId);
+  }
+
+  isAdminGroup(groupId: string): boolean {
+    return this.adminGroups.has(groupId);
+  }
+
+  markAsProcessed(groupId: string, result: { isAdminGroup: boolean; groupData?: any; skipReason?: string }) {
+    this.processedGroups.add(groupId);
+    
+    if (result.isAdminGroup && result.groupData) {
+      this.adminGroups.set(groupId, result.groupData);
+    } else if (result.skipReason === 'member_only') {
+      this.memberOnlyGroups.add(groupId);
+    } else if (result.skipReason === 'no_participants_loaded') {
+      this.noParticipantsGroups.add(groupId);
+    }
+  }
+
+  shouldRecheck(groupId: string): boolean {
+    // Recheck groups that had no participants loaded (WHAPI might have loaded them now)
+    return this.noParticipantsGroups.has(groupId);
+  }
+
+  getAllAdminGroups(): any[] {
+    return Array.from(this.adminGroups.values());
+  }
+
+  getStats() {
+    return {
+      totalProcessed: this.processedGroups.size,
+      adminGroups: this.adminGroups.size,
+      memberOnlyGroups: this.memberOnlyGroups.size,
+      noParticipantsGroups: this.noParticipantsGroups.size,
+      cacheHitRate: this.processedGroups.size > 0 ? 
+        ((this.adminGroups.size + this.memberOnlyGroups.size) / this.processedGroups.size * 100).toFixed(1) + '%' : '0%'
+    };
+  }
+}
+// 🚀 OPTIMIZED: Smart group processor with caching
 class OptimizedGroupProcessor {
   private phoneMatcher: PhoneMatcher;
+  private cache: SmartGroupCache;
   private stats = {
     groupsProcessed: 0,
     groupsSkippedNoParticipants: 0,
@@ -70,20 +122,54 @@ class OptimizedGroupProcessor {
 
   constructor(userPhone: string, private userId: string) {
     this.phoneMatcher = new PhoneMatcher(userPhone);
+    this.cache = new SmartGroupCache();
   }
 
-  processGroup(group: any): { isAdminGroup: boolean; groupData?: any; skipReason?: string } {
+  processGroup(group: any): { isAdminGroup: boolean; groupData?: any; skipReason?: string; fromCache?: boolean } {
     this.stats.groupsProcessed++;
     
     const groupName = group.name || group.subject || `Group ${group.id}`;
     
+    // 🧠 SMART: Check cache first - avoid duplicate work!
+    if (this.cache.isAlreadyProcessed(group.id)) {
+      if (this.cache.isAdminGroup(group.id)) {
+        console.log(`💾 Cache HIT: ${groupName} - already known admin group`);
+        return { 
+          isAdminGroup: true, 
+          groupData: this.cache.adminGroups.get(group.id),
+          fromCache: true 
+        };
+      } else if (this.cache.isMemberOnly(group.id)) {
+        console.log(`💾 Cache HIT: ${groupName} - already known member-only group (skipping)`);
+        return { 
+          isAdminGroup: false, 
+          skipReason: 'member_only_cached',
+          fromCache: true 
+        };
+      } else if (!this.cache.shouldRecheck(group.id)) {
+        console.log(`💾 Cache HIT: ${groupName} - already processed (skipping)`);
+        return { 
+          isAdminGroup: false, 
+          skipReason: 'already_processed',
+          fromCache: true 
+        };
+      } else {
+        console.log(`🔄 Cache RECHECK: ${groupName} - participants might be loaded now`);
+      }
+    }
+    
     // 🚀 OPTIMIZATION 1: Early skip if no participants loaded
     if (!group.participants || !Array.isArray(group.participants) || group.participants.length === 0) {
       this.stats.groupsSkippedNoParticipants++;
-      return { 
+      const result = { 
         isAdminGroup: false, 
-        skipReason: 'no_participants_loaded' 
+        skipReason: 'no_participants_loaded' as const
       };
+      
+      // 🧠 SMART: Cache this result but mark for recheck later
+      this.cache.markAsProcessed(group.id, result);
+      
+      return result;
     }
 
     this.stats.totalParticipantsChecked += group.participants.length;
@@ -97,10 +183,15 @@ class OptimizedGroupProcessor {
     // 🚀 OPTIMIZATION 3: Early exit if user not in group
     if (!userParticipant) {
       this.stats.groupsSkippedNotMember++;
-      return { 
+      const result = { 
         isAdminGroup: false, 
-        skipReason: 'not_member' 
+        skipReason: 'not_member' as const
       };
+      
+      // 🧠 SMART: Cache this - user will never be in this group
+      this.cache.markAsProcessed(group.id, result);
+      
+      return result;
     }
 
     // 🚀 OPTIMIZATION 4: Quick role check
@@ -112,10 +203,15 @@ class OptimizedGroupProcessor {
 
     if (!isAdminRole) {
       console.log(`👤 Found MEMBER role in ${groupName} (skipping)`);
-      return { 
+      const result = { 
         isAdminGroup: false, 
-        skipReason: 'member_only' 
+        skipReason: 'member_only' as const
       };
+      
+      // 🧠 SMART: Cache this - user is member-only in this group
+      this.cache.markAsProcessed(group.id, result);
+      
+      return result;
     }
 
     // 🎉 Found admin/creator group!
@@ -129,32 +225,46 @@ class OptimizedGroupProcessor {
 
     const participantsCount = group.participants?.length || group.size || 0;
 
-    return {
+    const groupData = {
+      user_id: this.userId,
+      group_id: group.id,
+      name: groupName,
+      description: group.description || null,
+      participants_count: participantsCount,
+      is_admin: true,
+      is_creator: isCreatorRole,
+      avatar_url: group.chat_pic || null,
+      last_synced_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const result = {
       isAdminGroup: true,
-      groupData: {
-        user_id: this.userId,
-        group_id: group.id,
-        name: groupName,
-        description: group.description || null,
-        participants_count: participantsCount,
-        is_admin: true,
-        is_creator: isCreatorRole,
-        avatar_url: group.chat_pic || null,
-        last_synced_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+      groupData
+    };
+
+    // 🧠 SMART: Cache this admin group
+    this.cache.markAsProcessed(group.id, result);
+
+    return result;
+  }
+
+  getStats() {
+    const cacheStats = this.cache.getStats();
+    return {
+      ...this.stats,
+      cache: cacheStats,
+      efficiency: {
+        participantsPerGroup: Math.round(this.stats.totalParticipantsChecked / Math.max(this.stats.groupsProcessed, 1)),
+        adminFindRate: ((this.stats.adminGroupsFound + this.stats.creatorGroupsFound) / Math.max(this.stats.groupsProcessed, 1) * 100).toFixed(1) + '%',
+        skipRate: ((this.stats.groupsSkippedNoParticipants + this.stats.groupsSkippedNotMember) / Math.max(this.stats.groupsProcessed, 1) * 100).toFixed(1) + '%',
+        cacheHitRate: cacheStats.cacheHitRate
       }
     };
   }
 
-  getStats() {
-    return {
-      ...this.stats,
-      efficiency: {
-        participantsPerGroup: Math.round(this.stats.totalParticipantsChecked / Math.max(this.stats.groupsProcessed, 1)),
-        adminFindRate: ((this.stats.adminGroupsFound + this.stats.creatorGroupsFound) / Math.max(this.stats.groupsProcessed, 1) * 100).toFixed(1) + '%',
-        skipRate: ((this.stats.groupsSkippedNoParticipants + this.stats.groupsSkippedNotMember) / Math.max(this.stats.groupsProcessed, 1) * 100).toFixed(1) + '%'
-      }
-    };
+  getAllCachedAdminGroups(): any[] {
+    return this.cache.getAllAdminGroups();
   }
 }
 
@@ -262,11 +372,12 @@ Deno.serve(async (req) => {
     const groupProcessor = new OptimizedGroupProcessor(userPhoneNumber, userId);
     console.log('🚀 Optimized group processor initialized')
 
-    // SMART 3-PASS STRATEGY with optimizations
+    // 🚀 AGGRESSIVE 4-PASS STRATEGY - Push WHAPI harder!
     const passConfig = [
-      { pass: 1, delay: 0,     batchSize: 75,  description: "Fast discovery" },
-      { pass: 2, delay: 12000, batchSize: 125, description: "Deep scan" },
-      { pass: 3, delay: 18000, batchSize: 175, description: "Final sweep" }
+      { pass: 1, delay: 0,     batchSize: 100, description: "Fast discovery", maxCalls: 4 },
+      { pass: 2, delay: 15000, batchSize: 150, description: "Deep scan", maxCalls: 6 },
+      { pass: 3, delay: 30000, batchSize: 200, description: "Aggressive scan", maxCalls: 8 },
+      { pass: 4, delay: 45000, batchSize: 250, description: "Final deep dive", maxCalls: 6 }
     ];
 
     let allFoundGroups = new Map();
@@ -290,15 +401,15 @@ Deno.serve(async (req) => {
       let passApiCalls = 0
       const maxPassApiCalls = 6
 
-      // 🚀 OPTIMIZED: Batch fetching with better error handling
-      while (hasMoreGroups && passApiCalls < maxPassApiCalls) {
+      // 🚀 AGGRESSIVE: Push beyond apparent limits
+      while (hasMoreGroups && passApiCalls < config.maxCalls) {
         passApiCalls++
         totalApiCalls++
         
         console.log(`📊 Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          const apiDelay = 1800 + (config.pass * 400); // 1.8s to 3s
+          const apiDelay = 2200 + (config.pass * 600); // 2.2s to 4.6s - longer for deeper passes
           if (passApiCalls > 1) {
             await delay(apiDelay)
           }
@@ -333,8 +444,18 @@ Deno.serve(async (req) => {
           
           console.log(`📊 Pass ${config.pass}, batch ${passApiCalls}: Received ${batchGroups.length} groups`)
           
+          // 🚀 AGGRESSIVE: Don't stop at empty batches, WHAPI might have more
           if (batchGroups.length === 0) {
-            hasMoreGroups = false
+            console.log(`📊 Empty batch in pass ${config.pass} - checking if WHAPI has more...`)
+            
+            // Try a few more offsets in case WHAPI has gaps
+            if (passApiCalls < config.maxCalls - 1) {
+              console.log(`🔄 Continuing past empty batch - might be WHAPI timing issue`)
+              currentOffset += config.batchSize // Skip the empty range
+              continue
+            } else {
+              hasMoreGroups = false
+            }
           } else {
             allGroups = allGroups.concat(batchGroups)
             totalGroupsScanned += batchGroups.length
@@ -359,31 +480,41 @@ Deno.serve(async (req) => {
         }
       }
 
-      // 🚀 OPTIMIZED: Process groups with smart detection
-      console.log(`🔍 Processing ${allGroups.length} groups with optimized detection...`)
+      // 🧠 SMART: Process groups with intelligent caching
+      console.log(`🔍 Processing ${allGroups.length} groups with smart caching...`)
       
       for (const group of allGroups) {
-        if (allFoundGroups.has(group.id)) {
-          continue; // Skip duplicates
-        }
-        
         const result = groupProcessor.processGroup(group);
         
-        if (result.isAdminGroup && result.groupData) {
+        if (result.isAdminGroup && result.groupData && !result.fromCache) {
           allFoundGroups.set(group.id, result.groupData);
           passFoundGroups++;
           
           const role = result.groupData.is_creator ? 'CREATOR' : 'ADMIN';
           console.log(`✅ Pass ${config.pass}: ADDED ${result.groupData.name} (${result.groupData.participants_count} members) - ${role}`);
+        } else if (result.isAdminGroup && result.fromCache) {
+          // Already in cache, don't count as new
+          allFoundGroups.set(group.id, result.groupData);
+        }
+      }
+
+      // 🧠 SMART: Also get any cached admin groups we haven't added yet
+      const cachedAdminGroups = groupProcessor.getAllCachedAdminGroups();
+      for (const cachedGroup of cachedAdminGroups) {
+        if (!allFoundGroups.has(cachedGroup.group_id)) {
+          allFoundGroups.set(cachedGroup.group_id, cachedGroup);
         }
       }
 
       const totalElapsedTime = Math.round((Date.now() - syncStartTime) / 1000);
       console.log(`🎯 Pass ${config.pass} completed: Found ${passFoundGroups} new admin groups (${totalElapsedTime}s elapsed)`)
 
-      // Smart early stopping
-      if (passFoundGroups === 0 && allFoundGroups.size > 0) {
-        console.log(`🏁 Smart stopping: no new groups found and we have ${allFoundGroups.size} groups`)
+      // 🚀 AGGRESSIVE: Continue even if no new groups in this pass
+      if (passFoundGroups === 0 && config.pass < 3) {
+        console.log(`🔄 Pass ${config.pass} found 0 new groups, but continuing deeper scan...`)
+        // Don't stop early - WHAPI might have more groups in later ranges
+      } else if (passFoundGroups === 0 && allFoundGroups.size > 0) {
+        console.log(`🏁 Smart stopping after pass ${config.pass}: no new groups and we have ${allFoundGroups.size} groups`)
         break;
       }
     }
