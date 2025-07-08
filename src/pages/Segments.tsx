@@ -45,11 +45,22 @@ const Segments = () => {
   // Track previous connection status to detect new connections
   const [prevConnectedStatus, setPrevConnectedStatus] = useState(isWhatsAppConnected);
 
-  // Initialize cooldown from localStorage on component mount (only if WhatsApp is connected and profile is loaded)
+  // Initialize cooldown from localStorage only for navigation (not page refresh)
   useEffect(() => {
     // Don't check localStorage until profile data is loaded
     if (!profile || !isWhatsAppConnected) return;
     
+    // Only check localStorage if this is navigation within the session
+    // We use sessionStorage to track if this is a fresh page load
+    const isPageRefresh = !sessionStorage.getItem('app_session_started');
+    if (isPageRefresh) {
+      // Mark session as started and clear any old cooldown
+      sessionStorage.setItem('app_session_started', 'true');
+      localStorage.removeItem('whatsapp_sync_cooldown_start');
+      return;
+    }
+    
+    // For navigation within session, check for valid cooldown
     const cooldownStartTime = localStorage.getItem('whatsapp_sync_cooldown_start');
     if (cooldownStartTime) {
       const startTime = parseInt(cooldownStartTime);
