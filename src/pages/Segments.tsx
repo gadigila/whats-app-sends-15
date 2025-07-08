@@ -47,13 +47,17 @@ const Segments = () => {
 
   // Initialize cooldown from localStorage only for navigation (not page refresh)
   useEffect(() => {
+    console.log('Init cooldown effect running:', { profile: !!profile, isWhatsAppConnected });
     // Don't check localStorage until profile data is loaded
     if (!profile || !isWhatsAppConnected) return;
     
     // Only check localStorage if this is navigation within the session
     // We use sessionStorage to track if this is a fresh page load
     const isPageRefresh = !sessionStorage.getItem('app_session_started');
+    console.log('Page refresh check:', { isPageRefresh });
+    
     if (isPageRefresh) {
+      console.log('Page refresh detected - clearing cooldown and marking session started');
       // Mark session as started and clear any old cooldown
       sessionStorage.setItem('app_session_started', 'true');
       localStorage.removeItem('whatsapp_sync_cooldown_start');
@@ -62,17 +66,23 @@ const Segments = () => {
     
     // For navigation within session, check for valid cooldown
     const cooldownStartTime = localStorage.getItem('whatsapp_sync_cooldown_start');
+    console.log('Checking localStorage cooldown:', { cooldownStartTime });
+    
     if (cooldownStartTime) {
       const startTime = parseInt(cooldownStartTime);
       const now = Date.now();
       const elapsed = Math.floor((now - startTime) / 1000);
       const remaining = Math.max(0, 60 - elapsed);
       
+      console.log('Cooldown calculation:', { startTime, now, elapsed, remaining });
+      
       if (remaining > 0) {
+        console.log('Setting cooldown:', remaining);
         setIsCooldown(true);
         setCooldownTime(remaining);
       } else {
         // Cooldown expired, clean up localStorage
+        console.log('Cooldown expired - cleaning up');
         localStorage.removeItem('whatsapp_sync_cooldown_start');
       }
     }
