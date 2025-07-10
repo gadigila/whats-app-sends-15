@@ -77,7 +77,7 @@ class SimpleGroupProcessor {
     
     const groupName = group.name || group.subject || `Group ${group.id}`;
     
-    // 🚀 OPTIMIZATION 1: Early skip if no participants loaded
+    // 🚀 OPTIMIZATION 1: Early skip if no participants loaded  
     if (!group.participants || !Array.isArray(group.participants) || group.participants.length === 0) {
       this.stats.groupsSkippedNoParticipants++;
       console.log(`⚠️ ${groupName} - No participants data (skipping)`);
@@ -275,9 +275,9 @@ Deno.serve(async (req) => {
     let hasApiErrors = false;
     const adminGroups: any[] = [];
 
-    // 🎯 SINGLE API CALL - Conservative approach
-    const BATCH_SIZE = 50; // Conservative batch size as recommended
-    const MAX_CALLS = 3;   // Maximum 3 API calls for safety
+    // 🎯 SMALLER BATCHES for complete data - Following your suggestion
+    const BATCH_SIZE = 20; // Smaller batches = more complete participant data
+    const MAX_CALLS = 10;  // More calls to compensate, still scan 200 groups
     
     let currentOffset = 0;
     let hasMoreGroups = true;
@@ -289,10 +289,10 @@ Deno.serve(async (req) => {
       console.log(`📊 API call ${totalApiCalls}/${MAX_CALLS}: Fetching groups ${currentOffset}-${currentOffset + BATCH_SIZE}`);
       
       try {
-        // Add 4-second delay between calls (except first)
+        // Add 3-second delay between calls (except first) - reduced from 4s
         if (totalApiCalls > 1) {
-          console.log('⏳ Waiting 4 seconds between API calls...');
-          await delay(4000);
+          console.log('⏳ Waiting 3 seconds between API calls...');
+          await delay(3000);
         }
 
         const groupsResponse = await fetch(
@@ -453,7 +453,7 @@ Deno.serve(async (req) => {
           processing_stats: processingStats,
           conservative_mode: true,
           message: message,
-          note: totalApiCalls >= MAX_CALLS ? 'Sync limited to avoid rate limits. Run again to scan more groups.' : 'Sync completed successfully.',
+          note: totalApiCalls >= MAX_CALLS ? 'Scanned 200 groups max. Run again to scan more if needed.' : 'Sync completed successfully.',
           managed_groups: adminGroups.map(g => ({
             name: g.name,
             members: g.participants_count,
