@@ -13,7 +13,7 @@ import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Star, Crown, Loade
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { SyncLoadingModal } from '@/components/SyncLoadingModal';
+import { EnhancedSyncModal } from '@/components/SyncLoadingModal';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -754,7 +754,7 @@ const Segments = () => {
       </div>
 
       {/* Enhanced Sync Loading Modal */}
-      <SyncLoadingModal
+      <EnhancedSyncModal
         isOpen={showSyncModal}
         onClose={handleCloseSyncModal}
       />
