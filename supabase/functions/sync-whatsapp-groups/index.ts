@@ -392,10 +392,11 @@ Deno.serve(async (req) => {
     const groupProcessor = new SuperOptimizedGroupProcessor(userPhoneNumber, userId);
     console.log('🚀 Super optimized group processor initialized')
 
-    // 🚀 LIGHTNING FAST 2-PASS STRATEGY - Optimized for speed!
+    // 🚀 COMPREHENSIVE 3-PASS STRATEGY - More thorough scanning
     const passConfig = [
-      { pass: 1, delay: 0,    batchSize: 400, description: "Lightning bulk discovery", maxCalls: 2 },
-      { pass: 2, delay: 3000, batchSize: 300, description: "Quick follow-up scan", maxCalls: 2 }
+      { pass: 1, delay: 0,    batchSize: 400, description: "Lightning bulk discovery", maxCalls: 3 },
+      { pass: 2, delay: 5000, batchSize: 300, description: "Deep scan continuation", maxCalls: 3 },
+      { pass: 3, delay: 8000, batchSize: 250, description: "Final comprehensive sweep", maxCalls: 2 }
     ];
 
     let allFoundGroups = new Map();
@@ -410,7 +411,7 @@ Deno.serve(async (req) => {
         await delay(config.delay);
       }
 
-      console.log(`\n🔄 === LIGHTNING PASS ${config.pass}/2 === (${config.description})`)
+      console.log(`\n🔄 === COMPREHENSIVE PASS ${config.pass}/3 === (${config.description})`)
       
       let passFoundGroups = 0;
       let allGroups: any[] = []
@@ -525,17 +526,20 @@ Deno.serve(async (req) => {
       const totalElapsedTime = Math.round((Date.now() - syncStartTime) / 1000);
       console.log(`🎯 Pass ${config.pass} completed: Found ${passFoundGroups} new admin groups (${totalElapsedTime}s elapsed)`)
 
-      // 🚀 SMART EARLY TERMINATION
-      if (allFoundGroups.size >= 10 && passFoundGroups === 0) {
-        console.log(`🏁 Smart stopping: Found ${allFoundGroups.size} admin groups, no new ones in this pass`);
-        break;
-      } else if (allFoundGroups.size >= 15 && config.pass >= 1) {
+      // 🚀 CONSERVATIVE EARLY TERMINATION - Only stop if we have a lot of groups OR scanned extensively
+      if (allFoundGroups.size >= 20) {
         console.log(`🎯 Excellent admin group count (${allFoundGroups.size}), stopping early`);
         break;
-      } else if (totalGroupsScanned >= 400 && allFoundGroups.size >= 5) {
-        console.log(`📊 Scanned ${totalGroupsScanned} groups, found ${allFoundGroups.size} admin groups - sufficient coverage`);
+      } else if (totalGroupsScanned >= 600 && allFoundGroups.size >= 8) {
+        console.log(`📊 Scanned ${totalGroupsScanned} groups extensively, found ${allFoundGroups.size} admin groups - sufficient coverage`);
+        break;
+      } else if (totalGroupsScanned >= 800) {
+        console.log(`📊 Scanned ${totalGroupsScanned} groups - comprehensive scan complete`);
         break;
       }
+      
+      // Continue scanning unless we have very comprehensive results
+      console.log(`🔄 Continue scanning: Found ${allFoundGroups.size} admin groups, scanned ${totalGroupsScanned} total groups`);
     }
 
     const newFoundGroups = Array.from(allFoundGroups.values());
