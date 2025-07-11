@@ -392,11 +392,11 @@ Deno.serve(async (req) => {
     const groupProcessor = new SuperOptimizedGroupProcessor(userPhoneNumber, userId);
     console.log('🚀 Super optimized group processor initialized')
 
-    // 🚀 COMPREHENSIVE 3-PASS STRATEGY - More thorough scanning
+    // 🚀 CONSERVATIVE 3-PASS STRATEGY - Gentler on WHAPI servers
     const passConfig = [
-      { pass: 1, delay: 0,    batchSize: 400, description: "Lightning bulk discovery", maxCalls: 3 },
-      { pass: 2, delay: 5000, batchSize: 300, description: "Deep scan continuation", maxCalls: 3 },
-      { pass: 3, delay: 8000, batchSize: 250, description: "Final comprehensive sweep", maxCalls: 2 }
+      { pass: 1, delay: 0,     batchSize: 200, description: "Gentle bulk discovery", maxCalls: 3 },
+      { pass: 2, delay: 10000, batchSize: 150, description: "Careful deep scan", maxCalls: 3 },
+      { pass: 3, delay: 15000, batchSize: 100, description: "Final gentle sweep", maxCalls: 2 }
     ];
 
     let allFoundGroups = new Map();
@@ -428,7 +428,7 @@ Deno.serve(async (req) => {
         console.log(`⚡ Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          const apiDelay = 1000; // Fixed 1 second delay - aggressive but safe
+          const apiDelay = 2000 + (config.pass * 500); // 2-3.5 second delays - gentler on WHAPI
           if (passApiCalls > 1) {
             await delay(apiDelay)
           }
@@ -448,9 +448,14 @@ Deno.serve(async (req) => {
             console.error(`❌ Groups API failed (pass ${config.pass}, call ${passApiCalls}):`, groupsResponse.status)
             hasApiErrors = true
             
-            if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
+            if (groupsResponse.status === 503) {
+              console.log(`🔄 WHAPI Service Unavailable (503) - waiting longer and retrying...`)
+              await delay(5000) // Wait 5 seconds for 503 errors
+              passApiCalls--; // Don't count this as a real attempt
+              continue
+            } else if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
               console.log(`🔄 Retryable error, brief wait and continue...`)
-              await delay(2000) // Brief 2s wait for retryable errors
+              await delay(3000) // Increased wait for server errors
               continue
             } else {
               console.log(`💥 Non-retryable error, stopping pass ${config.pass}`)
