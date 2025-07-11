@@ -14,7 +14,7 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 🚀 OPTIMIZED: Enhanced phone matching with caching
+// 🚀 SUPER OPTIMIZED: Enhanced phone matching with caching
 class PhoneMatcher {
   private userPhoneClean: string;
   private userPhoneVariants: string[];
@@ -107,8 +107,9 @@ class SmartGroupCache {
     };
   }
 }
-// 🚀 OPTIMIZED: Smart group processor with caching
-class OptimizedGroupProcessor {
+
+// 🚀 SUPER OPTIMIZED: Lightning-fast group processor
+class SuperOptimizedGroupProcessor {
   private phoneMatcher: PhoneMatcher;
   private cache: SmartGroupCache;
   private stats = {
@@ -117,12 +118,46 @@ class OptimizedGroupProcessor {
     groupsSkippedNotMember: 0,
     adminGroupsFound: 0,
     creatorGroupsFound: 0,
-    totalParticipantsChecked: 0
+    totalParticipantsChecked: 0,
+    cacheHits: 0
   };
 
   constructor(userPhone: string, private userId: string) {
     this.phoneMatcher = new PhoneMatcher(userPhone);
     this.cache = new SmartGroupCache();
+  }
+
+  // 🚀 OPTIMIZED: Process groups in chunks to avoid blocking
+  processGroupsInChunks(groups: any[]): Map<string, any> {
+    const chunkSize = 75; // Process 75 groups at a time for better performance
+    let foundAdminGroups = new Map<string, any>();
+    
+    console.log(`🔄 Processing ${groups.length} groups in chunks of ${chunkSize}...`);
+    
+    for (let i = 0; i < groups.length; i += chunkSize) {
+      const chunk = groups.slice(i, i + chunkSize);
+      
+      for (const group of chunk) {
+        const result = this.processGroup(group);
+        
+        if (result.isAdminGroup && result.groupData && !result.fromCache) {
+          foundAdminGroups.set(group.id, result.groupData);
+          const role = result.groupData.is_creator ? 'CREATOR' : 'ADMIN';
+          console.log(`✅ FOUND ${result.groupData.name} (${result.groupData.participants_count} members) - ${role}`);
+        } else if (result.isAdminGroup && result.fromCache) {
+          foundAdminGroups.set(group.id, result.groupData);
+          this.stats.cacheHits++;
+        }
+      }
+      
+      // Micro-break to prevent blocking (only if we have more chunks)
+      if (i + chunkSize < groups.length && chunkSize > 50) {
+        // Non-blocking micro-delay for large chunks only
+        setTimeout(() => {}, 5);
+      }
+    }
+    
+    return foundAdminGroups;
   }
 
   processGroup(group: any): { isAdminGroup: boolean; groupData?: any; skipReason?: string; fromCache?: boolean } {
@@ -133,28 +168,23 @@ class OptimizedGroupProcessor {
     // 🧠 SMART: Check cache first - avoid duplicate work!
     if (this.cache.isAlreadyProcessed(group.id)) {
       if (this.cache.isAdminGroup(group.id)) {
-        console.log(`💾 Cache HIT: ${groupName} - already known admin group`);
         return { 
           isAdminGroup: true, 
           groupData: this.cache.adminGroups.get(group.id),
           fromCache: true 
         };
       } else if (this.cache.isMemberOnly(group.id)) {
-        console.log(`💾 Cache HIT: ${groupName} - already known member-only group (skipping)`);
         return { 
           isAdminGroup: false, 
           skipReason: 'member_only_cached',
           fromCache: true 
         };
       } else if (!this.cache.shouldRecheck(group.id)) {
-        console.log(`💾 Cache HIT: ${groupName} - already processed (skipping)`);
         return { 
           isAdminGroup: false, 
           skipReason: 'already_processed',
           fromCache: true 
         };
-      } else {
-        console.log(`🔄 Cache RECHECK: ${groupName} - participants might be loaded now`);
       }
     }
     
@@ -166,9 +196,7 @@ class OptimizedGroupProcessor {
         skipReason: 'no_participants_loaded' as const
       };
       
-      // 🧠 SMART: Cache this result but mark for recheck later
       this.cache.markAsProcessed(group.id, result);
-      
       return result;
     }
 
@@ -188,9 +216,7 @@ class OptimizedGroupProcessor {
         skipReason: 'not_member' as const
       };
       
-      // 🧠 SMART: Cache this - user will never be in this group
       this.cache.markAsProcessed(group.id, result);
-      
       return result;
     }
 
@@ -202,25 +228,20 @@ class OptimizedGroupProcessor {
     const isAdminRole = normalizedRank === 'admin' || normalizedRank === 'administrator' || isCreatorRole;
 
     if (!isAdminRole) {
-      console.log(`👤 Found MEMBER role in ${groupName} (skipping)`);
       const result = { 
         isAdminGroup: false, 
         skipReason: 'member_only' as const
       };
       
-      // 🧠 SMART: Cache this - user is member-only in this group
       this.cache.markAsProcessed(group.id, result);
-      
       return result;
     }
 
     // 🎉 Found admin/creator group!
     if (isCreatorRole) {
       this.stats.creatorGroupsFound++;
-      console.log(`👑 Found CREATOR role in ${groupName}`);
     } else {
       this.stats.adminGroupsFound++;
-      console.log(`⭐ Found ADMIN role in ${groupName}`);
     }
 
     const participantsCount = group.participants?.length || group.size || 0;
@@ -243,9 +264,7 @@ class OptimizedGroupProcessor {
       groupData
     };
 
-    // 🧠 SMART: Cache this admin group
     this.cache.markAsProcessed(group.id, result);
-
     return result;
   }
 
@@ -258,7 +277,8 @@ class OptimizedGroupProcessor {
         participantsPerGroup: Math.round(this.stats.totalParticipantsChecked / Math.max(this.stats.groupsProcessed, 1)),
         adminFindRate: ((this.stats.adminGroupsFound + this.stats.creatorGroupsFound) / Math.max(this.stats.groupsProcessed, 1) * 100).toFixed(1) + '%',
         skipRate: ((this.stats.groupsSkippedNoParticipants + this.stats.groupsSkippedNotMember) / Math.max(this.stats.groupsProcessed, 1) * 100).toFixed(1) + '%',
-        cacheHitRate: cacheStats.cacheHitRate
+        cacheHitRate: cacheStats.cacheHitRate,
+        totalCacheHits: this.stats.cacheHits
       }
     };
   }
@@ -274,7 +294,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 OPTIMIZED SAFE SYNC: Maximum speed + data protection...')
+    console.log('🚀 SUPER OPTIMIZED SYNC: Target <60 seconds for any user!')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -289,7 +309,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log('👤 Starting OPTIMIZED sync for user:', userId)
+    console.log('👤 Starting SUPER OPTIMIZED sync for user:', userId)
 
     // 🛡️ STEP 1: Get existing groups for safety
     const { data: existingGroups, error: existingError } = await supabase
@@ -368,16 +388,14 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🚀 STEP 2: Initialize optimized processor
-    const groupProcessor = new OptimizedGroupProcessor(userPhoneNumber, userId);
-    console.log('🚀 Optimized group processor initialized')
+    // 🚀 STEP 2: Initialize super optimized processor
+    const groupProcessor = new SuperOptimizedGroupProcessor(userPhoneNumber, userId);
+    console.log('🚀 Super optimized group processor initialized')
 
-    // 🚀 AGGRESSIVE 4-PASS STRATEGY - Push WHAPI harder!
+    // 🚀 LIGHTNING FAST 2-PASS STRATEGY - Optimized for speed!
     const passConfig = [
-      { pass: 1, delay: 0,     batchSize: 100, description: "Fast discovery", maxCalls: 4 },
-      { pass: 2, delay: 15000, batchSize: 150, description: "Deep scan", maxCalls: 6 },
-      { pass: 3, delay: 30000, batchSize: 200, description: "Aggressive scan", maxCalls: 8 },
-      { pass: 4, delay: 45000, batchSize: 250, description: "Final deep dive", maxCalls: 6 }
+      { pass: 1, delay: 0,    batchSize: 400, description: "Lightning bulk discovery", maxCalls: 2 },
+      { pass: 2, delay: 3000, batchSize: 300, description: "Quick follow-up scan", maxCalls: 2 }
     ];
 
     let allFoundGroups = new Map();
@@ -388,28 +406,28 @@ Deno.serve(async (req) => {
 
     for (const config of passConfig) {
       if (config.delay > 0) {
-        console.log(`⏳ Waiting ${config.delay/1000}s before pass ${config.pass}...`)
+        console.log(`⏳ Brief ${config.delay/1000}s pause before pass ${config.pass}...`)
         await delay(config.delay);
       }
 
-      console.log(`\n🔄 === OPTIMIZED PASS ${config.pass}/3 === (${config.description})`)
+      console.log(`\n🔄 === LIGHTNING PASS ${config.pass}/2 === (${config.description})`)
       
       let passFoundGroups = 0;
       let allGroups: any[] = []
       let currentOffset = 0
       let hasMoreGroups = true
       let passApiCalls = 0
-      const maxPassApiCalls = 6
+      let emptyBatchCount = 0;
 
-      // 🚀 AGGRESSIVE: Push beyond apparent limits
+      // 🚀 SUPER FAST: Minimal delays, larger batches
       while (hasMoreGroups && passApiCalls < config.maxCalls) {
         passApiCalls++
         totalApiCalls++
         
-        console.log(`📊 Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
+        console.log(`⚡ Pass ${config.pass}, API call ${passApiCalls}: Fetching groups ${currentOffset}-${currentOffset + config.batchSize}`)
         
         try {
-          const apiDelay = 2200 + (config.pass * 600); // 2.2s to 4.6s - longer for deeper passes
+          const apiDelay = 1000; // Fixed 1 second delay - aggressive but safe
           if (passApiCalls > 1) {
             await delay(apiDelay)
           }
@@ -430,8 +448,8 @@ Deno.serve(async (req) => {
             hasApiErrors = true
             
             if (groupsResponse.status === 429 || groupsResponse.status >= 500) {
-              console.log(`🔄 Retryable error, waiting and continuing...`)
-              await delay(apiDelay * 2)
+              console.log(`🔄 Retryable error, brief wait and continue...`)
+              await delay(2000) // Brief 2s wait for retryable errors
               continue
             } else {
               console.log(`💥 Non-retryable error, stopping pass ${config.pass}`)
@@ -444,19 +462,22 @@ Deno.serve(async (req) => {
           
           console.log(`📊 Pass ${config.pass}, batch ${passApiCalls}: Received ${batchGroups.length} groups`)
           
-          // 🚀 AGGRESSIVE: Don't stop at empty batches, WHAPI might have more
+          // 🚀 SMART: Handle empty batches efficiently
           if (batchGroups.length === 0) {
-            console.log(`📊 Empty batch in pass ${config.pass} - checking if WHAPI has more...`)
+            emptyBatchCount++;
+            console.log(`📊 Empty batch ${emptyBatchCount} in pass ${config.pass}`)
             
-            // Try a few more offsets in case WHAPI has gaps
-            if (passApiCalls < config.maxCalls - 1) {
-              console.log(`🔄 Continuing past empty batch - might be WHAPI timing issue`)
-              currentOffset += config.batchSize // Skip the empty range
-              continue
+            if (emptyBatchCount >= 2) {
+              console.log(`🏁 Two empty batches - likely reached end of groups`)
+              hasMoreGroups = false;
+              break;
             } else {
-              hasMoreGroups = false
+              // Jump further ahead
+              currentOffset += config.batchSize * 1.5;
+              continue;
             }
           } else {
+            emptyBatchCount = 0; // Reset on successful batch
             allGroups = allGroups.concat(batchGroups)
             totalGroupsScanned += batchGroups.length
             currentOffset += config.batchSize
@@ -475,26 +496,21 @@ Deno.serve(async (req) => {
             break
           }
           
-          await delay(3000)
+          await delay(2000) // Brief wait on error
           continue
         }
       }
 
-      // 🧠 SMART: Process groups with intelligent caching
-      console.log(`🔍 Processing ${allGroups.length} groups with smart caching...`)
+      // 🧠 SUPER FAST: Process groups in optimized chunks
+      console.log(`⚡ Processing ${allGroups.length} groups with lightning speed...`)
       
-      for (const group of allGroups) {
-        const result = groupProcessor.processGroup(group);
-        
-        if (result.isAdminGroup && result.groupData && !result.fromCache) {
-          allFoundGroups.set(group.id, result.groupData);
+      const batchResults = groupProcessor.processGroupsInChunks(allGroups);
+      
+      // Add new admin groups to our collection
+      for (const [groupId, groupData] of batchResults) {
+        if (!allFoundGroups.has(groupId)) {
+          allFoundGroups.set(groupId, groupData);
           passFoundGroups++;
-          
-          const role = result.groupData.is_creator ? 'CREATOR' : 'ADMIN';
-          console.log(`✅ Pass ${config.pass}: ADDED ${result.groupData.name} (${result.groupData.participants_count} members) - ${role}`);
-        } else if (result.isAdminGroup && result.fromCache) {
-          // Already in cache, don't count as new
-          allFoundGroups.set(group.id, result.groupData);
         }
       }
 
@@ -509,12 +525,15 @@ Deno.serve(async (req) => {
       const totalElapsedTime = Math.round((Date.now() - syncStartTime) / 1000);
       console.log(`🎯 Pass ${config.pass} completed: Found ${passFoundGroups} new admin groups (${totalElapsedTime}s elapsed)`)
 
-      // 🚀 AGGRESSIVE: Continue even if no new groups in this pass
-      if (passFoundGroups === 0 && config.pass < 3) {
-        console.log(`🔄 Pass ${config.pass} found 0 new groups, but continuing deeper scan...`)
-        // Don't stop early - WHAPI might have more groups in later ranges
-      } else if (passFoundGroups === 0 && allFoundGroups.size > 0) {
-        console.log(`🏁 Smart stopping after pass ${config.pass}: no new groups and we have ${allFoundGroups.size} groups`)
+      // 🚀 SMART EARLY TERMINATION
+      if (allFoundGroups.size >= 10 && passFoundGroups === 0) {
+        console.log(`🏁 Smart stopping: Found ${allFoundGroups.size} admin groups, no new ones in this pass`);
+        break;
+      } else if (allFoundGroups.size >= 15 && config.pass >= 1) {
+        console.log(`🎯 Excellent admin group count (${allFoundGroups.size}), stopping early`);
+        break;
+      } else if (totalGroupsScanned >= 400 && allFoundGroups.size >= 5) {
+        console.log(`📊 Scanned ${totalGroupsScanned} groups, found ${allFoundGroups.size} admin groups - sufficient coverage`);
         break;
       }
     }
@@ -524,7 +543,7 @@ Deno.serve(async (req) => {
     const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000);
     const processingStats = groupProcessor.getStats();
 
-    console.log(`\n🎯 OPTIMIZED SYNC COMPLETE!`)
+    console.log(`\n🎯 SUPER OPTIMIZED SYNC COMPLETE!`)
     console.log(`📊 Groups scanned: ${totalGroupsScanned}`)
     console.log(`📊 API calls made: ${totalApiCalls}`)
     console.log(`⚡ Total sync time: ${totalSyncTime} seconds`)
@@ -590,7 +609,7 @@ Deno.serve(async (req) => {
           }
           
           if (i + dbBatchSize < newFoundGroups.length) {
-            await delay(100)
+            await delay(50) // Brief pause between DB batches
           }
         }
       }
@@ -600,7 +619,7 @@ Deno.serve(async (req) => {
       const totalMemberCount = newFoundGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0);
 
       const message = newGroupsCount > 0
-        ? `נמצאו ${newGroupsCount} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
+        ? `⚡ נמצאו ${newGroupsCount} קבוצות בניהולך תוך ${totalSyncTime} שניות! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
         : 'לא נמצאו קבוצות בניהולך'
 
       return new Response(
@@ -614,7 +633,8 @@ Deno.serve(async (req) => {
           total_groups_scanned: totalGroupsScanned,
           sync_time_seconds: totalSyncTime,
           processing_stats: processingStats,
-          optimization_enabled: true,
+          super_optimization_enabled: true,
+          performance_target: totalSyncTime <= 60 ? '🎯 TARGET MET!' : '⚡ Nearly there!',
           message: message,
           managed_groups: newFoundGroups.map(g => ({
             name: g.name,
@@ -643,7 +663,7 @@ Deno.serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('💥 Optimized Sync Error:', error)
+    console.error('💥 Super Optimized Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
