@@ -17,17 +17,21 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          community_type: string | null
           created_at: string
+          group_count_range: string | null
           id: string
           instance_id: string | null
           instance_status: string | null
           is_active: boolean | null
           is_onboarded: boolean | null
           name: string | null
+          niches: Json | null
           payment_plan: string | null
           phone_detected_at: string | null
           phone_number: string | null
           plan: string | null
+          quiz_completed_at: string | null
           role: string | null
           trial_expires_at: string | null
           updated_at: string
@@ -37,17 +41,21 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          community_type?: string | null
           created_at?: string
+          group_count_range?: string | null
           id: string
           instance_id?: string | null
           instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
           name?: string | null
+          niches?: Json | null
           payment_plan?: string | null
           phone_detected_at?: string | null
           phone_number?: string | null
           plan?: string | null
+          quiz_completed_at?: string | null
           role?: string | null
           trial_expires_at?: string | null
           updated_at?: string
@@ -57,17 +65,21 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          community_type?: string | null
           created_at?: string
+          group_count_range?: string | null
           id?: string
           instance_id?: string | null
           instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
           name?: string | null
+          niches?: Json | null
           payment_plan?: string | null
           phone_detected_at?: string | null
           phone_number?: string | null
           plan?: string | null
+          quiz_completed_at?: string | null
           role?: string | null
           trial_expires_at?: string | null
           updated_at?: string
