@@ -9,296 +9,262 @@ interface SyncGroupsRequest {
   userId: string
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// Enhanced phone matching with comprehensive debugging
-function isPhoneMatch(userPhone: string, participantPhone: string, debug: boolean = false): boolean {
-  if (debug) {
-    console.log(`🔍 PHONE MATCHING DEBUG:`)
-    console.log(`  User phone: "${userPhone}" (type: ${typeof userPhone})`)
-    console.log(`  Participant phone: "${participantPhone}" (type: ${typeof participantPhone})`)
-  }
-  
-  if (!userPhone || !participantPhone) {
-    if (debug) console.log(`  ❌ Missing phone: user=${!!userPhone}, participant=${!!participantPhone}`)
-    return false;
-  }
-  
-  const clean1 = userPhone.replace(/[^\d]/g, '');
-  const clean2 = participantPhone.replace(/[^\d]/g, '');
-  
-  if (debug) {
-    console.log(`  Cleaned user: "${clean1}"`)
-    console.log(`  Cleaned participant: "${clean2}"`)
-  }
-  
-  // Direct exact match
-  if (clean1 === clean2) {
-    if (debug) console.log(`  ✅ EXACT MATCH`)
-    return true;
-  }
-  
-  // Israeli format handling (972 vs 0 prefix)
-  if (clean1.startsWith('972') && clean2.startsWith('0')) {
-    const match = clean1.substring(3) === clean2.substring(1);
-    if (debug) console.log(`  🇮🇱 972->0 format: ${clean1.substring(3)} vs ${clean2.substring(1)} = ${match}`)
-    if (match) return true;
-  }
-  
-  if (clean2.startsWith('972') && clean1.startsWith('0')) {
-    const match = clean2.substring(3) === clean1.substring(1);
-    if (debug) console.log(`  🇮🇱 0->972 format: ${clean2.substring(3)} vs ${clean1.substring(1)} = ${match}`)
-    if (match) return true;
-  }
-  
-  // Last 9 digits match (Israeli mobile standard)
-  if (clean1.length >= 9 && clean2.length >= 9) {
-    const match = clean1.slice(-9) === clean2.slice(-9);
-    if (debug) console.log(`  📱 Last 9 digits: ${clean1.slice(-9)} vs ${clean2.slice(-9)} = ${match}`)
-    if (match) return true;
-  }
-  
-  if (debug) console.log(`  ❌ NO MATCH FOUND`)
-  return false;
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('🔍 PHONE DEBUG SYNC: Enhanced phone matching debugging...')
+    console.log('🚀 ADMIN PRIVILEGE SYNC: Requesting real phone numbers as admin...')
     
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
     const { userId }: SyncGroupsRequest = await req.json()
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
-    if (!userId) {
-      return new Response(
-        JSON.stringify({ error: 'User ID is required' }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    console.log('👤 Starting PHONE DEBUG sync for user:', userId)
-
-    // Get user's WHAPI credentials
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('instance_id, whapi_token, instance_status, phone_number')
+    // Get user with WhatsApp data
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('phone, whatsapp_token, whatsapp_instance_id')
       .eq('id', userId)
       .single()
 
-    if (profileError || !profile?.whapi_token) {
-      return new Response(
-        JSON.stringify({ error: 'WhatsApp instance not found or not connected' }),
-        { status: 400, headers: corsHeaders }
-      )
+    if (userError || !user) {
+      throw new Error(`User not found: ${userError?.message}`)
     }
 
-    console.log('📋 Profile info:', {
-      hasToken: !!profile.whapi_token,
-      instanceId: profile.instance_id,
-      status: profile.instance_status,
-      storedPhone: profile.phone_number
-    })
+    if (!user.whatsapp_token || !user.whatsapp_instance_id) {
+      throw new Error('WhatsApp credentials not found')
+    }
 
-    // Get/update phone number with enhanced debugging
-    let userPhoneNumber = profile.phone_number
+    console.log(`📱 User phone: "${user.phone}"`)
 
-    if (!userPhoneNumber) {
-      console.log('📱 No phone stored, fetching from /health...')
+    // Generate user phone variants for matching
+    function generatePhoneVariants(phone: string): string[] {
+      if (!phone) return []
       
+      const cleaned = phone.replace(/[^\d]/g, '')
+      const variants = new Set<string>()
+      
+      variants.add(cleaned)
+      variants.add(phone)
+      
+      if (cleaned.startsWith('972')) {
+        const withoutCountry = cleaned.substring(3)
+        variants.add(withoutCountry)
+        variants.add('0' + withoutCountry)
+        variants.add('+972' + withoutCountry)
+      }
+      
+      if (cleaned.startsWith('0')) {
+        const withoutLeading = cleaned.substring(1)
+        variants.add(withoutLeading)
+        variants.add('972' + withoutLeading)
+        variants.add('+972' + withoutLeading)
+      }
+      
+      return Array.from(variants)
+    }
+
+    const userPhoneVariants = generatePhoneVariants(user.phone)
+    console.log(`🔢 User phone variants: [${userPhoneVariants.join(', ')}]`)
+
+    // Fetch groups from WHAPI
+    const groupsResponse = await fetch(
+      `https://gate.whapi.cloud/groups?count=50`,
+      {
+        headers: {
+          'Authorization': `Bearer ${user.whatsapp_token}`,
+          'Accept': 'application/json'
+        }
+      }
+    )
+
+    if (!groupsResponse.ok) {
+      throw new Error(`WHAPI groups API failed: ${groupsResponse.status} ${groupsResponse.statusText}`)
+    }
+
+    const groupsData = await groupsResponse.json()
+    const groups = groupsData.groups || []
+    
+    console.log(`📊 Received ${groups.length} groups from WHAPI`)
+
+    if (groups.length === 0) {
+      console.log('❌ No groups returned from WHAPI')
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'No groups found in WhatsApp',
+        groupsProcessed: 0,
+        adminGroupsFound: 0 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    let adminGroupsFound = 0
+    const processedGroups = []
+
+    // Process each group with enhanced admin privilege requests
+    for (const group of groups) {
+      console.log(`\n🔍 PROCESSING: ${group.name}`)
+      console.log(`📊 Initial participants: ${group.participants?.length || 0}`)
+      
+      // STEP 1: Get detailed group info with admin privileges
       try {
-        const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Content-Type': 'application/json'
+        const detailResponse = await fetch(
+          `https://gate.whapi.cloud/groups/${group.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${user.whatsapp_token}`,
+              'Accept': 'application/json'
+            }
           }
-        })
+        )
 
-        console.log('📊 Health response status:', healthResponse.status)
-
-        if (healthResponse.ok) {
-          const healthData = await healthResponse.json()
-          console.log('📊 Health data structure:', {
-            hasUser: !!healthData.user,
-            userId: healthData.user?.id,
-            hasMe: !!healthData.me,
-            mePhone: healthData.me?.phone,
-            phone: healthData.phone,
-            allKeys: Object.keys(healthData)
-          })
-          
-          if (healthData?.user?.id) {
-            userPhoneNumber = healthData.user.id.replace(/[^\d]/g, '');
-            console.log('📱 Raw phone from health:', healthData.user.id)
-            console.log('📱 Cleaned phone:', userPhoneNumber)
-            
-            await supabase
-              .from('profiles')
-              .update({
-                phone_number: userPhoneNumber,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', userId)
-            
-            console.log('📱 Phone saved to database:', userPhoneNumber)
-          } else {
-            console.log('❌ No user.id found in health response')
-          }
-        } else {
-          const errorText = await healthResponse.text()
-          console.log('❌ Health response error:', errorText)
-        }
-      } catch (healthError) {
-        console.error('❌ Error calling /health:', healthError)
-      }
-    } else {
-      console.log('📱 Using stored phone number:', userPhoneNumber)
-    }
-
-    if (!userPhoneNumber) {
-      console.log('❌ CRITICAL: No phone number available')
-      return new Response(
-        JSON.stringify({ 
-          error: 'Could not determine your phone number',
-          suggestion: 'Check connection status and try reconnecting WhatsApp',
-          debug_info: {
-            stored_phone: profile.phone_number,
-            health_call_attempted: true
-          }
-        }),
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
-    console.log(`📱 FINAL USER PHONE: "${userPhoneNumber}"`)
-    console.log(`📱 Phone length: ${userPhoneNumber.length}`)
-    console.log(`📱 Phone starts with: ${userPhoneNumber.substring(0, 3)}`)
-
-    // Test phone matching with a few simple examples
-    console.log('\n🧪 PHONE MATCHING TESTS:')
-    const testPhones = [
-      userPhoneNumber,
-      '0' + userPhoneNumber.substring(3),
-      '972' + userPhoneNumber.substring(1),
-      userPhoneNumber.slice(-9)
-    ]
-    
-    testPhones.forEach((testPhone, index) => {
-      if (testPhone) {
-        const match = isPhoneMatch(userPhoneNumber, testPhone, false)
-        console.log(`  Test ${index + 1}: "${testPhone}" -> ${match ? '✅' : '❌'}`)
-      }
-    })
-
-    // Get a small sample of groups for testing
-    console.log('\n📡 Getting sample groups for phone debugging...')
-    
-    try {
-      const groupsResponse = await fetch(
-        `https://gate.whapi.cloud/groups?count=10&offset=0`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${profile.whapi_token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
-
-      if (!groupsResponse.ok) {
-        throw new Error(`Groups API failed: ${groupsResponse.status}`)
-      }
-
-      const groupsData = await groupsResponse.json()
-      const sampleGroups = groupsData.groups || []
-      
-      console.log(`📊 Retrieved ${sampleGroups.length} sample groups for testing`)
-
-      // Analyze first few groups in detail
-      const groupsToAnalyze = Math.min(3, sampleGroups.length)
-      
-      for (let i = 0; i < groupsToAnalyze; i++) {
-        const group = sampleGroups[i]
-        const groupName = group.name || group.subject || `Group ${group.id}`
-        const participantsCount = group.participants?.length || 0
-        
-        console.log(`\n🔍 ANALYZING GROUP ${i + 1}: "${groupName}"`)
-        console.log(`📊 Participants: ${participantsCount}`)
-        
-        if (!group.participants || group.participants.length === 0) {
-          console.log('⚠️ No participants data')
+        if (!detailResponse.ok) {
+          console.log(`❌ Cannot get details for: ${group.name} (${detailResponse.status})`)
           continue
         }
+
+        const detailData = await detailResponse.json()
+        console.log(`✅ Got detailed info for: ${group.name}`)
+        console.log(`👥 Detailed participants: ${detailData.participants?.length || 0}`)
+
+        // Use detailed participant data if available
+        const participants = detailData.participants || group.participants || []
         
-        // Show first few participants
-        const participantsToShow = Math.min(5, group.participants.length)
-        console.log(`👥 First ${participantsToShow} participants:`)
-        
-        for (let j = 0; j < participantsToShow; j++) {
-          const participant = group.participants[j]
-          const participantId = participant.id || participant.phone || participant.number
-          const participantRank = participant.rank || participant.role || 'member'
+        if (participants.length === 0) {
+          console.log(`⚠️ No participants in: ${group.name}`)
+          continue
+        }
+
+        console.log(`\n🔍 ANALYZING PARTICIPANTS in ${group.name}:`)
+        console.log(`📋 Total participants to check: ${participants.length}`)
+
+        let isAdmin = false
+        let userRole = null
+        let realPhoneNumbersCount = 0
+        let lidCount = 0
+
+        // Analyze each participant
+        for (let i = 0; i < Math.min(participants.length, 10); i++) { // Check first 10 for debugging
+          const participant = participants[i]
           
-          console.log(`  ${j + 1}. ID: "${participantId}", Role: "${participantRank}"`)
-          console.log(`     Keys: [${Object.keys(participant).join(', ')}]`)
+          const phone = participant.phone || participant.wa_id || participant.id
+          const isRealPhone = phone && !phone.includes('@lid') && /^\+?[\d\-\s\(\)]+$/.test(phone)
+          const isLid = phone && phone.includes('@lid')
           
-          // Test phone matching with debug
-          if (participantId) {
-            console.log(`     🔍 Phone match test:`)
-            const isMatch = isPhoneMatch(userPhoneNumber, participantId, true)
-            console.log(`     Result: ${isMatch ? '✅ MATCH!' : '❌ No match'}`)
+          if (isRealPhone) realPhoneNumbersCount++
+          if (isLid) lidCount++
+
+          console.log(`👤 Participant ${i + 1}:`)
+          console.log(`   Name: "${participant.name || 'Unknown'}"`)
+          console.log(`   Phone: "${phone}" (${isRealPhone ? 'REAL PHONE' : isLid ? 'LID' : 'OTHER'})`)
+          console.log(`   Role: "${participant.rank || 'member'}"`)
+
+          // Check if this participant matches our user
+          if (isRealPhone && userPhoneVariants.includes(phone)) {
+            console.log(`   🎯 MATCH FOUND! This is our user`)
+            console.log(`   👑 User role: ${participant.rank}`)
             
-            if (isMatch) {
-              console.log(`     🎉 FOUND USER IN GROUP: ${groupName}`)
-              console.log(`     👤 User role: ${participantRank}`)
+            if (participant.rank === 'admin' || participant.rank === 'creator') {
+              isAdmin = true
+              userRole = participant.rank
+              console.log(`   ✅ USER IS ${userRole.toUpperCase()}!`)
+              break
+            } else {
+              console.log(`   👤 User is just a member`)
+              break
             }
-          } else {
-            console.log(`     ⚠️ No participant ID available`)
           }
         }
-      }
 
-    } catch (error) {
-      console.error('❌ Error testing groups:', error)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to test phone matching', 
-          details: error.message,
-          user_phone: userPhoneNumber
-        }),
-        { status: 500, headers: corsHeaders }
-      )
+        console.log(`\n📊 PARTICIPANT ANALYSIS for ${group.name}:`)
+        console.log(`   Real phone numbers: ${realPhoneNumbersCount}`)
+        console.log(`   @lid identifiers: ${lidCount}`)
+        console.log(`   Total checked: ${Math.min(participants.length, 10)}`)
+
+        if (realPhoneNumbersCount === 0 && lidCount > 0) {
+          console.log(`⚠️ ALL PARTICIPANTS HAVE @LID - Privacy mode active`)
+          console.log(`📝 This suggests strict privacy settings or you're not admin`)
+        } else if (realPhoneNumbersCount > 0) {
+          console.log(`✅ REAL PHONE NUMBERS VISIBLE - Admin privileges confirmed`)
+        }
+
+        if (isAdmin) {
+          console.log(`🎉 ADMIN GROUP CONFIRMED: ${group.name}`)
+          adminGroupsFound++
+          
+          const groupData = {
+            whatsapp_group_id: group.id,
+            name: group.name,
+            user_id: userId,
+            participants_count: participants.length,
+            user_role: userRole,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+          
+          processedGroups.push(groupData)
+          console.log(`✅ ADDED: ${group.name} (${participants.length} members) - ${userRole?.toUpperCase()}`)
+        } else {
+          console.log(`❌ Not admin in: ${group.name}`)
+        }
+
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 300))
+
+      } catch (error) {
+        console.log(`❌ Error processing ${group.name}: ${error.message}`)
+      }
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        debug_completed: true,
-        user_phone: userPhoneNumber,
-        phone_length: userPhoneNumber.length,
-        phone_format: userPhoneNumber.startsWith('972') ? 'international' : 'local',
-        message: 'Phone debugging completed - check logs for detailed analysis'
-      }),
-      { status: 200, headers: corsHeaders }
-    )
+    // Save to database
+    if (processedGroups.length > 0) {
+      console.log(`\n💾 Saving ${processedGroups.length} admin groups to database...`)
+      
+      const { error: insertError } = await supabase
+        .from('whatsapp_groups')
+        .upsert(processedGroups, { 
+          onConflict: 'whatsapp_group_id,user_id',
+          ignoreDuplicates: false 
+        })
+
+      if (insertError) {
+        console.error('❌ Database insert error:', insertError)
+        throw insertError
+      }
+
+      console.log(`✅ Successfully saved ${processedGroups.length} groups`)
+    } else {
+      console.log('💾 No admin groups found to save')
+    }
+
+    console.log(`\n🎯 ADMIN PRIVILEGE SYNC COMPLETE!`)
+    console.log(`📊 Groups processed: ${groups.length}`)
+    console.log(`👑 Admin groups found: ${adminGroupsFound}`)
+    console.log(`🔧 Method: Enhanced admin privilege detection`)
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      message: `Admin privilege sync completed`,
+      groupsProcessed: groups.length,
+      adminGroupsFound: adminGroupsFound,
+      method: 'admin_privilege_detection',
+      groups: processedGroups.map(g => ({ name: g.name, role: g.user_role, participants: g.participants_count }))
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
 
   } catch (error) {
-    console.error('💥 Phone Debug Error:', error)
-    return new Response(
-      JSON.stringify({ 
-        error: 'Internal server error', 
-        details: error.message
-      }),
-      { status: 500, headers: corsHeaders }
-    )
+    console.error('❌ Sync error:', error)
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 })
