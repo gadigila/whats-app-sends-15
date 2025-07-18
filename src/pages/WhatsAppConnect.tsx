@@ -8,26 +8,15 @@ import WhatsAppQRDisplay from '@/components/WhatsAppQRDisplay';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 import { useWhatsAppSimple } from '@/hooks/useWhatsAppSimple';
-import { useWelcomeFlow } from '@/hooks/useWelcomeFlow';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { WifiOff } from 'lucide-react';
-import OnboardingQuiz from '@/components/OnboardingQuiz';
-import WelcomeMessage from '@/components/WelcomeMessage';
 
 const WhatsAppConnect = () => {
   const { user, isAuthReady } = useAuth();
   const { data: profile, isLoading: profileLoading, error: profileError, refetch: refetchProfile } = useUserProfile();
   const { deleteInstance } = useWhatsAppInstance();
   const { createChannel, getQRCode, isCreatingChannel, isGettingQR } = useWhatsAppSimple();
-  const {
-    showQuiz,
-    showWelcome,
-    quizAnswers,
-    shouldShowOnboarding,
-    handleQuizComplete,
-    handleWelcomeComplete
-  } = useWelcomeFlow();
   
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [isPollingForQR, setIsPollingForQR] = useState(false);
@@ -266,26 +255,10 @@ const WhatsAppConnect = () => {
   }
 
   if (profile?.instance_status === 'connected') {
-    // Show onboarding quiz first
-    if (showQuiz) {
-      return <OnboardingQuiz onComplete={handleQuizComplete} />;
-    }
-
-    // Show welcome message after quiz
-    if (showWelcome) {
-      return (
-        <WelcomeMessage 
-          onContinue={handleWelcomeComplete}
-          userAnswers={quizAnswers} 
-        />
-      );
-    }
-
-    // Show main connected view after onboarding is complete
     return (
       <WhatsAppConnectedView
         profile={profile}
-        onNavigateToCompose={() => window.location.href = '/message-composer'}
+        onNavigateToCompose={() => window.location.href = '/compose'}
         onDisconnect={async () => {
           try {
             await deleteInstance.mutateAsync();
