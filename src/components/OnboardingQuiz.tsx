@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -76,7 +77,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
 
   const handleGroupCountSelect = (count: string) => {
     updateAnswer('group_count_range', count);
-    setTimeout(handleSubmit, 300);
+    setTimeout(() => handleSubmit(count), 300);
   };
 
   const progress = ((currentStep + 1) / totalSteps) * 100;

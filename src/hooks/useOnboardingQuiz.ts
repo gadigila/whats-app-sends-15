@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,12 +83,19 @@ export const useOnboardingQuiz = () => {
 
   const canSkipCurrentStep = currentStep !== 2; // Cannot skip group count question
 
-  const handleSubmit = () => {
-    if (!answers.group_count_range) {
+  const handleSubmit = (groupCountOverride?: string) => {
+    const groupCount = groupCountOverride || answers.group_count_range;
+    if (!groupCount) {
       toast.error('אנא בחר כמות קבוצות');
       return;
     }
-    submitQuiz.mutate(answers);
+    
+    const finalAnswers = {
+      ...answers,
+      group_count_range: groupCount
+    };
+    
+    submitQuiz.mutate(finalAnswers);
   };
 
   return {
