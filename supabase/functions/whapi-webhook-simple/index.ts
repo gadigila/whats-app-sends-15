@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper function - MOVED OUTSIDE
+// Helper function for phone number matching
 function isPhoneMatch(phone1: string, phone2: string): boolean {
   if (!phone1 || !phone2) return false;
   
@@ -39,322 +39,53 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('📨 WHAPI Webhook - Processing Event')
+    console.log('📨 WHAPI Webhook - Optimized for Native Notifications')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // EXTRACT USER ID FROM URL
+    // Extract user ID from URL
     const url = new URL(req.url)
     const userId = url.searchParams.get('userId')
-    console.log('🔍 Webhook for user:', userId)
 
     const webhookData = await req.json()
-    console.log('📊 Webhook received:', {
-      type: webhookData.type,
-      hasData: !!webhookData.data,
+    const eventType = webhookData.type
+    const eventData = webhookData.data || {}
+
+    console.log('📊 Webhook Event:', {
+      type: eventType,
       userId: userId,
       timestamp: new Date().toISOString()
     })
 
-    const eventType = webhookData.type
-    const eventData = webhookData.data || {}
-
-    // Handle different event types
+    // ✅ OPTIMIZED: Only handle events we actually subscribed to
     switch (eventType) {
       case 'ready':
-        console.log('🎉 WhatsApp connected successfully!');
-        console.log('📊 Device info:', eventData.device);
-
-        if (userId) {
-          // 🔧 FIXED: Get phone number from /health endpoint immediately
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('whapi_token')
-            .eq('id', userId)
-            .single();
-
-          if (!profileError && profile?.whapi_token) {
-            console.log('📱 Fetching phone number from /health...');
-            
-            try {
-              const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${profile.whapi_token}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-
-              if (healthResponse.ok) {
-                const healthData = await healthResponse.json();
-                console.log('📊 Health data received:', JSON.stringify(healthData, null, 2));
-                
-                // 🎯 FIXED: Extract phone from correct location (user.id)
-                let phoneNumber = null;
-                
-                if (healthData?.user?.id) {
-                  phoneNumber = healthData.user.id;
-                  console.log('📱 Found phone in user.id:', phoneNumber);
-                } else if (healthData?.me?.phone) {
-                  phoneNumber = healthData.me.phone;
-                  console.log('📱 Found phone in me.phone:', phoneNumber);
-                } else if (healthData?.phone) {
-                  phoneNumber = healthData.phone;
-                  console.log('📱 Found phone in phone field:', phoneNumber);
-                }
-
-                // Clean phone number (remove + and ensure 972 format)
-                if (phoneNumber) {
-                  const cleanPhone = phoneNumber.replace(/[^\d]/g, '');
-                  console.log('📱 Cleaned phone number:', cleanPhone);
-                  
-                  // Update profile with connected status AND phone number
-                  const { error: updateError } = await supabase
-                    .from('profiles')
-                    .update({
-                      instance_status: 'connected',
-                      phone_number: cleanPhone, // 🎯 STORE PHONE NUMBER
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', userId);
-
-                  if (updateError) {
-                    console.error('❌ Error updating profile:', updateError);
-                  } else {
-                    console.log('✅ Profile updated with connected status and phone:', cleanPhone);
-                  }
-                } else {
-                  console.log('⚠️ No phone number found in health response');
-                  
-                  // Still update to connected, but without phone
-                  await supabase
-                    .from('profiles')
-                    .update({
-                      instance_status: 'connected',
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', userId);
-                }
-              } else {
-                console.log('⚠️ Health endpoint failed:', healthResponse.status);
-                
-                // Still update to connected
-                await supabase
-                  .from('profiles')
-                  .update({
-                    instance_status: 'connected',
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', userId);
-              }
-            } catch (healthError) {
-              console.error('❌ Error calling health endpoint:', healthError);
-              
-              // Still update to connected
-              await supabase
-                .from('profiles')
-                .update({
-                  instance_status: 'connected',
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', userId);
-            }
-          }
-        } else {
-          // FALLBACK: Try to find user by checking all waiting profiles
-          console.log('⚠️ No userId in webhook URL, trying fallback method')
-          
-          const phoneNumber = eventData.phone
-          if (phoneNumber) {
-            const { data: waitingProfiles, error: findError } = await supabase
-              .from('profiles')
-              .select('id, instance_id, whapi_token')
-              .in('instance_status', ['unauthorized', 'initializing', 'qr', 'active'])
-
-            if (findError) {
-              console.error('❌ Error finding waiting profiles:', findError)
-            } else if (waitingProfiles && waitingProfiles.length > 0) {
-              console.log(`📊 Found ${waitingProfiles.length} profiles waiting for connection`)
-              
-              for (const profile of waitingProfiles) {
-                try {
-                  const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
-                    method: 'GET',
-                    headers: {
-                      'Authorization': `Bearer ${profile.whapi_token}`,
-                      'Content-Type': 'application/json'
-                    }
-                  })
-                  
-                  if (healthResponse.ok) {
-                    const healthData = await healthResponse.json()
-                    const healthPhone = healthData?.user?.id || healthData?.me?.phone || healthData?.phone;
-                    
-                    if (healthPhone && isPhoneMatch(healthPhone, phoneNumber)) {
-                      console.log(`✅ Updating profile ${profile.id} to connected`)
-                      
-                      const cleanPhone = healthPhone.replace(/[^\d]/g, '');
-                      
-                      const { error: updateError } = await supabase
-                        .from('profiles')
-                        .update({
-                          instance_status: 'connected',
-                          phone_number: cleanPhone, // 🎯 STORE PHONE NUMBER
-                          updated_at: new Date().toISOString()
-                        })
-                        .eq('id', profile.id)
-
-                      if (updateError) {
-                        console.error('❌ Error updating profile:', updateError)
-                      } else {
-                        console.log('✅ Profile updated to connected status with phone:', cleanPhone)
-                        break
-                      }
-                    }
-                  }
-                } catch (error) {
-                  console.log(`⚠️ Error checking profile ${profile.id}:`, error.message)
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, 50))
-              }
-            }
-          }
-        }
-        
+        console.log('🎉 WhatsApp Connected Successfully!')
+        await handleReadyEvent(supabase, userId, eventData)
         break
 
       case 'auth_failure':
-        console.log('❌ WhatsApp authentication failed')
-        console.log('🔍 Reason:', eventData.reason || eventData.error || 'Unknown')
-        
-        if (userId) {
-          await supabase
-            .from('profiles')
-            .update({
-              instance_status: 'unauthorized',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', userId)
-        }
-        
-        break
-
-      case 'messages':
-        console.log('💬 Message received:', {
-          from: eventData.from,
-          type: eventData.type || 'text',
-          fromMe: eventData.from_me || false
-        })
-        break
-
-      case 'statuses':
-        console.log('📊 Message status update:', {
-          messageId: eventData.id,
-          status: eventData.status
-        })
+        console.log('❌ WhatsApp Authentication Failed')
+        await handleAuthFailure(supabase, userId, eventData)
         break
 
       case 'groups':
-        console.log('👥 Group event:', {
-          groupId: eventData.id,
-          action: eventData.action
-        })
-        
-        if (eventData.action === 'add' && userId) {
-          console.log('🆕 User added to new group, triggering sync...')
-          
-          try {
-            const { data, error } = await supabase.functions.invoke('sync-whatsapp-groups', {
-              body: { userId }
-            })
-            
-            if (error) {
-              console.error('❌ Failed to trigger group sync:', error)
-            } else {
-              console.log('✅ Group sync triggered successfully')
-            }
-          } catch (syncError) {
-            console.error('❌ Failed to sync new group:', syncError)
-          }
-        }
+        console.log('👥 Group Event:', eventData.action)
+        await handleGroupEvent(supabase, userId, eventData)
         break
 
-      case 'groups_participants':
-        console.log('👥 Group participant change detected:', {
-          groupId: eventData.id,
-          action: eventData.action,
-          participants: eventData.participants
-        })
-        
-        const groupId = eventData.id || eventData.group_id
-        const action = eventData.action
-        const participants = eventData.participants || []
-        
-        if ((action === 'promote' || action === 'demote') && userId) {
-          console.log(`🔄 Processing ${action} for ${participants.length} participants`)
-          
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('phone_number')
-            .eq('id', userId)
-            .single()
-            
-          if (profile?.phone_number) {
-            const userPhone = profile.phone_number
-            console.log('📞 User phone for comparison:', userPhone)
-            
-            for (const participantPhone of participants) {
-              console.log(`🔍 Checking participant: ${participantPhone}`)
-              
-              if (isPhoneMatch(userPhone, participantPhone)) {
-                console.log(`🎯 User's own admin status changed: ${action}`)
-                
-                const isAdmin = action === 'promote'
-                
-                const { error: updateError } = await supabase
-                  .from('whatsapp_groups')
-                  .update({
-                    is_admin: isAdmin,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('user_id', userId)
-                  .eq('group_id', groupId)
-                
-                if (updateError) {
-                  console.error('❌ Failed to update admin status:', updateError)
-                } else {
-                  console.log(`✅ Updated admin status: ${isAdmin} for group ${groupId}`)
-                }
-                
-                break
-              }
-            }
-          } else {
-            console.log('⚠️ No phone number stored for user, cannot check admin status')
-          }
-        }
+      case 'statuses':
+        console.log('📊 Message Status Update')
+        await handleStatusEvent(supabase, userId, eventData)
         break
 
-      case 'chats':
-        console.log('💬 Chat event:', {
-          chatId: eventData.id,
-          action: eventData.action
-        })
-        break
-
-      case 'contacts':
-        console.log('📞 Contact event:', {
-          contactId: eventData.id,
-          action: eventData.action
-        })
-        break
+      // ✅ REMOVED: 'messages' case since we no longer subscribe to it
+      // This preserves WhatsApp native notifications!
 
       default:
-        console.log(`⚠️ Unknown webhook event: ${eventType}`)
-        console.log('📊 Event data:', JSON.stringify(eventData, null, 2))
+        console.log(`⚠️ Unexpected webhook event: ${eventType}`)
         break
     }
 
@@ -362,13 +93,9 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         received: true, 
         processed: eventType,
-        userId: userId,
-        timestamp: new Date().toISOString()
+        optimization: 'Native notifications preserved'
       }),
-      { 
-        status: 200, 
-        headers: corsHeaders 
-      }
+      { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
@@ -380,10 +107,160 @@ Deno.serve(async (req) => {
         error: 'Processing failed',
         details: error.message 
       }),
-      { 
-        status: 200, 
-        headers: corsHeaders 
-      }
+      { status: 200, headers: corsHeaders }
     )
   }
 })
+
+// ✅ IMPROVED: Separate handler functions for better organization
+async function handleReadyEvent(supabase: any, userId: string | null, eventData: any) {
+  if (!userId) {
+    console.log('⚠️ No userId provided, attempting fallback identification')
+    return await handleReadyFallback(supabase, eventData)
+  }
+
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('whapi_token')
+      .eq('id', userId)
+      .single()
+
+    if (error || !profile?.whapi_token) {
+      console.error('❌ Profile not found:', error)
+      return
+    }
+
+    // Get phone number from health endpoint
+    const phoneNumber = await getPhoneFromHealth(profile.whapi_token)
+    
+    const updateData: any = {
+      instance_status: 'connected',
+      updated_at: new Date().toISOString()
+    }
+
+    if (phoneNumber) {
+      updateData.phone_number = phoneNumber
+      console.log('📱 Phone number captured:', phoneNumber)
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update(updateData)
+      .eq('id', userId)
+
+    if (updateError) {
+      console.error('❌ Profile update failed:', updateError)
+    } else {
+      console.log('✅ Profile updated successfully')
+    }
+
+  } catch (error) {
+    console.error('❌ Error handling ready event:', error)
+  }
+}
+
+async function handleReadyFallback(supabase: any, eventData: any) {
+  const phoneNumber = eventData.phone
+  if (!phoneNumber) return
+
+  try {
+    const { data: waitingProfiles } = await supabase
+      .from('profiles')
+      .select('id, whapi_token')
+      .in('instance_status', ['unauthorized', 'initializing', 'qr'])
+
+    if (!waitingProfiles?.length) return
+
+    for (const profile of waitingProfiles) {
+      const healthPhone = await getPhoneFromHealth(profile.whapi_token)
+      
+      if (healthPhone && isPhoneMatch(healthPhone, phoneNumber)) {
+        await supabase
+          .from('profiles')
+          .update({
+            instance_status: 'connected',
+            phone_number: healthPhone.replace(/[^\d]/g, ''),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', profile.id)
+
+        console.log('✅ Fallback identification successful for:', profile.id)
+        break
+      }
+    }
+  } catch (error) {
+    console.error('❌ Fallback identification failed:', error)
+  }
+}
+
+async function handleAuthFailure(supabase: any, userId: string | null, eventData: any) {
+  if (!userId) return
+
+  try {
+    await supabase
+      .from('profiles')
+      .update({
+        instance_status: 'unauthorized',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+
+    console.log('✅ Auth failure status updated')
+  } catch (error) {
+    console.error('❌ Error updating auth failure:', error)
+  }
+}
+
+async function handleGroupEvent(supabase: any, userId: string | null, eventData: any) {
+  if (!userId || eventData.action !== 'add') return
+
+  try {
+    // Trigger group sync for new group
+    await supabase.functions.invoke('sync-whatsapp-groups', {
+      body: { userId }
+    })
+    console.log('✅ Group sync triggered')
+  } catch (error) {
+    console.error('❌ Group sync failed:', error)
+  }
+}
+
+async function handleStatusEvent(supabase: any, userId: string | null, eventData: any) {
+  // ✅ FIXED: Only track status for messages we actually sent
+  // Since we don't store individual message IDs, we'll just log for now
+  console.log('📊 Status for message:', {
+    messageId: eventData.id,
+    status: eventData.status,
+    userId: userId
+  })
+  
+  // TODO: If you want to track individual message delivery,
+  // you'll need to modify your scheduled_messages table to store message IDs
+}
+
+async function getPhoneFromHealth(token: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://gate.whapi.cloud/health`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) return null
+
+    const healthData = await response.json()
+    
+    // Try multiple possible phone number locations
+    const phoneNumber = healthData?.user?.id || 
+                       healthData?.me?.phone || 
+                       healthData?.phone
+
+    return phoneNumber ? phoneNumber.replace(/[^\d]/g, '') : null
+  } catch (error) {
+    console.error('❌ Health check failed:', error)
+    return null
+  }
+}

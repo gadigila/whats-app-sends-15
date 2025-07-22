@@ -256,8 +256,8 @@ Deno.serve(async (req) => {
       hasToken: !!channelToken
     })
 
-    // Setup webhook
-    console.log('🔗 Setting up webhook for channel:', finalChannelId)
+    // Setup optimized webhook (FIXED - Only essential events)
+    console.log('🔗 Setting up optimized webhook for channel (preserving notifications):', finalChannelId)
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook`
     
     try {
@@ -271,18 +271,26 @@ Deno.serve(async (req) => {
           webhooks: [{
             url: webhookUrl,
             events: [
-              {"type": "users", "method": "post"},
-              {"type": "channel", "method": "post"}
+              // ✅ FIXED: Only essential events to preserve WhatsApp notifications
+              { "type": "ready", "method": "post" },           // Connection success
+              { "type": "auth_failure", "method": "post" },    // Connection failure
+              { "type": "groups", "method": "post" },          // Group membership changes
+              { "type": "statuses", "method": "post" }         // Message delivery status
+              // ❌ REMOVED: "messages" - was intercepting incoming messages
+              // ❌ REMOVED: "chats" - not needed for SaaS functionality
+              // ❌ REMOVED: "contacts" - not needed for SaaS functionality
             ],
             callback_persist: true
           }]
         })
       })
 
-      console.log('🔗 Webhook setup response:', webhookResponse.status)
+      console.log('🔗 Optimized webhook setup response:', webhookResponse.status)
       if (!webhookResponse.ok) {
         const webhookError = await webhookResponse.text()
         console.error('⚠️ Webhook setup failed:', webhookError)
+      } else {
+        console.log('✅ Optimized webhooks configured - WhatsApp notifications preserved!')
       }
     } catch (webhookError) {
       console.error('⚠️ Webhook setup error:', webhookError)
@@ -441,6 +449,7 @@ Deno.serve(async (req) => {
         total_wait_time: `${pollingAttempts * 3} seconds`,
         message: channelReady ? 'Channel created and ready for QR' : 'Channel created, may still be initializing. You can try getting QR code now.',
         webhook_url: webhookUrl,
+        webhook_optimization: 'Notifications preserved - only essential events configured',
         timeout_reached: !channelReady && pollingAttempts >= maxPollingAttempts
       }),
       { status: 200, headers: corsHeaders }
