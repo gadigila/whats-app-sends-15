@@ -658,6 +658,7 @@ const Segments = () => {
       <SyncLoadingModal
         isOpen={showSyncModal}
         onClose={handleCloseSyncModal}
+        userId={user?.id || ''}
       />
     </Layout>
   );

@@ -65,14 +65,15 @@ export const RealtimeSyncModal: React.FC<RealtimeSyncModalProps> = ({
         },
         (payload) => {
           console.log('📊 Progress update received:', payload);
-          if (payload.new) {
+          if (payload.new && typeof payload.new === 'object') {
+            const progressData = payload.new as any;
             setProgress({
-              stage: payload.new.stage,
-              current: payload.new.current,
-              total: payload.new.total,
-              admin_found: payload.new.admin_found || 0,
-              creator_found: payload.new.creator_found || 0,
-              last_group: payload.new.last_group
+              stage: progressData.stage || 'מתכונן לסנכרון...',
+              current: progressData.current || 0,
+              total: progressData.total || 100,
+              admin_found: progressData.admin_found || 0,
+              creator_found: progressData.creator_found || 0,
+              last_group: progressData.last_group || null
             });
           }
         }
@@ -399,3 +400,6 @@ export const RealtimeSyncModal: React.FC<RealtimeSyncModalProps> = ({
     </Dialog>
   );
 };
+
+// Export alias for backward compatibility
+export const SyncLoadingModal = RealtimeSyncModal;
