@@ -363,12 +363,17 @@ const Segments = () => {
             <Button
               onClick={handleSmartSyncGroups}
               variant="outline"
-              disabled={isSyncInProgress || !isWhatsAppConnected || isInCooldown}
+              disabled={isSyncing || isSyncInProgress || !isWhatsAppConnected || isInCooldown}
               className={`border-green-600 text-green-600 hover:bg-green-50 ${
-                !isWhatsAppConnected || isInCooldown ? 'opacity-50 cursor-not-allowed' : ''
+                !isWhatsAppConnected || isInCooldown || isSyncing || isSyncInProgress ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {isSyncInProgress ? (
+              {isSyncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  מתחיל סנכרון...
+                </>
+              ) : isSyncInProgress ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   מסנכרן ברקע...
