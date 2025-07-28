@@ -7,6 +7,8 @@ const corsHeaders = {
 
 interface SyncGroupsRequest {
   userId: string
+  chunk?: number // NEW: For chunked processing
+  batchSize?: number // NEW: How many groups per chunk
 }
 
 // Helper function for delays
@@ -14,7 +16,7 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Phone matching utility (simplified)
+// Phone matching utility (kept your existing logic)
 class PhoneMatcher {
   private userPhoneVariants: string[]
 
@@ -44,239 +46,54 @@ class PhoneMatcher {
   }
 }
 
-// 🚀 TIMEOUT-SAFE: Smart Batch Processing
-async function fetchGroupsWithTimeLimit(token: string, maxTimeSeconds: number = 120) {
-  console.log(`🚀 Starting TIMEOUT-SAFE group sync (max ${maxTimeSeconds}s)...`)
-  
-  const startTime = Date.now()
-  const allGroups = new Map()
-  let totalApiCalls = 0
-  let stage = 'discovery'
-  
-  // 🔥 STRATEGY: Adaptive batching that respects time limits
-  const timeLimit = maxTimeSeconds * 1000 // Convert to ms
-  
+// NEW: Real-time progress update
+async function updateSyncProgress(
+  supabase: any, 
+  userId: string, 
+  progress: {
+    stage: string
+    current: number
+    total: number
+    adminFound?: number
+    creatorFound?: number
+    lastGroup?: string
+  }
+) {
   try {
-    // STAGE 1: Fast discovery with larger batches
-    console.log('🔍 STAGE 1: Fast group discovery...')
-    let offset = 0
-    let hasMore = true
-    let discoveryApiCalls = 0
-    
-    while (hasMore && discoveryApiCalls < 6) { // Max 6 discovery calls
-      const elapsed = Date.now() - startTime
-      if (elapsed > timeLimit * 0.3) { // Use max 30% of time for discovery
-        console.log('⏰ Discovery time limit reached, moving to processing...')
-        break
-      }
-      
-      discoveryApiCalls++
-      totalApiCalls++
-      
-      console.log(`📊 Discovery call ${discoveryApiCalls}: offset ${offset}`)
-      
-      if (discoveryApiCalls > 1) {
-        await delay(1500) // Faster delays for discovery
-      }
-      
-      const response = await fetch(
-        `https://gate.whapi.cloud/groups?count=300&offset=${offset}`, // Larger batches
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      )
-
-      if (!response.ok) {
-        console.error(`❌ Discovery API failed: ${response.status}`)
-        if (response.status === 429) {
-          await delay(3000)
-          continue
-        }
-        break
-      }
-
-      const data = await response.json()
-      const groups = data.groups || []
-      
-      console.log(`📊 Discovered ${groups.length} groups`)
-      
-      // Store groups with participant data if available
-      groups.forEach(group => {
-        if (group.id) {
-          allGroups.set(group.id, group)
-        }
+    await supabase
+      .from('sync_progress')
+      .upsert({
+        user_id: userId,
+        stage: progress.stage,
+        current: progress.current,
+        total: progress.total,
+        admin_found: progress.adminFound || 0,
+        creator_found: progress.creatorFound || 0,
+        last_group: progress.lastGroup || null,
+        updated_at: new Date().toISOString()
       })
-      
-      if (groups.length === 0) {
-        hasMore = false
-      } else if (groups.length < 300) {
-        hasMore = false
-      } else {
-        offset += 300
-      }
-    }
+      .eq('user_id', userId)
     
-    console.log(`🎯 Discovery complete: ${allGroups.size} groups found in ${discoveryApiCalls} calls`)
-    
-    // STAGE 2: Smart processing with time awareness
-    stage = 'processing'
-    console.log(`🔍 STAGE 2: Processing ${allGroups.size} groups...`)
-    
-    const groupsArray = Array.from(allGroups.values())
-    const processedGroups = []
-    let processed = 0
-    
-    for (const group of groupsArray) {
-      const elapsed = Date.now() - startTime
-      const remainingTime = timeLimit - elapsed
-      
-      // Stop if we're running out of time (keep 10s buffer)
-      if (remainingTime < 10000) {
-        console.log(`⏰ Time limit approaching (${Math.round(remainingTime/1000)}s left), stopping processing...`)
-        break
-      }
-      
-      processed++
-      
-      // Calculate dynamic delay based on remaining time
-      const remainingGroups = groupsArray.length - processed
-      const timePerGroup = remainingGroups > 0 ? Math.max(200, (remainingTime - 5000) / remainingGroups) : 1000
-      const delayMs = Math.min(2000, Math.max(200, timePerGroup * 0.8)) // Use 80% of available time per group
-      
-      if (processed > 1 && delayMs > 200) {
-        await delay(delayMs)
-      }
-      
-      // Try to get participant data if not already available
-      if (!group.participants || group.participants.length === 0) {
-        try {
-          totalApiCalls++
-          const detailResponse = await fetch(
-            `https://gate.whapi.cloud/groups/${group.id}`,
-            {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          )
-          
-          if (detailResponse.ok) {
-            const detailData = await detailResponse.json()
-            if (detailData.participants) {
-              group.participants = detailData.participants
-            }
-          }
-        } catch (error) {
-          console.log(`⚠️ Failed to get details for ${group.name}: ${error.message}`)
-        }
-      }
-      
-      processedGroups.push(group)
-      
-      if (processed % 20 === 0) {
-        const timeElapsed = Math.round((Date.now() - startTime) / 1000)
-        console.log(`📊 Processed ${processed}/${groupsArray.length} groups (${timeElapsed}s elapsed)`)
-      }
-    }
-    
-    const finalTime = Math.round((Date.now() - startTime) / 1000)
-    console.log(`🎯 Processing complete: ${processedGroups.length} groups processed in ${finalTime}s`)
-    
-    return {
-      groups: processedGroups,
-      totalApiCalls,
-      totalProcessed: processedGroups.length,
-      timeElapsed: finalTime,
-      completed: processed >= groupsArray.length
-    }
-    
+    console.log(`📊 Progress: ${progress.current}/${progress.total} - ${progress.stage}`)
   } catch (error) {
-    const elapsed = Math.round((Date.now() - startTime) / 1000)
-    console.error(`❌ Error in ${stage} stage after ${elapsed}s:`, error.message)
-    
-    return {
-      groups: Array.from(allGroups.values()),
-      totalApiCalls,
-      totalProcessed: allGroups.size,
-      timeElapsed: elapsed,
-      completed: false,
-      error: error.message
-    }
+    console.error('❌ Failed to update progress:', error)
   }
 }
 
-// Process groups for admin status
-function processGroupsForAdmin(groups: any[], userPhone: string, userId: string) {
-  const phoneMatcher = new PhoneMatcher(userPhone)
-  const adminGroups = []
-  let stats = {
-    totalProcessed: 0,
-    adminFound: 0,
-    creatorFound: 0,
-    noParticipants: 0,
-    notMember: 0
+// NEW: Add admin group to database immediately for real-time UI
+async function addAdminGroupImmediately(supabase: any, adminGroup: any) {
+  try {
+    const { error } = await supabase
+      .from('whatsapp_groups')
+      .upsert(adminGroup)
+      .eq('group_id', adminGroup.group_id)
+    
+    if (!error) {
+      console.log(`✅ Added to UI: ${adminGroup.name}`)
+    }
+  } catch (error) {
+    console.error('❌ Error adding admin group:', error)
   }
-  
-  for (const group of groups) {
-    stats.totalProcessed++
-    const groupName = group.name || group.subject || `Group ${group.id}`
-    
-    // Skip if no participants
-    if (!group.participants || !Array.isArray(group.participants) || group.participants.length === 0) {
-      stats.noParticipants++
-      continue
-    }
-    
-    // Find user in participants
-    const userParticipant = group.participants.find(participant => {
-      const participantId = participant.id || participant.phone || participant.number
-      return phoneMatcher.isUserPhone(participantId)
-    })
-    
-    if (!userParticipant) {
-      stats.notMember++
-      continue
-    }
-    
-    // Check admin status
-    const participantRank = (userParticipant.rank || userParticipant.role || 'member').toLowerCase()
-    const isCreator = participantRank === 'creator' || participantRank === 'owner'  
-    const isAdmin = participantRank === 'admin' || participantRank === 'administrator' || isCreator
-    
-    if (!isAdmin) {
-      continue
-    }
-    
-    // Found admin group!
-    if (isCreator) {
-      stats.creatorFound++
-      console.log(`👑 ${groupName}: CREATOR (${group.participants.length} members)`)
-    } else {
-      stats.adminFound++
-      console.log(`⭐ ${groupName}: ADMIN (${group.participants.length} members)`)
-    }
-    
-    adminGroups.push({
-      user_id: userId,
-      group_id: group.id,
-      name: groupName,
-      description: group.description || null,
-      participants_count: group.participants.length,
-      is_admin: true,
-      is_creator: isCreator,
-      avatar_url: group.chat_pic || null,
-      last_synced_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-  }
-  
-  return { adminGroups, stats }
 }
 
 Deno.serve(async (req) => {
@@ -285,13 +102,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 TIMEOUT-SAFE GROUP SYNC: Optimized for Supabase limits')
+    console.log('🚀 ENHANCED GROUP SYNC: Real-time updates + chunked processing')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { userId }: SyncGroupsRequest = await req.json()
+    const { userId, chunk = 0, batchSize = 30 }: SyncGroupsRequest = await req.json()
 
     if (!userId) {
       return new Response(
@@ -300,9 +117,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    const syncStartTime = Date.now()
+    const startTime = Date.now()
+    console.log(`👤 Processing chunk ${chunk} for user: ${userId}`)
 
-    // Get user profile
+    // Get user profile and validate (kept your existing logic)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('whapi_token, instance_status, phone_number')
@@ -323,9 +141,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get phone number
+    // Get phone number (kept your existing logic)
     let userPhone = profile.phone_number
     if (!userPhone) {
+      console.log('📱 Fetching phone from /health...')
+      
       const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
         method: 'GET',
         headers: {
@@ -354,102 +174,308 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🚀 TIMEOUT-SAFE GROUP FETCHING (120 second limit)
-    const fetchResult = await fetchGroupsWithTimeLimit(profile.whapi_token, 120)
-    
-    // Process groups for admin status
-    const { adminGroups, stats } = processGroupsForAdmin(fetchResult.groups, userPhone, userId)
-    
-    const totalSyncTime = Math.round((Date.now() - syncStartTime) / 1000)
+    const phoneMatcher = new PhoneMatcher(userPhone)
 
-    console.log(`\n🎯 TIMEOUT-SAFE SYNC COMPLETED!`)
-    console.log(`📊 Groups processed: ${fetchResult.totalProcessed}`)
-    console.log(`🔑 Admin groups found: ${adminGroups.length}`)
-    console.log(`⚡ Total time: ${totalSyncTime}s`)
-    console.log(`✅ Completed: ${fetchResult.completed}`)
+    // CHUNK 0: Initial discovery phase
+    if (chunk === 0) {
+      console.log('🔍 CHUNK 0: Group discovery phase')
+      
+      await updateSyncProgress(supabase, userId, {
+        stage: 'מגלה קבוצות...',
+        current: 0,
+        total: 100
+      })
 
-    // 🛡️ SAFETY CHECK: Don't clear existing if we got 0 results due to timeout
-    const { data: existingGroups } = await supabase
-      .from('whatsapp_groups')
-      .select('id')
-      .eq('user_id', userId)
+      // Clear existing data for fresh start
+      await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
+      await supabase.from('sync_progress').delete().eq('user_id', userId)
+      await supabase.from('sync_groups_temp').delete().eq('user_id', userId)
 
-    if (adminGroups.length === 0 && existingGroups && existingGroups.length > 0 && !fetchResult.completed) {
+      // Fast discovery with timeout protection
+      const allGroups = []
+      let offset = 0
+      let hasMore = true
+      let discoveryCount = 0
+      const maxDiscoveryTime = 30000 // 30 seconds max for discovery
+
+      while (hasMore && discoveryCount < 6 && (Date.now() - startTime) < maxDiscoveryTime) {
+        discoveryCount++
+        
+        await updateSyncProgress(supabase, userId, {
+          stage: `מגלה קבוצות... (${discoveryCount}/6)`,
+          current: discoveryCount * 15,
+          total: 100
+        })
+
+        if (discoveryCount > 1) {
+          await delay(1500) // Shorter delays for discovery
+        }
+
+        try {
+          const response = await fetch(
+            `https://gate.whapi.cloud/groups?count=250&offset=${offset}`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${profile.whapi_token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          )
+
+          if (!response.ok) {
+            console.error(`❌ Discovery failed: ${response.status}`)
+            if (response.status === 429) {
+              await delay(4000)
+              continue
+            }
+            break
+          }
+
+          const data = await response.json()
+          const groups = data.groups || []
+          
+          console.log(`📊 Discovery ${discoveryCount}: Found ${groups.length} groups`)
+          allGroups.push(...groups)
+          
+          if (groups.length === 0 || groups.length < 250) {
+            hasMore = false
+          } else {
+            offset += 250
+          }
+
+        } catch (error) {
+          console.error(`❌ Discovery error:`, error.message)
+          await delay(3000)
+          continue
+        }
+      }
+
+      console.log(`🎯 Discovery complete: ${allGroups.length} groups found`)
+
+      // Store discovered groups for chunked processing
+      if (allGroups.length > 0) {
+        const groupsToStore = allGroups.map(group => ({
+          user_id: userId,
+          group_id: group.id,
+          group_data: group,
+          processed: false,
+          created_at: new Date().toISOString()
+        }))
+
+        // Insert in small batches to avoid payload limits
+        const insertBatchSize = 50
+        for (let i = 0; i < groupsToStore.length; i += insertBatchSize) {
+          const batch = groupsToStore.slice(i, i + insertBatchSize)
+          try {
+            await supabase.from('sync_groups_temp').insert(batch)
+          } catch (insertError) {
+            console.error('❌ Error storing groups batch:', insertError)
+          }
+        }
+      }
+
+      await updateSyncProgress(supabase, userId, {
+        stage: 'גילוי הושלם! מתחיל לבדוק קבוצות...',
+        current: 100,
+        total: allGroups.length,
+        adminFound: 0,
+        creatorFound: 0
+      })
+
       return new Response(
         JSON.stringify({
-          success: false,
-          error: 'Sync incomplete due to time limits',
-          existing_groups_count: existingGroups.length,
-          groups_processed: fetchResult.totalProcessed,
-          time_elapsed: totalSyncTime,
-          recommendation: 'Try again - the function was cut short due to time limits',
-          partial_results: true
+          success: true,
+          phase: 'discovery_complete',
+          total_groups: allGroups.length,
+          next_chunk: 1,
+          message: `נמצאו ${allGroups.length} קבוצות - מתחיל לבדוק סטטוס מנהל...`
         }),
-        { status: 400, headers: corsHeaders }
+        { status: 200, headers: corsHeaders }
       )
     }
 
-    // 🔄 UPDATE DATABASE
-    console.log('💾 Updating database...')
-    
-    await supabase
-      .from('whatsapp_groups')
-      .delete()
-      .eq('user_id', userId)
-    
-    if (adminGroups.length > 0) {
-      const { error: insertError } = await supabase
-        .from('whatsapp_groups')
-        .insert(adminGroups)
+    // CHUNKS 1+: Process groups in small, timeout-safe batches
+    console.log(`🔍 CHUNK ${chunk}: Processing groups in batches`)
 
-      if (insertError) {
-        console.error('❌ Database insert error:', insertError)
-        return new Response(
-          JSON.stringify({ error: 'Failed to save groups', details: insertError.message }),
-          { status: 500, headers: corsHeaders }
-    )
-  }
-})
-        )
+    // Get unprocessed groups for this chunk
+    const offset = (chunk - 1) * batchSize
+    const { data: tempGroups, error: tempError } = await supabase
+      .from('sync_groups_temp')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('processed', false)
+      .range(offset, offset + batchSize - 1)
+      .order('created_at')
+
+    if (tempError || !tempGroups || tempGroups.length === 0) {
+      console.log('🏁 No more groups to process - sync complete')
+      
+      // Get final counts
+      const { data: finalGroups } = await supabase
+        .from('whatsapp_groups')
+        .select('is_creator')
+        .eq('user_id', userId)
+
+      const adminCount = finalGroups?.filter(g => !g.is_creator).length || 0
+      const creatorCount = finalGroups?.filter(g => g.is_creator).length || 0
+      const totalFound = adminCount + creatorCount
+
+      // Clean up temp data
+      await supabase.from('sync_groups_temp').delete().eq('user_id', userId)
+      await supabase.from('sync_progress').delete().eq('user_id', userId)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          phase: 'complete',
+          groups_count: totalFound,
+          admin_groups_count: adminCount,
+          creator_groups_count: creatorCount,
+          message: totalFound > 0 
+            ? `נמצאו ${totalFound} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
+            : 'לא נמצאו קבוצות בניהולך',
+          sync_method: 'Enhanced Real-time Chunked'
+        }),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
+    // Process this chunk of groups with timeout protection
+    let processed = 0
+    let adminFound = 0
+    let creatorFound = 0
+    const chunkStartTime = Date.now()
+    const maxChunkTime = 45000 // 45 seconds max per chunk
+
+    for (const tempGroup of tempGroups) {
+      // Timeout protection - stop if we're taking too long
+      if ((Date.now() - chunkStartTime) > maxChunkTime) {
+        console.log(`⏰ Chunk timeout protection activated - processed ${processed} groups`)
+        break
+      }
+
+      const group = tempGroup.group_data
+      const groupName = group.name || group.subject || `Group ${group.id}`
+      
+      processed++
+      
+      // Update progress in real-time
+      await updateSyncProgress(supabase, userId, {
+        stage: `בודק ${groupName}...`,
+        current: offset + processed,
+        total: 999, // Will be updated as we know the real total
+        adminFound,
+        creatorFound,
+        lastGroup: groupName
+      })
+
+      // Conservative delay to respect rate limits  
+      if (processed > 1) {
+        await delay(1200)
+      }
+
+      try {
+        // Get detailed group info if needed
+        let groupWithParticipants = group
+        if (!group.participants || group.participants.length === 0) {
+          const detailResponse = await fetch(
+            `https://gate.whapi.cloud/groups/${group.id}`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${profile.whapi_token}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          )
+
+          if (detailResponse.ok) {
+            const detailData = await detailResponse.json()
+            if (detailData.participants) {
+              groupWithParticipants = { ...group, participants: detailData.participants }
+            }
+          }
+        }
+
+        // Check if user is admin (kept your existing logic)
+        if (groupWithParticipants.participants && Array.isArray(groupWithParticipants.participants)) {
+          const userParticipant = groupWithParticipants.participants.find(participant => {
+            const participantId = participant.id || participant.phone || participant.number
+            return phoneMatcher.isUserPhone(participantId)
+          })
+
+          if (userParticipant) {
+            const participantRank = (userParticipant.rank || userParticipant.role || 'member').toLowerCase()
+            const isCreator = participantRank === 'creator' || participantRank === 'owner'
+            const isAdmin = participantRank === 'admin' || participantRank === 'administrator' || isCreator
+
+            if (isAdmin) {
+              if (isCreator) {
+                creatorFound++
+                console.log(`👑 ${groupName}: CREATOR (${groupWithParticipants.participants.length} members)`)
+              } else {
+                adminFound++
+                console.log(`⭐ ${groupName}: ADMIN (${groupWithParticipants.participants.length} members)`)
+              }
+
+              // Add to database immediately for real-time UI update
+              const adminGroup = {
+                user_id: userId,
+                group_id: group.id,
+                name: groupName,
+                description: group.description || null,
+                participants_count: groupWithParticipants.participants.length,
+                is_admin: true,
+                is_creator: isCreator,
+                avatar_url: group.chat_pic || null,
+                last_synced_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }
+
+              await addAdminGroupImmediately(supabase, adminGroup)
+            }
+          }
+        }
+
+        // Mark this group as processed
+        await supabase
+          .from('sync_groups_temp')
+          .update({ processed: true })
+          .eq('id', tempGroup.id)
+
+      } catch (error) {
+        console.error(`❌ Error processing ${groupName}:`, error.message)
+        await delay(2000)
       }
     }
 
-    // Calculate stats
-    const adminCount = adminGroups.filter(g => !g.is_creator).length
-    const creatorCount = adminGroups.filter(g => g.is_creator).length
-    const totalMembers = adminGroups.reduce((sum, g) => sum + (g.participants_count || 0), 0)
+    const elapsedTime = Math.round((Date.now() - startTime) / 1000)
+    console.log(`🎯 Chunk ${chunk} complete: ${processed} groups processed in ${elapsedTime}s`)
 
     return new Response(
       JSON.stringify({
         success: true,
-        groups_count: adminGroups.length,
-        admin_groups_count: adminCount,
-        creator_groups_count: creatorCount,
-        total_members_in_managed_groups: totalMembers,
-        total_groups_processed: fetchResult.totalProcessed,
-        total_api_calls: fetchResult.totalApiCalls,
-        sync_time_seconds: totalSyncTime,
-        completed_full_sync: fetchResult.completed,
-        processing_stats: stats,
-        message: adminGroups.length > 0 
-          ? `נמצאו ${adminGroups.length} קבוצות בניהולך! (${creatorCount} כיוצר, ${adminCount} כמנהל)`
-          : 'לא נמצאו קבוצות בניהולך',
-        sync_method: 'Timeout-Safe Adaptive',
-        optimization_notes: [
-          'Respects Supabase 150s timeout limit',
-          'Adaptive delays based on remaining time',
-          'Processes as many groups as possible within time limit',
-          'Preserves existing data if sync incomplete'
-        ]
+        phase: 'processing',
+        chunk_processed: chunk,
+        groups_in_chunk: processed,
+        admin_found_in_chunk: adminFound,
+        creator_found_in_chunk: creatorFound,
+        next_chunk: chunk + 1,
+        processing_time: elapsedTime,
+        message: `עיבדתי ${processed} קבוצות בחבילה זו`
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('💥 Timeout-Safe Sync Error:', error)
+    console.error('💥 Enhanced Sync Error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error', 
         details: error.message 
       }),
       { status: 500, headers: corsHeaders }
+    )
+  }
+})
