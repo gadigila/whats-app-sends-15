@@ -376,7 +376,7 @@ const Segments = () => {
               ) : isInCooldown ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  סנכרן קבוצות ({formattedTime})
+                  סנכרון קבוצות בזמן אמת ({formattedTime})
                 </>
               ) : !isWhatsAppConnected ? (
                 <>
@@ -386,7 +386,7 @@ const Segments = () => {
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  סנכרן קבוצות בניהולי
+                  סנכרון קבוצות בזמן אמת
                 </>
               )}
             </Button>
