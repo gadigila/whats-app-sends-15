@@ -13,7 +13,8 @@ import { Users, Plus, Edit, Trash2, MessageSquare, Search, X, Star, Crown, Loade
 import { toast } from '@/hooks/use-toast';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
-import { SyncLoadingModal } from '@/components/SyncLoadingModal';
+import { SyncProgressIndicator } from '@/components/SyncProgressIndicator';
+import { useSyncProgress } from '@/hooks/useSyncProgress';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -35,11 +36,16 @@ const Segments = () => {
   // Check if WhatsApp is connected
   const isWhatsAppConnected = profile?.instance_status === 'connected';
   
-  // Sync modal state
-  const [showSyncModal, setShowSyncModal] = useState(false);
+  // Real-time sync progress tracking
+  const { 
+    currentProgress, 
+    isSyncInProgress, 
+    startListening, 
+    stopListening 
+  } = useSyncProgress();
 
-  // Enhanced sync with loading modal
-  const handleEnhancedSyncGroups = async () => {
+  // Smart background sync - no blocking modal
+  const handleSmartSyncGroups = async () => {
     if (!isWhatsAppConnected) {
       toast({
         title: "וואטסאפ לא מחובר",
@@ -49,24 +55,20 @@ const Segments = () => {
       return;
     }
 
-    setShowSyncModal(true);
+    // Start listening to real-time progress
+    startListening();
+    
+    // Show immediate feedback
+    toast({
+      title: "🚀 מתחיל סנכרון רקע",
+      description: "הסנכרון החל - תוכל להמשיך לעבוד ברקע",
+    });
     
     try {
       await syncGroups.mutateAsync();
     } catch (error) {
-      console.error('Sync failed:', error);
-    } finally {
-      // Keep modal open a bit longer to show success
-      setTimeout(() => {
-        setShowSyncModal(false);
-      }, 1000);
-    }
-  };
-
-  const handleCloseSyncModal = () => {
-    // Don't allow closing while syncing
-    if (!isSyncing) {
-      setShowSyncModal(false);
+      console.error('Sync failed to start:', error);
+      stopListening();
     }
   };
   
@@ -328,24 +330,34 @@ const Segments = () => {
     <Layout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+          <div className="space-y-2">
             <h1 className="text-3xl font-bold text-gray-900">קבוצות וקטגוריות</h1>
             <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
+            
+            {/* Real-time sync progress indicator */}
+            <SyncProgressIndicator 
+              status={currentProgress?.status}
+              message={currentProgress?.message}
+              currentPass={currentProgress?.current_pass}
+              totalPasses={currentProgress?.total_passes}
+              groupsFound={currentProgress?.groups_found}
+              totalScanned={currentProgress?.total_scanned}
+            />
           </div>
           <div className="flex gap-3">
-            {/* Updated Sync Groups Button */}
+            {/* Smart Background Sync Button */}
             <Button
-              onClick={handleEnhancedSyncGroups}
+              onClick={handleSmartSyncGroups}
               variant="outline"
-              disabled={isSyncing || !isWhatsAppConnected}
+              disabled={isSyncInProgress || !isWhatsAppConnected}
               className={`border-green-600 text-green-600 hover:bg-green-50 ${
                 !isWhatsAppConnected ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {isSyncing ? (
+              {isSyncInProgress ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  מסנכרן...
+                  מסנכרן ברקע...
                 </>
               ) : !isWhatsAppConnected ? (
                 <>
@@ -654,11 +666,7 @@ const Segments = () => {
         </div>
       </div>
 
-      {/* Enhanced Sync Loading Modal */}
-      <SyncLoadingModal
-        isOpen={showSyncModal}
-        onClose={handleCloseSyncModal}
-      />
+      {/* Background sync runs without blocking UI */}
     </Layout>
   );
 };

@@ -33,19 +33,14 @@ export const useWhatsAppGroups = () => {
     enabled: !!user?.id
   });
 
-  // 🚀 ENHANCED: Comprehensive sync with proper loading states
+  // 🚀 SMART BACKGROUND SYNC: Non-blocking with real-time progress
   const syncGroups = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
       
-      console.log('🚀 Starting comprehensive group sync for user:', user.id);
+      console.log('🚀 Starting background group sync for user:', user.id);
       
-      // Show initial loading toast
-      toast({
-        title: "🔄 מתחיל סנכרון קבוצות",
-        description: "מחפש את כל הקבוצות שלך... זה יכול לקחת עד דקה",
-      });
-
+      // Start background sync immediately - no blocking
       const { data, error } = await supabase.functions.invoke('sync-whatsapp-groups', {
         body: { userId: user.id }
       });
@@ -55,70 +50,23 @@ export const useWhatsAppGroups = () => {
       
       return data;
     },
-    onSuccess: (data) => {
-      console.log('🎉 Comprehensive sync completed:', data);
+    onSuccess: () => {
+      console.log('🎉 Background sync initiated successfully');
       queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
-      
-      // Enhanced success message with detailed info
-      const {
-        groups_count = 0,
-        total_groups_scanned = 0,
-        admin_groups_count = 0,
-        creator_groups_count = 0,
-        total_members_in_managed_groups = 0,
-        large_groups_skipped = 0,
-        api_calls_made = 0
-      } = data;
-
-      // Success toast with comprehensive info
-      toast({
-        title: "✅ סנכרון הושלם בהצלחה!",
-        description: `נמצאו ${groups_count} קבוצות בניהולך מתוך ${total_groups_scanned} קבוצות סה"כ`,
-      });
-
-      // Additional info toast for power users
-      if (groups_count > 0) {
-        setTimeout(() => {
-          toast({
-            title: "📊 פרטי הסנכרון",
-            description: `${creator_groups_count} קבוצות כיוצר • ${admin_groups_count} קבוצות כמנהל • ${total_members_in_managed_groups.toLocaleString()} חברים סה"כ`,
-          });
-        }, 2000);
-      }
-
-      // Warning if large groups were skipped
-      if (large_groups_skipped > 0) {
-        setTimeout(() => {
-          toast({
-            title: "⚠️ שים לב",
-            description: `${large_groups_skipped} קבוצות גדולות לא נסרקו בגלל מגבלות API`,
-            variant: "destructive",
-          });
-        }, 4000);
-      }
     },
     onError: (error: any) => {
-      console.error('❌ Comprehensive sync failed:', error);
+      console.error('❌ Background sync failed to start:', error);
       
-      // Enhanced error handling with helpful suggestions
-      let errorTitle = "שגיאה בסנכרון קבוצות";
+      // Enhanced error handling
+      let errorTitle = "שגיאה בהפעלת סנכרון";
       let errorDescription = "נסה שוב בעוד כמה דקות";
       
       if (error.message?.includes('not connected')) {
         errorTitle = "וואטסאפ לא מחובר";
         errorDescription = "בדוק את החיבור ונסה שוב";
-      } else if (error.message?.includes('phone number')) {
-        errorTitle = "לא נמצא מספר טלפון";
-        errorDescription = "בדוק סטטוס החיבור תחילה";
       } else if (error.message?.includes('rate limit') || error.message?.includes('429')) {
         errorTitle = "יותר מדי בקשות";
         errorDescription = "המתן 5 דקות ונסה שוב";
-      } else if (error.message?.includes('timeout')) {
-        errorTitle = "פג זמן הבקשה";
-        errorDescription = "הרשת עמוסה, נסה שוב בעוד כמה דקות";
-      } else if (error.message?.includes('high load')) {
-        errorTitle = "השרת עמוס";
-        errorDescription = "שירות WHAPI עמוס כרגע, נסה שוב מאוחר יותר";
       }
       
       toast({
@@ -127,10 +75,9 @@ export const useWhatsAppGroups = () => {
         variant: "destructive",
       });
     },
-    // 🎯 IMPORTANT: Longer timeout for comprehensive sync
-    mutationKey: ['sync-groups-comprehensive'],
-    retry: 1, // Only retry once for failed syncs
-    retryDelay: 10000, // Wait 10 seconds before retry
+    mutationKey: ['sync-groups-background'],
+    retry: 1,
+    retryDelay: 5000,
   });
 
   return {
