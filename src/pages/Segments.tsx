@@ -15,6 +15,7 @@ import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { SyncProgressIndicator } from '@/components/SyncProgressIndicator';
 import { useSyncProgress } from '@/hooks/useSyncProgress';
+import { useSyncCooldown } from '@/hooks/useSyncCooldown';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -44,6 +45,14 @@ const Segments = () => {
     stopListening 
   } = useSyncProgress();
 
+  // First-time user cooldown for sync
+  const { 
+    isInCooldown, 
+    formattedTime, 
+    startCooldown, 
+    isFirstTimeUser 
+  } = useSyncCooldown();
+
   // Smart background sync - no blocking modal
   const handleSmartSyncGroups = async () => {
     if (!isWhatsAppConnected) {
@@ -53,6 +62,11 @@ const Segments = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // Start cooldown for first-time users
+    if (isFirstTimeUser) {
+      startCooldown();
     }
 
     // Start listening to real-time progress
@@ -349,15 +363,20 @@ const Segments = () => {
             <Button
               onClick={handleSmartSyncGroups}
               variant="outline"
-              disabled={isSyncInProgress || !isWhatsAppConnected}
+              disabled={isSyncInProgress || !isWhatsAppConnected || isInCooldown}
               className={`border-green-600 text-green-600 hover:bg-green-50 ${
-                !isWhatsAppConnected ? 'opacity-50 cursor-not-allowed' : ''
+                !isWhatsAppConnected || isInCooldown ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               {isSyncInProgress ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   מסנכרן ברקע...
+                </>
+              ) : isInCooldown ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  סנכרן קבוצות ({formattedTime})
                 </>
               ) : !isWhatsAppConnected ? (
                 <>
