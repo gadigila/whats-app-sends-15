@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      all_user_groups: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          description: string | null
+          group_id: string
+          id: string
+          last_fetched_at: string | null
+          name: string
+          participants_count: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          group_id: string
+          id?: string
+          last_fetched_at?: string | null
+          name: string
+          participants_count?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          group_id?: string
+          id?: string
+          last_fetched_at?: string | null
+          name?: string
+          participants_count?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -204,6 +243,48 @@ export type Database = {
           status?: string
           total_passes?: number | null
           total_scanned?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_selected_groups: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          description: string | null
+          group_id: string
+          id: string
+          last_refreshed_at: string | null
+          name: string
+          participants_count: number | null
+          selected_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          group_id: string
+          id?: string
+          last_refreshed_at?: string | null
+          name: string
+          participants_count?: number | null
+          selected_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          group_id?: string
+          id?: string
+          last_refreshed_at?: string | null
+          name?: string
+          participants_count?: number | null
+          selected_at?: string | null
           updated_at?: string | null
           user_id?: string
         }
