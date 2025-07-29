@@ -3,13 +3,15 @@ import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Plus, RefreshCw, Edit, MessageSquare, Loader2 } from 'lucide-react';
+import { Users, Plus, RefreshCw, Edit, MessageSquare, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { GroupSelectionModal } from '@/components/GroupSelectionModal';
 import { useGroupManagement } from '@/hooks/useGroupManagement';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 
 const Groups = () => {
   const { user } = useAuth();
+  const { data: profile, isLoading: isLoadingProfile } = useUserProfile();
   const {
     selectedGroups,
     isLoadingSelected,
@@ -24,13 +26,64 @@ const Groups = () => {
     hasSelectedGroups
   } = useGroupManagement();
 
-  if (isLoadingSelected) {
+  // Check if WhatsApp is connected
+  const isConnected = profile?.instance_status === 'connected' && profile?.whapi_token;
+
+  if (isLoadingSelected || isLoadingProfile) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-96">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-6 w-6 animate-spin" />
             <span>טוען קבוצות...</span>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Show WhatsApp not connected message
+  if (!isConnected) {
+    return (
+      <Layout>
+        <div className="space-y-6">
+          <div className="text-center py-12">
+            <div className="max-w-md mx-auto">
+              <div className="flex justify-center mb-6">
+                <div className="w-24 h-24 bg-destructive/10 rounded-full flex items-center justify-center">
+                  <WifiOff className="h-12 w-12 text-destructive" />
+                </div>
+              </div>
+              
+              <h3 className="text-xl font-semibold text-foreground mb-2">
+                וואטסאפ לא מחובר
+              </h3>
+              
+              <p className="text-muted-foreground mb-6">
+                כדי לנהל קבוצות ולשלוח הודעות, קודם צריך לחבר את חשבון הוואטסאפ שלך
+              </p>
+              
+              <Button 
+                size="lg"
+                onClick={() => window.location.href = '/whatsapp-connect'}
+                className="w-full sm:w-auto"
+              >
+                <Wifi className="h-5 w-5 ml-2" />
+                חבר וואטסאפ
+              </Button>
+              
+              <div className="mt-8 p-4 bg-accent/50 rounded-lg">
+                <p className="text-sm text-accent-foreground">
+                  <strong>📱 איך לחבר:</strong>
+                  <br />
+                  • לחץ על "חבר וואטסאפ"
+                  <br />
+                  • סרוק את קוד ה-QR עם הוואטסאפ שלך
+                  <br />
+                  • חזור לכאן כדי לנהל את הקבוצות שלך
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </Layout>
@@ -53,7 +106,7 @@ const Groups = () => {
               <Button
                 variant="outline"
                 onClick={() => refreshMemberCounts.mutate()}
-                disabled={isRefreshing}
+                disabled={isRefreshing || !isConnected}
               >
                 {isRefreshing ? (
                   <Loader2 className="h-4 w-4 animate-spin ml-2" />
@@ -66,7 +119,7 @@ const Groups = () => {
               <Button
                 variant="outline"
                 onClick={startGroupSelection}
-                disabled={isFetchingAll}
+                disabled={isFetchingAll || !isConnected}
               >
                 <Edit className="h-4 w-4 ml-2" />
                 ערוך קבוצות
@@ -96,7 +149,7 @@ const Groups = () => {
               <Button 
                 size="lg"
                 onClick={startGroupSelection}
-                disabled={isFetchingAll}
+                disabled={isFetchingAll || !isConnected}
                 className="w-full sm:w-auto"
               >
                 {isFetchingAll ? (
@@ -179,7 +232,7 @@ const Groups = () => {
                   <Button
                     size="sm"
                     onClick={startGroupSelection}
-                    disabled={isFetchingAll}
+                    disabled={isFetchingAll || !isConnected}
                   >
                     <Plus className="h-4 w-4 ml-1" />
                     הוסף עוד

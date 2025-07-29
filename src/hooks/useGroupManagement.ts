@@ -2,13 +2,18 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserProfile } from '@/hooks/useUserProfile';
 import { toast } from '@/hooks/use-toast';
 
 export const useGroupManagement = () => {
   const { user } = useAuth();
+  const { data: profile } = useUserProfile();
   const queryClient = useQueryClient();
   const [showGroupSelection, setShowGroupSelection] = useState(false);
   const [isFetchingAll, setIsFetchingAll] = useState(false);
+
+  // Check if WhatsApp is connected
+  const isConnected = profile?.instance_status === 'connected' && profile?.whapi_token;
 
   // Get user's selected groups (the ones they chose to manage)
   const {
@@ -40,6 +45,7 @@ export const useGroupManagement = () => {
   const fetchAllGroups = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
+      if (!isConnected) throw new Error('WhatsApp not connected');
       
       console.log('🚀 Fetching all groups for selection...');
       setIsFetchingAll(true);
@@ -89,6 +95,7 @@ export const useGroupManagement = () => {
   const refreshMemberCounts = useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('No user ID');
+      if (!isConnected) throw new Error('WhatsApp not connected');
       
       console.log('🔄 Refreshing member counts for selected groups...');
 
@@ -132,6 +139,15 @@ export const useGroupManagement = () => {
       toast({
         title: "שגיאה",
         description: "לא ניתן לזהות משתמש",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!isConnected) {
+      toast({
+        title: "וואטסאפ לא מחובר",
+        description: "חבר את הוואטסאפ שלך כדי לנהל קבוצות",
         variant: "destructive",
       });
       return;
