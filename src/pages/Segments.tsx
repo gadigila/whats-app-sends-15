@@ -15,9 +15,9 @@ import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { SyncProgressIndicator } from '@/components/SyncProgressIndicator';
 import { useSyncProgress } from '@/hooks/useSyncProgress';
-import { useSyncCooldown } from '@/hooks/useSyncCooldown';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { GroupManagementModal } from '@/components/GroupManagementModal';
 
 interface Segment {
   id: string;
@@ -37,54 +37,8 @@ const Segments = () => {
   // Check if WhatsApp is connected
   const isWhatsAppConnected = profile?.instance_status === 'connected';
   
-  // Real-time sync progress tracking
-  const { 
-    currentProgress, 
-    isSyncInProgress, 
-    startListening, 
-    stopListening 
-  } = useSyncProgress();
-
-  // First-time user cooldown for sync
-  const { 
-    isInCooldown, 
-    formattedTime, 
-    startCooldown, 
-    isFirstTimeUser 
-  } = useSyncCooldown();
-
-  // Smart background sync - no blocking modal
-  const handleSmartSyncGroups = async () => {
-    if (!isWhatsAppConnected) {
-      toast({
-        title: "וואטסאפ לא מחובר",
-        description: "אנא חבר את הוואטסאפ שלך תחילה כדי לסנכרן קבוצות",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Start cooldown for first-time users
-    if (isFirstTimeUser) {
-      startCooldown();
-    }
-
-    // Start listening to real-time progress
-    startListening();
-    
-    // Show immediate feedback
-    toast({
-      title: "🚀 מתחיל סנכרון רקע",
-      description: "הסנכרון החל - תוכל להמשיך לעבוד ברקע",
-    });
-    
-    try {
-      await syncGroups.mutateAsync();
-    } catch (error) {
-      console.error('Sync failed to start:', error);
-      stopListening();
-    }
-  };
+  // Modal state for group management
+  const [isGroupManagementOpen, setIsGroupManagementOpen] = useState(false);
   
   // Fetch segments from database - using any to bypass TypeScript issues
   const { data: segments = [], isLoading: isLoadingSegments } = useQuery({
@@ -198,33 +152,8 @@ const Segments = () => {
     }
   });
 
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newSegmentName, setNewSegmentName] = useState('');
-  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [editingSegment, setEditingSegment] = useState<Segment | null>(null);
   
-  // Search and filter states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showOnlyAdminGroups, setShowOnlyAdminGroups] = useState(false);
-  
-  // Filter groups based on search and admin status
-  const filteredGroups = useMemo(() => {
-    let filtered = allGroups;
-    
-    if (showOnlyAdminGroups) {
-      filtered = filtered.filter(group => group.is_admin === true);
-    }
-    
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(group => 
-        group.name.toLowerCase().includes(query) ||
-        (group.description && group.description.toLowerCase().includes(query))
-      );
-    }
-    
-    return filtered;
-  }, [allGroups, searchQuery, showOnlyAdminGroups]);
 
   // Group statistics
   const groupStats = useMemo(() => {
@@ -236,91 +165,27 @@ const Segments = () => {
     return { totalGroups, adminGroups, memberGroups, totalMembers };
   }, [allGroups]);
 
-  const handleCreateSegment = () => {
-    if (!newSegmentName.trim()) {
-      toast({
-        title: "נדרש שם",
-        description: "אנא הכנס שם לקטגוריה.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (selectedGroupIds.length === 0) {
-      toast({
-        title: "נדרשות קבוצות",
-        description: "אנא בחר לפחות קבוצה אחת.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const totalMembers = selectedGroupIds.reduce((sum, groupId) => {
-      const group = allGroups.find(g => g.group_id === groupId);
-      return sum + (group?.participants_count || 0);
-    }, 0);
-
-    createSegmentMutation.mutate({
-      name: newSegmentName,
-      group_ids: selectedGroupIds,
-      total_members: totalMembers
-    });
-
-    setNewSegmentName('');
-    setSelectedGroupIds([]);
-    setIsCreateDialogOpen(false);
+  const handleCreateSegment = (data: { name: string; group_ids: string[]; total_members: number }) => {
+    createSegmentMutation.mutate(data);
   };
 
   const handleEditSegment = (segment: Segment) => {
     setEditingSegment(segment);
-    setNewSegmentName(segment.name);
-    setSelectedGroupIds(segment.group_ids);
-    setIsCreateDialogOpen(true);
+    setIsGroupManagementOpen(true);
   };
 
-  const handleUpdateSegment = () => {
-    if (!editingSegment) return;
-
-    const totalMembers = selectedGroupIds.reduce((sum, groupId) => {
-      const group = allGroups.find(g => g.group_id === groupId);
-      return sum + (group?.participants_count || 0);
-    }, 0);
-
-    updateSegmentMutation.mutate({
-      id: editingSegment.id,
-      name: newSegmentName,
-      group_ids: selectedGroupIds,
-      total_members: totalMembers
-    });
-
-    setNewSegmentName('');
-    setSelectedGroupIds([]);
+  const handleUpdateSegment = (data: { id: string; name: string; group_ids: string[]; total_members: number }) => {
+    updateSegmentMutation.mutate(data);
     setEditingSegment(null);
-    setIsCreateDialogOpen(false);
   };
 
   const handleDeleteSegment = (id: string) => {
     deleteSegmentMutation.mutate(id);
   };
 
-  const handleGroupToggle = (groupId: string) => {
-    setSelectedGroupIds(prev => 
-      prev.includes(groupId) 
-        ? prev.filter(g => g !== groupId)
-        : [...prev, groupId]
-    );
-  };
-
-  const resetDialog = () => {
-    setNewSegmentName('');
-    setSelectedGroupIds([]);
+  const handleCloseModal = () => {
+    setIsGroupManagementOpen(false);
     setEditingSegment(null);
-    setSearchQuery('');
-    setShowOnlyAdminGroups(false);
-  };
-
-  const clearSearch = () => {
-    setSearchQuery('');
   };
 
   const getGroupNames = (groupIds: string[]) => {
@@ -347,197 +212,23 @@ const Segments = () => {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-gray-900">קבוצות וקטגוריות</h1>
             <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
-            
-            {/* Real-time sync progress indicator */}
-            <SyncProgressIndicator 
-              status={currentProgress?.status}
-              message={currentProgress?.message}
-              currentPass={currentProgress?.current_pass}
-              totalPasses={currentProgress?.total_passes}
-              groupsFound={currentProgress?.groups_found}
-              totalScanned={currentProgress?.total_scanned}
-            />
           </div>
           <div className="flex gap-3">
-            {/* Smart Background Sync Button */}
-            <Button
-              onClick={handleSmartSyncGroups}
-              variant="outline"
-              disabled={isSyncing || isSyncInProgress || !isWhatsAppConnected || isInCooldown}
-              className={`border-green-600 text-green-600 hover:bg-green-50 ${
-                !isWhatsAppConnected || isInCooldown || isSyncing || isSyncInProgress ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {isSyncing ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  מתחיל סנכרון...
-                </>
-              ) : isSyncInProgress ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  מסנכרן ברקע...
-                </>
-              ) : isInCooldown ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  סנכרון קבוצות בזמן אמת ({formattedTime})
-                </>
-              ) : !isWhatsAppConnected ? (
-                <>
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  סנכרן קבוצות בניהולי
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  סנכרון קבוצות בזמן אמת
-                </>
-              )}
-            </Button>
-            
-            <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
-              setIsCreateDialogOpen(open);
-              if (!open) resetDialog();
-            }}>
-              <DialogTrigger asChild>
-                <Button 
-                  className="bg-green-600 hover:bg-green-700"
-                  disabled={allGroups.length === 0}
-                >
-                  <Plus className="h-4 w-4 ml-2" />
-                  צור קטגוריה
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingSegment ? 'ערוך קטגוריה' : 'צור קטגוריה חדשה'}
-                  </DialogTitle>
-                </DialogHeader>
-                
-                <div className="space-y-6">
-                  <div>
-                    <Label htmlFor="segmentName">שם הקטגוריה</Label>
-                    <Input
-                      id="segmentName"
-                      placeholder="הכנס שם לקטגוריה..."
-                      value={newSegmentName}
-                      onChange={(e) => setNewSegmentName(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label>בחר קבוצות</Label>
-                    
-                    <div className="mt-3 space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
-                        <div className="flex items-center gap-2">
-                          <Star className="h-4 w-4 text-amber-600" />
-                          <span className="text-sm font-medium text-amber-900">
-                            הצג רק קבוצות שאני מנהל ({groupStats.adminGroups} מתוך {groupStats.totalGroups})
-                          </span>
-                        </div>
-                        <Switch
-                          checked={showOnlyAdminGroups}
-                          onCheckedChange={setShowOnlyAdminGroups}
-                        />
-                      </div>
-                      
-                      <div className="relative">
-                        <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                          placeholder="חפש קבוצות..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pr-10 pl-10"
-                        />
-                        {searchQuery && (
-                          <button
-                            onClick={clearSearch}
-                            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      
-                      <div className="text-sm text-gray-600">
-                        מציג {filteredGroups.length} קבוצות זמינות
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 space-y-3 max-h-64 overflow-y-auto border rounded-lg p-3">
-                      {filteredGroups.length === 0 ? (
-                        <div className="text-center py-4 text-gray-500">
-                          לא נמצאו קבוצות התואמות לחיפוש
-                        </div>
-                      ) : (
-                        filteredGroups.map((group) => (
-                          <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
-                            <Checkbox
-                              id={group.group_id}
-                              checked={selectedGroupIds.includes(group.group_id)}
-                              onCheckedChange={() => handleGroupToggle(group.group_id)}
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <label htmlFor={group.group_id} className="text-sm font-medium cursor-pointer">
-                                  {group.name}
-                                </label>
-                                {group.is_admin && (
-                                  <Star className="h-3 w-3 text-amber-500" />
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500">
-                                {group.participants_count || 0} חברים
-                                {group.is_admin && ' • מנהל'}
-                              </p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  {selectedGroupIds.length > 0 && (
-                    <div className="p-4 bg-green-50 rounded-lg">
-                      <h4 className="font-medium text-green-900 mb-2">קבוצות נבחרות ({selectedGroupIds.length}):</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {getGroupNames(selectedGroupIds).map(name => (
-                          <Badge key={name} variant="outline" className="text-green-700 border-green-700">
-                            {name}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-sm text-green-700 mt-2">
-                        סך הכל חברים: {selectedGroupIds.reduce((sum, groupId) => {
-                          const group = allGroups.find(g => g.group_id === groupId);
-                          return sum + (group?.participants_count || 0);
-                        }, 0)}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsCreateDialogOpen(false)}
-                    >
-                      ביטול
-                    </Button>
-                    <Button
-                      onClick={editingSegment ? handleUpdateSegment : handleCreateSegment}
-                      className="bg-green-600 hover:bg-green-700"
-                      disabled={createSegmentMutation.isPending || updateSegmentMutation.isPending}
-                    >
-                      {editingSegment ? 'עדכן קטגוריה' : 'צור קטגוריה'}
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+            {!isWhatsAppConnected ? (
+              <div className="text-amber-600 text-sm">
+                <AlertCircle className="h-4 w-4 inline ml-1" />
+                וואטסאפ לא מחובר
+              </div>
+            ) : (
+              <Button 
+                onClick={() => setIsGroupManagementOpen(true)}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={!isWhatsAppConnected}
+              >
+                <Plus className="h-4 w-4 ml-2" />
+                נהל קבוצות
+              </Button>
+            )}
           </div>
         </div>
 
@@ -688,9 +379,16 @@ const Segments = () => {
             ))
           )}
         </div>
-      </div>
 
-      {/* Background sync runs without blocking UI */}
+        {/* Group Management Modal */}
+        <GroupManagementModal
+          isOpen={isGroupManagementOpen}
+          onClose={handleCloseModal}
+          onSegmentCreate={handleCreateSegment}
+          editingSegment={editingSegment}
+          onSegmentUpdate={handleUpdateSegment}
+        />
+      </div>
     </Layout>
   );
 };
