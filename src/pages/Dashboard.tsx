@@ -6,11 +6,13 @@ import { MessageSquare, Users, Calendar, CheckCircle, AlertTriangle, Crown, Plus
 import { Link } from 'react-router-dom';
 import { useMessageStats } from '@/hooks/useMessageStats';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useSegments } from '@/hooks/useSegments';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { stats, isLoading: statsLoading } = useMessageStats();
   const { data: userProfile, isLoading: profileLoading } = useUserProfile();
+  const { segments, isLoadingSegments } = useSegments();
   
   const isWhatsAppConnected = userProfile?.instance_status === 'connected';
   const hasPaidPlan = userProfile?.payment_plan !== 'trial' && userProfile?.payment_plan !== 'free';
@@ -25,12 +27,12 @@ const Dashboard = () => {
       description: statsLoading ? 'טוען...' : stats.totalSent > 0 ? 'הודעות שנשלחו בהצלחה' : 'עדיין לא נשלחו הודעות',
     },
     {
-      title: 'קבוצות מחוברות',
-      value: statsLoading ? '...' : stats.totalGroups.toString(),
+      title: 'קטגוריות',
+      value: isLoadingSegments ? '...' : segments.length.toString(),
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
-      description: statsLoading ? 'טוען...' : stats.totalGroups > 0 ? 'קבוצות וואטסאפ זמינות' : 'עדיין לא סונכרנו קבוצות',
+      description: isLoadingSegments ? 'טוען...' : segments.length > 0 ? 'קטגוריות שנוצרו למיקוד' : 'עדיין לא נוצרו קטגוריות',
     },
     {
       title: 'מתוזמנות',
