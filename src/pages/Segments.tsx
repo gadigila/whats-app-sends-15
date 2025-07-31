@@ -330,14 +330,9 @@ const Segments = () => {
     <Layout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">קבוצות וקטגוריות</h1>
-              <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
-            </div>
-            <Badge variant="outline" className="text-lg px-3 py-1">
-              {segments.length} קטגוריות
-            </Badge>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">קבוצות וקטגוריות</h1>
+            <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
           </div>
           <div className="flex gap-3">
             {/* Updated Sync Groups Button */}
