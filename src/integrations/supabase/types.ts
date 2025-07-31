@@ -14,45 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      all_user_groups: {
-        Row: {
-          avatar_url: string | null
-          created_at: string | null
-          description: string | null
-          group_id: string
-          id: string
-          last_fetched_at: string | null
-          name: string
-          participants_count: number | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string | null
-          description?: string | null
-          group_id: string
-          id?: string
-          last_fetched_at?: string | null
-          name: string
-          participants_count?: number | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string | null
-          description?: string | null
-          group_id?: string
-          id?: string
-          last_fetched_at?: string | null
-          name?: string
-          participants_count?: number | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -248,52 +209,8 @@ export type Database = {
         }
         Relationships: []
       }
-      user_selected_groups: {
-        Row: {
-          avatar_url: string | null
-          created_at: string | null
-          description: string | null
-          group_id: string
-          id: string
-          last_refreshed_at: string | null
-          name: string
-          participants_count: number | null
-          selected_at: string | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          avatar_url?: string | null
-          created_at?: string | null
-          description?: string | null
-          group_id: string
-          id?: string
-          last_refreshed_at?: string | null
-          name: string
-          participants_count?: number | null
-          selected_at?: string | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          avatar_url?: string | null
-          created_at?: string | null
-          description?: string | null
-          group_id?: string
-          id?: string
-          last_refreshed_at?: string | null
-          name?: string
-          participants_count?: number | null
-          selected_at?: string | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       whatsapp_groups: {
         Row: {
-          admin_detection_at: string | null
-          admin_detection_status: string | null
           admin_role: string | null
           admin_status: string | null
           avatar_url: string | null
@@ -312,8 +229,6 @@ export type Database = {
           user_role: string | null
         }
         Insert: {
-          admin_detection_at?: string | null
-          admin_detection_status?: string | null
           admin_role?: string | null
           admin_status?: string | null
           avatar_url?: string | null
@@ -332,8 +247,6 @@ export type Database = {
           user_role?: string | null
         }
         Update: {
-          admin_detection_at?: string | null
-          admin_detection_status?: string | null
           admin_role?: string | null
           admin_status?: string | null
           avatar_url?: string | null
@@ -358,16 +271,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_admin_detection_progress: {
-        Args: { user_uuid: string }
-        Returns: {
-          total_groups: number
-          pending_groups: number
-          completed_groups: number
-          failed_groups: number
-          progress_percentage: number
-        }[]
-      }
       update_user_instance: {
         Args: {
           user_id: string
