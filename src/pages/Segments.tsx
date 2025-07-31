@@ -328,9 +328,14 @@ const Segments = () => {
     <Layout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">קבוצות וקטגוריות</h1>
-            <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">קבוצות וקטגוריות</h1>
+              <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
+            </div>
+            <Badge variant="outline" className="text-lg px-3 py-1">
+              {segments.length} קטגוריות
+            </Badge>
           </div>
           <div className="flex gap-3">
             {/* Updated Sync Groups Button */}
@@ -524,64 +529,6 @@ const Segments = () => {
           </Card>
         )}
 
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg">
-                  <Users className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">סך קטגוריות</p>
-                  <p className="text-2xl font-bold">{segments.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-50 rounded-lg">
-                  <MessageSquare className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">כל הקבוצות</p>
-                  <p className="text-2xl font-bold">{groupStats.totalGroups}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-50 rounded-lg">
-                  <Star className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">קבוצות מנהל</p>
-                  <p className="text-2xl font-bold">{groupStats.adminGroups}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-50 rounded-lg">
-                  <Users className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">סך חברים</p>
-                  <p className="text-2xl font-bold">{groupStats.totalMembers}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Segments List */}
         <div className="space-y-4">
