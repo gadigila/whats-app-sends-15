@@ -58,3 +58,6 @@ verify_jwt = false
 
 [functions.check-whapi-token]
 verify_jwt = false
+
+[functions.detect-admin-groups]
+verify_jwt = false
