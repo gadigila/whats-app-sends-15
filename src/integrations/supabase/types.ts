@@ -358,6 +358,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_admin_detection_progress: {
+        Args: { user_uuid: string }
+        Returns: {
+          total_groups: number
+          pending_groups: number
+          completed_groups: number
+          failed_groups: number
+          progress_percentage: number
+        }[]
+      }
       update_user_instance: {
         Args: {
           user_id: string
