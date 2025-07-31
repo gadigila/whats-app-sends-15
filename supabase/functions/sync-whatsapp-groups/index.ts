@@ -13,41 +13,6 @@ function delay(ms: number): Promise<void> {
 interface SyncGroupsRequest {
   userId: string
 }
-class PhoneMatcher {
-  private userPhoneVariants: string[];
-
-  constructor(userPhone: string) {
-    const cleanPhone = userPhone.replace(/[^\d]/g, '');
-    
-    this.userPhoneVariants = [
-      cleanPhone,
-      cleanPhone.startsWith('972') ? '0' + cleanPhone.substring(3) : null,
-      cleanPhone.startsWith('0') ? '972' + cleanPhone.substring(1) : null,
-      cleanPhone.slice(-9), // Last 9 digits
-    ].filter(Boolean) as string[];
-  }
-
-  isMatch(participantPhone: string): boolean {
-    if (!participantPhone) return false;
-    
-    const cleanParticipant = participantPhone.replace(/[^\d]/g, '');
-    
-    // Fast exact match
-    if (this.userPhoneVariants.includes(cleanParticipant)) {
-      return true;
-    }
-    
-    // Check last 9 digits for Israeli numbers
-    if (cleanParticipant.length >= 9) {
-      const lastNine = cleanParticipant.slice(-9);
-      return this.userPhoneVariants.some(variant => 
-        variant.length >= 9 && variant.slice(-9) === lastNine
-      );
-    }
-    
-    return false;
-  }
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -257,6 +222,9 @@ Deno.serve(async (req) => {
         await delay(100)
       }
     }
+
+    const storeTime = Math.round((Date.now() - storeStartTime) / 1000)
+    const totalTime = Math.round((Date.now() - syncStartTime) / 1000)
 
     console.log(`\n🎯 FAST SYNC COMPLETE!`)
     console.log(`📊 Total groups: ${storedCount}`)
