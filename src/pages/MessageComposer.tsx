@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 const MessageComposer = () => {
+  const location = useLocation();
   const [message, setMessage] = useState('');
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedSegmentIds, setSelectedSegmentIds] = useState<string[]>([]);
@@ -38,6 +40,21 @@ const MessageComposer = () => {
   const { groups } = useWhatsAppGroups();
   const { segments } = useSegments();
   const { sendImmediateMessage, scheduleMessage } = useWhatsAppMessages();
+  
+  // Auto-select segment from navigation state
+  useEffect(() => {
+    const selectedSegmentId = location.state?.selectedSegmentId;
+    if (selectedSegmentId && segments.length > 0) {
+      const segment = segments.find(s => s.id === selectedSegmentId);
+      if (segment && !selectedSegmentIds.includes(selectedSegmentId)) {
+        setSelectedSegmentIds([selectedSegmentId]);
+        toast({
+          title: "קטגוריה נבחרה",
+          description: `הקטגוריה "${segment.name}" נבחרה אוטומטית.`,
+        });
+      }
+    }
+  }, [location.state, segments, selectedSegmentIds]);
   
   // Check if user has access to features
   const hasAccess = !isLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
