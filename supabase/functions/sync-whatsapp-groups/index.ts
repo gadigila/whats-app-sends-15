@@ -9,6 +9,43 @@ interface SyncGroupsRequest {
   userId: string
 }
 
+// Helper function for phone matching
+class PhoneMatcher {
+  private userPhoneVariants: string[];
+
+  constructor(userPhone: string) {
+    const cleanPhone = userPhone.replace(/[^\d]/g, '');
+    
+    this.userPhoneVariants = [
+      cleanPhone,
+      cleanPhone.startsWith('972') ? '0' + cleanPhone.substring(3) : null,
+      cleanPhone.startsWith('0') ? '972' + cleanPhone.substring(1) : null,
+      cleanPhone.slice(-9), // Last 9 digits
+    ].filter(Boolean) as string[];
+  }
+
+  isMatch(participantPhone: string): boolean {
+    if (!participantPhone) return false;
+    
+    const cleanParticipant = participantPhone.replace(/[^\d]/g, '');
+    
+    // Fast exact match
+    if (this.userPhoneVariants.includes(cleanParticipant)) {
+      return true;
+    }
+    
+    // Check last 9 digits for Israeli numbers
+    if (cleanParticipant.length >= 9) {
+      const lastNine = cleanParticipant.slice(-9);
+      return this.userPhoneVariants.some(variant => 
+        variant.length >= 9 && variant.slice(-9) === lastNine
+      );
+    }
+    
+    return false;
+  }
+}
+
 // Helper function to add delays between requests
 function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -37,7 +74,7 @@ Deno.serve(async (req) => {
 
     console.log('👤 Starting ALL GROUPS sync for user:', userId)
 
-    // Get user's WHAPI credentials
+    // Get user's WHAPI credentials and phone number
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('instance_id, whapi_token, instance_status, phone_number')
@@ -59,6 +96,16 @@ Deno.serve(async (req) => {
     }
 
     console.log('📱 User instance:', profile.instance_id)
+    console.log('📱 User phone:', profile.phone_number || 'Unknown')
+
+    // Initialize phone matcher for admin detection
+    let phoneMatcher: PhoneMatcher | null = null
+    if (profile.phone_number) {
+      phoneMatcher = new PhoneMatcher(profile.phone_number)
+      console.log('✅ Phone matcher initialized for admin detection')
+    } else {
+      console.log('⚠️ No phone number - admin detection will be skipped')
+    }
 
     // 📦 STEP 1: GET ALL GROUPS FROM WHAPI
     console.log('\n📦 === STEP 1: FETCH ALL GROUPS ===')
@@ -148,23 +195,56 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 💾 STEP 2: PREPARE FOR DATABASE
-    console.log('\n💾 === STEP 2: PREPARE DATA ===')
+    // 💾 STEP 2: PREPARE FOR DATABASE WITH SMART ADMIN DETECTION
+    console.log('\n💾 === STEP 2: PREPARE DATA WITH ADMIN DETECTION ===')
     
     const groupsToStore: any[] = []
+    let adminGroupsDetected = 0
+    let creatorGroupsDetected = 0
+    let groupsWithParticipants = 0
 
     for (const group of allGroups) {
       const groupName = group.name || group.subject || `Group ${group.id}`
       
-      // Store ALL groups with basic info
+      // Default values
+      let isAdmin = false
+      let isCreator = false
+      
+      // 🔍 SMART ADMIN DETECTION: Only if participants are already loaded
+      if (phoneMatcher && group.participants && Array.isArray(group.participants) && group.participants.length > 0) {
+        groupsWithParticipants++
+        
+        // Find user in participants
+        const userParticipant = group.participants.find((participant: any) => {
+          const participantId = participant.id || participant.phone || participant.number;
+          return phoneMatcher!.isMatch(participantId);
+        });
+
+        if (userParticipant) {
+          const participantRank = (userParticipant.rank || userParticipant.role || 'member').toLowerCase()
+          
+          isCreator = participantRank === 'creator' || participantRank === 'owner'
+          isAdmin = participantRank === 'admin' || participantRank === 'administrator' || isCreator
+
+          if (isCreator) {
+            creatorGroupsDetected++
+            console.log(`👑 CREATOR detected: ${groupName}`)
+          } else if (isAdmin) {
+            adminGroupsDetected++
+            console.log(`⭐ ADMIN detected: ${groupName}`)
+          }
+        }
+      }
+      
+      // Store ALL groups with detected admin status (if available)
       const groupData = {
         user_id: userId,
         group_id: group.id,
         name: groupName,
         description: group.description || null,
         participants_count: group.participants?.length || group.size || 0,
-        is_admin: false, // Default to false - we'll detect this later if needed
-        is_creator: false, // Default to false - we'll detect this later if needed
+        is_admin: isAdmin,
+        is_creator: isCreator,
         avatar_url: group.chat_pic || null,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -174,6 +254,11 @@ Deno.serve(async (req) => {
     }
 
     console.log(`📋 Prepared ${groupsToStore.length} groups for storage`)
+    console.log(`🔍 Admin detection results:`)
+    console.log(`   - Groups with participant data: ${groupsWithParticipants}`)
+    console.log(`   - Creator groups detected: ${creatorGroupsDetected}`)
+    console.log(`   - Admin groups detected: ${adminGroupsDetected}`)
+    console.log(`   - Total admin/creator groups: ${adminGroupsDetected + creatorGroupsDetected}`)
 
     // 💽 STEP 3: SAVE TO DATABASE
     console.log('\n💽 === STEP 3: SAVE TO DATABASE ===')
@@ -218,8 +303,11 @@ Deno.serve(async (req) => {
     const storeTime = Math.round((Date.now() - storeStartTime) / 1000)
     const totalTime = Math.round((Date.now() - syncStartTime) / 1000)
 
-    console.log(`\n🎯 SIMPLE SYNC COMPLETE!`)
+    console.log(`\n🎯 SMART SYNC COMPLETE!`)
     console.log(`📊 Total groups stored: ${storedCount}`)
+    console.log(`👑 Creator groups: ${creatorGroupsDetected}`)
+    console.log(`⭐ Admin groups: ${adminGroupsDetected}`)
+    console.log(`📊 Total admin/creator: ${adminGroupsDetected + creatorGroupsDetected}`)
     console.log(`⚡ Total time: ${totalTime} seconds`)
     console.log(`📡 API calls made: ${apiCallsCount}`)
 
@@ -227,13 +315,17 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         groups_count: storedCount,
+        admin_groups_count: adminGroupsDetected,
+        creator_groups_count: creatorGroupsDetected,
+        total_managed_groups: adminGroupsDetected + creatorGroupsDetected,
+        groups_with_participants: groupsWithParticipants,
         total_sync_time_seconds: totalTime,
         api_calls_made: apiCallsCount,
         fetch_time_seconds: fetchTime,
         storage_time_seconds: storeTime,
-        strategy: 'simple_all_groups',
+        strategy: 'smart_all_groups_with_admin_detection',
         message: storedCount > 0 
-          ? `נמצאו ${storedCount} קבוצות! כעת תוכל ליצור קטגוריות`
+          ? `נמצאו ${storedCount} קבוצות! ${adminGroupsDetected + creatorGroupsDetected} בניהולך`
           : 'לא נמצאו קבוצות',
         groups_sample: groupsToStore.slice(0, 20).map(g => ({
           name: g.name,
