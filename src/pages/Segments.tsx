@@ -30,7 +30,7 @@ const Segments = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: profile } = useUserProfile();
-  const { groups: allGroups, isLoadingGroups, syncGroups: originalSyncGroups, isSyncing } = useWhatsAppGroups();
+  const { groups: allGroups, isLoadingGroups, syncGroups, isSyncing } = useWhatsAppGroups();
   
   // Check if WhatsApp is connected
   const isWhatsAppConnected = profile?.instance_status === 'connected';
@@ -86,81 +86,6 @@ const Segments = () => {
       return data || [];
     },
     enabled: !!user?.id
-  });
-
-  // Recalculate segments' total members based on current group data
-  const recalculateSegmentMembers = useMutation({
-    mutationFn: async () => {
-      if (!user?.id || !allGroups || segments.length === 0) return;
-
-      console.log('🔄 Starting segment recalculation...');
-      
-      const updates = segments.map(async (segment: any) => {
-        const totalMembers = segment.group_ids.reduce((sum: number, groupId: string) => {
-          const group = allGroups.find(g => g.group_id === groupId);
-          const participantCount = group?.participants_count || 0;
-          console.log(`📊 Group ${group?.name || groupId}: ${participantCount} members`);
-          return sum + participantCount;
-        }, 0);
-
-        console.log(`📊 Segment "${segment.name}": ${segment.total_members} -> ${totalMembers} members`);
-
-        if (totalMembers !== segment.total_members) {
-          const { error } = await (supabase as any)
-            .from('segments')
-            .update({ total_members: totalMembers })
-            .eq('id', segment.id);
-          
-          if (error) throw error;
-          console.log(`✅ Updated segment "${segment.name}" to ${totalMembers} members`);
-        }
-      });
-
-      await Promise.all(updates);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['segments'] });
-      toast({
-        title: "מספר החברים עודכן!",
-        description: "מספר החברים בקטגוריות עודכן בהצלחה",
-      });
-    },
-    onError: (error: any) => {
-      console.error('Recalculation error:', error);
-      toast({
-        title: "שגיאה בעדכון",
-        description: "שגיאה בעדכון מספר החברים בקטגוריות",
-        variant: "destructive",
-      });
-    }
-  });
-
-  // Enhanced sync groups with automatic recalculation
-  const syncGroups = useMutation({
-    mutationFn: () => originalSyncGroups.mutateAsync(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-groups'] });
-      toast({
-        title: "קבוצות סונכרנו בהצלחה!",
-        description: "הקבוצות עודכנו ומחשב מחדש את מספר החברים בקטגוריות",
-      });
-      
-      // Recalculate segment members after successful sync
-      setTimeout(() => {
-        if (segments.length > 0) {
-          console.log('🔄 Auto-recalculating segments after sync...');
-          recalculateSegmentMembers.mutate();
-        }
-      }, 2000); // Wait a bit for groups query to refresh
-    },
-    onError: (error: any) => {
-      console.error('Sync error:', error);
-      toast({
-        title: "שגיאה בסנכרון",
-        description: "שגיאה בסנכרון הקבוצות. נסה שוב.",
-        variant: "destructive",
-      });
-    }
   });
 
   // Create segment mutation
@@ -316,21 +241,8 @@ const Segments = () => {
 
     const totalMembers = selectedGroupIds.reduce((sum, groupId) => {
       const group = allGroups.find(g => g.group_id === groupId);
-      const participantCount = group?.participants_count || 0;
-      console.log(`🔢 Adding group ${group?.name || groupId}: ${participantCount} members`);
-      return sum + participantCount;
+      return sum + (group?.participants_count || 0);
     }, 0);
-
-    console.log(`📝 Creating segment "${newSegmentName}" with ${totalMembers} total members`);
-
-    // Warn if groups have 0 members (might be outdated data)
-    if (totalMembers === 0) {
-      toast({
-        title: "אזהרה - אין חברים",
-        description: "הקבוצות שנבחרו מציגות 0 חברים. ייתכן שהנתונים לא מעודכנים. נסה לסנכרן את הקבוצות תחילה.",
-        variant: "destructive",
-      });
-    }
 
     createSegmentMutation.mutate({
       name: newSegmentName,
@@ -426,28 +338,6 @@ const Segments = () => {
             </Badge>
           </div>
           <div className="flex gap-3">
-            {/* Refresh Segments Button - only show if segments exist */}
-            {segments.length > 0 && (
-              <Button
-                onClick={() => recalculateSegmentMembers.mutate()}
-                variant="outline"
-                disabled={recalculateSegmentMembers.isPending}
-                className="border-blue-600 text-blue-600 hover:bg-blue-50"
-              >
-                {recalculateSegmentMembers.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    מחשב מחדש...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    עדכן מספר חברים
-                  </>
-                )}
-              </Button>
-            )}
-
             {/* Updated Sync Groups Button */}
             <Button
               onClick={handleEnhancedSyncGroups}
