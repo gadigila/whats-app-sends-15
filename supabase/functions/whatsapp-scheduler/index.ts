@@ -1,4 +1,3 @@
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -24,6 +23,53 @@ interface UserProfile {
   trial_expires_at: string | null
 }
 
+// ✅ FIXED: Media type detection and endpoint selection (copied from working send-immediate-message)
+function getMessageTypeAndEndpoint(mediaUrl: string): { endpoint: string; messageType: string } {
+  if (!mediaUrl) {
+    return { endpoint: 'https://gate.whapi.cloud/messages/text', messageType: 'text' };
+  }
+
+  // Extract file extension
+  const urlLower = mediaUrl.toLowerCase();
+  const extension = urlLower.split('.').pop()?.split('?')[0]; // Remove query params
+
+  // Image types
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(extension || '')) {
+    return { endpoint: 'https://gate.whapi.cloud/messages/image', messageType: 'image' };
+  }
+
+  // Video types
+  if (['mp4', 'avi', 'mov', '3gp', 'mkv', 'webm'].includes(extension || '')) {
+    return { endpoint: 'https://gate.whapi.cloud/messages/video', messageType: 'video' };
+  }
+
+  // Audio types
+  if (['mp3', 'wav', 'ogg', 'aac', 'm4a', 'opus'].includes(extension || '')) {
+    return { endpoint: 'https://gate.whapi.cloud/messages/audio', messageType: 'audio' };
+  }
+
+  // Document types (PDF, Office files, etc.)
+  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'csv'].includes(extension || '')) {
+    return { endpoint: 'https://gate.whapi.cloud/messages/document', messageType: 'document' };
+  }
+
+  // Default to document for unknown types
+  console.log(`⚠️ Unknown file type: ${extension}, treating as document`);
+  return { endpoint: 'https://gate.whapi.cloud/messages/document', messageType: 'document' };
+}
+
+// ✅ FIXED: Get filename from URL for documents
+function getFilenameFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const filename = pathname.split('/').pop() || 'file';
+    return decodeURIComponent(filename);
+  } catch {
+    return 'file';
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -37,7 +83,7 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    console.log('WhatsApp Scheduler: Starting job...')
+    console.log('📅 WhatsApp Scheduler: Starting job with FIXED media support...')
 
     // Query for pending messages that should be sent
     const { data: pendingMessages, error: fetchError } = await supabase
@@ -66,7 +112,7 @@ Deno.serve(async (req) => {
     // Process each pending message
     for (const message of pendingMessages as ScheduledMessage[]) {
       try {
-        console.log(`Processing message ${message.id}`)
+        console.log(`📤 Processing message ${message.id}`)
 
         // Get user's instance ID, token and status
         const { data: profile, error: profileError } = await supabase
@@ -76,7 +122,7 @@ Deno.serve(async (req) => {
           .single()
 
         if (profileError || !profile?.whapi_token) {
-          console.error(`No WHAPI token found for user ${message.user_id}`)
+          console.error(`❌ No WHAPI token found for user ${message.user_id}`)
           
           // Update message status to failed
           await supabase
@@ -100,7 +146,7 @@ Deno.serve(async (req) => {
                            userProfile.payment_plan === 'trial'
 
         if (trialExpired) {
-          console.error(`User ${message.user_id} trial has expired`)
+          console.error(`❌ User ${message.user_id} trial has expired`)
           
           await supabase
             .from('scheduled_messages')
@@ -116,7 +162,7 @@ Deno.serve(async (req) => {
 
         // Check if instance is connected
         if (userProfile.instance_status !== 'connected') {
-          console.error(`Instance ${userProfile.instance_id} is not connected`)
+          console.error(`❌ Instance ${userProfile.instance_id} is not connected`)
           
           await supabase
             .from('scheduled_messages')
@@ -130,30 +176,92 @@ Deno.serve(async (req) => {
           continue
         }
 
+        // ✅ FIXED: Detect media type and get correct endpoint
+        const { endpoint, messageType } = getMessageTypeAndEndpoint(message.media_url || '');
+        console.log(`📤 Sending ${messageType} message to ${message.group_ids.length} groups`);
+        if (message.media_url) {
+          console.log(`📎 Media URL: ${message.media_url}`)
+        }
+
         let allMessagesSent = true
         let errorMessage = ''
         let successCount = 0
 
-        // Send message to each group using the user's WHAPI token
+        // ✅ FIXED: Send message to each group with proper media handling
         for (const groupId of message.group_ids) {
           try {
-            console.log(`Sending message to group ${groupId} via instance ${userProfile.instance_id}`)
+            console.log(`📤 Sending ${messageType} message to group ${groupId}`)
 
-            // Prepare WHAPI request body
-            const requestBody: any = {
-              to: groupId,
-              body: message.message
-            }
+            // ✅ FIXED: Prepare request body based on media type (copied from working code)
+            let requestBody: any;
 
-            // Add media if provided
             if (message.media_url) {
-              requestBody.media = {
-                url: message.media_url
+              console.log(`📎 Detected file type: ${messageType} for URL: ${message.media_url}`);
+              
+              // Prepare body based on message type
+              switch (messageType) {
+                case 'image':
+                  requestBody = {
+                    to: groupId,
+                    media: message.media_url,        // ✅ FIXED: Direct URL, not nested object
+                    caption: message.message || ''   // ✅ Images can have captions
+                  };
+                  break;
+
+                case 'video':
+                  requestBody = {
+                    to: groupId,
+                    media: message.media_url,        // ✅ FIXED: Direct URL
+                    caption: message.message || ''   // ✅ Videos can have captions
+                  };
+                  break;
+
+                case 'audio':
+                  requestBody = {
+                    to: groupId,
+                    media: message.media_url         // ✅ Audio messages don't support captions
+                  };
+                  // We'll send text message separately if there's a message
+                  break;
+
+                case 'document':
+                  const filename = getFilenameFromUrl(message.media_url);
+                  requestBody = {
+                    to: groupId,
+                    media: message.media_url,        // ✅ FIXED: Direct URL
+                    filename: filename,              // ✅ Important for documents
+                    caption: message.message || ''   // ✅ Documents can have captions
+                  };
+                  console.log(`📄 Document filename: ${filename}`);
+                  break;
+
+                default:
+                  // Fallback to document
+                  requestBody = {
+                    to: groupId,
+                    media: message.media_url,
+                    filename: getFilenameFromUrl(message.media_url),
+                    caption: message.message || ''
+                  };
               }
+
+              console.log(`📤 Sending ${messageType} to ${groupId}:`, {
+                endpoint,
+                filename: requestBody.filename || 'N/A',
+                hasCaption: !!requestBody.caption
+              });
+
+            } else {
+              // ✅ Text-only message
+              requestBody = {
+                to: groupId,
+                body: message.message
+              };
+              console.log('💬 Sending text message:', { groupId, message: message.message });
             }
 
-            // Send message via WHAPI using user's token (not partner token)
-            const whapiResponse = await fetch(`https://gate.whapi.cloud/messages/text`, {
+            // ✅ FIXED: Use the correct endpoint for media type
+            const whapiResponse = await fetch(endpoint, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${userProfile.whapi_token}`,
@@ -164,16 +272,42 @@ Deno.serve(async (req) => {
 
             if (!whapiResponse.ok) {
               const errorText = await whapiResponse.text()
-              console.error(`Failed to send message to ${groupId}:`, errorText)
+              console.error(`❌ Failed to send ${messageType} to ${groupId}:`, errorText)
               allMessagesSent = false
               errorMessage += `Failed to send to ${groupId}: ${errorText}. `
             } else {
-              console.log(`Successfully sent message to group ${groupId}`)
+              console.log(`✅ Successfully sent ${messageType} to group ${groupId}`)
               successCount++
+
+              // ✅ FIXED: For audio files, send text message separately if there's a message
+              if (messageType === 'audio' && message.message) {
+                try {
+                  console.log(`📝 Sending separate text message for audio to ${groupId}`);
+                  const textResponse = await fetch('https://gate.whapi.cloud/messages/text', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${userProfile.whapi_token}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      to: groupId,
+                      body: message.message
+                    })
+                  });
+                  
+                  if (textResponse.ok) {
+                    console.log(`✅ Also sent text message for audio to ${groupId}`);
+                  } else {
+                    console.log(`⚠️ Failed to send text with audio to ${groupId}`);
+                  }
+                } catch (textError) {
+                  console.log(`⚠️ Error sending text with audio to ${groupId}:`, textError);
+                }
+              }
             }
 
           } catch (error) {
-            console.error(`Error sending to group ${groupId}:`, error)
+            console.error(`❌ Error sending to group ${groupId}:`, error)
             allMessagesSent = false
             errorMessage += `Error sending to ${groupId}: ${error.message}. `
           }
@@ -191,10 +325,10 @@ Deno.serve(async (req) => {
           })
           .eq('id', message.id)
 
-        console.log(`Updated message ${message.id} status to ${newStatus} (${successCount}/${message.group_ids.length} groups)`)
+        console.log(`✅ Updated message ${message.id} status to ${newStatus} (${successCount}/${message.group_ids.length} groups)`)
 
       } catch (error) {
-        console.error(`Error processing message ${message.id}:`, error)
+        console.error(`❌ Error processing message ${message.id}:`, error)
         
         // Update message status to failed
         await supabase
@@ -208,18 +342,18 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log('WhatsApp Scheduler: Job completed')
+    console.log('🎯 WhatsApp Scheduler: Job completed with FIXED media support')
 
     return new Response(
       JSON.stringify({ 
-        message: 'WhatsApp scheduling job completed',
+        message: 'WhatsApp scheduling job completed with media support',
         processed: pendingMessages.length 
       }),
       { status: 200, headers: corsHeaders }
     )
 
   } catch (error) {
-    console.error('WhatsApp Scheduler Error:', error)
+    console.error('💥 WhatsApp Scheduler Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: corsHeaders }
