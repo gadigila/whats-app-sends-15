@@ -22,12 +22,11 @@ export const SyncLoadingModal: React.FC<SyncLoadingModalProps> = ({
   const progressPercentage = progress ? (progress.current / progress.total) * 100 : 0;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md" dir="rtl">
+    <Dialog open={isOpen}>
+      <DialogContent className="sm:max-w-md [&>button]:hidden" dir="rtl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-center">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-            מסנכרן את הקבוצות שלך
+          <DialogTitle className="text-center">
+            🔄 מסנכרן את הקבוצות שלך
           </DialogTitle>
         </DialogHeader>
         
@@ -39,9 +38,13 @@ export const SyncLoadingModal: React.FC<SyncLoadingModalProps> = ({
               <div className="absolute inset-0 w-16 h-16 border-4 border-blue-600 rounded-full animate-spin border-t-transparent"></div>
             </div>
             
-            <div className="text-center space-y-1">
+            <div className="text-center space-y-2">
               <p className="text-sm font-medium text-gray-900">
-                {progress?.stage || 'מחפש את כל הקבוצות שלך...'}
+                אנחנו מחפשים את כל הקבוצות שלך כרגע...
+              </p>
+              
+              <p className="text-xs text-gray-500">
+                התהליך יכול לקחת עד דקה אחת עבור חשבונות עם הרבה קבוצות.
               </p>
               
               {progress && (
@@ -49,10 +52,6 @@ export const SyncLoadingModal: React.FC<SyncLoadingModalProps> = ({
                   {progress.current} מתוך {progress.total} קבוצות נבדקו
                 </p>
               )}
-              
-              <p className="text-xs text-gray-400">
-                זה יכול לקחת עד דקה עבור הרבה קבוצות 🕐
-              </p>
             </div>
           </div>
 
@@ -67,30 +66,30 @@ export const SyncLoadingModal: React.FC<SyncLoadingModalProps> = ({
             </div>
           )}
 
-          {/* What we're looking for */}
-          <div className="bg-blue-50 rounded-lg p-3 space-y-2">
-            <p className="text-xs font-medium text-blue-900 mb-2">מה אנחנו מחפשים:</p>
-            <div className="grid grid-cols-1 gap-1 text-xs">
-              <div className="flex items-center gap-2 text-blue-700">
-                <Crown className="h-3 w-3" />
-                <span>קבוצות שאתה יוצר</span>
-              </div>
-              <div className="flex items-center gap-2 text-blue-700">
-                <Shield className="h-3 w-3" />
-                <span>קבוצות שאתה מנהל</span>
-              </div>
-              <div className="flex items-center gap-2 text-blue-700">
-                <Users className="h-3 w-3" />
-                <span>כל הקבוצות (כולל 800+ חברים)</span>
-              </div>
-            </div>
+          {/* Important tip */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs text-blue-800">
+              💡 <strong>טיפ חשוב:</strong> בסנכרון הראשון ייתכן שלא תראה את כל המידע מיד. הנתונים ממשיכים להתעדכן ברקע - המתן כמה דקות או הפעל סנכרון נוסף לתוצאות מלאות.
+            </p>
           </div>
 
-          {/* Tips */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-            <p className="text-xs text-yellow-800">
-              <strong>טיפ:</strong> אל תסגור את החלון - הסנכרון רץ ברקע והתהליך יושלם אוטומטית
-            </p>
+          {/* What we're collecting */}
+          <div className="bg-green-50 rounded-lg p-3 space-y-2">
+            <p className="text-xs font-medium text-green-900 mb-2">מה אנחנו אוספים עבורך:</p>
+            <div className="grid grid-cols-1 gap-1 text-xs">
+              <div className="flex items-center gap-2 text-green-700">
+                <span>👑</span>
+                <span>קבוצות שיצרת - כל הקבוצות שהקמת</span>
+              </div>
+              <div className="flex items-center gap-2 text-green-700">
+                <span>🛡️</span>
+                <span>קבוצות שאתה מנהל - קבוצות עם הרשאות ניהול</span>
+              </div>
+              <div className="flex items-center gap-2 text-green-700">
+                <span>💬</span>
+                <span>כל הקבוצות שלך - כולל קבוצות גדולות (+800 חברים)</span>
+              </div>
+            </div>
           </div>
         </div>
       </DialogContent>
