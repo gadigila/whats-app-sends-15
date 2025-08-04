@@ -535,6 +535,13 @@ const Segments = () => {
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">לא נוצרו קטגוריות</h3>
                 <p className="text-gray-600 mb-6">צור את הקטגוריה הראשונה שלך כדי לארגן את הקבוצות שלך להודעות ממוקדות.</p>
+                <Button 
+                  onClick={() => setIsCreateDialogOpen(true)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Plus className="h-4 w-4 ml-2" />
+                  צור קטגוריה חדשה
+                </Button>
               </CardContent>
             </Card>
           ) : (
