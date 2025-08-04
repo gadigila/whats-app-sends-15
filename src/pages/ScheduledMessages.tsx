@@ -3,23 +3,32 @@ import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, Edit, Trash2, Users, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, Trash2, Users, MessageSquare } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useScheduledMessages } from '@/hooks/useScheduledMessages';
 import { Link } from 'react-router-dom';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useState } from 'react';
 
 const ScheduledMessages = () => {
   const { scheduledMessages, isLoading, deleteMessage } = useScheduledMessages();
+  const [deleteMessageId, setDeleteMessageId] = useState<string | null>(null);
 
-  const handleEdit = (id: string) => {
-    toast({
-      title: "ערוך הודעה",
-      description: "תכונת העריכה תפתח את הודעת הכתיבה עם ההודעה הזו.",
-    });
-  };
-
-  const handleDelete = (id: string) => {
-    deleteMessage.mutate(id);
+  const handleDeleteConfirm = () => {
+    if (deleteMessageId) {
+      deleteMessage.mutate(deleteMessageId);
+      setDeleteMessageId(null);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -170,22 +179,36 @@ const ScheduledMessages = () => {
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(message.id)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(message.id)}
-                        className="text-red-600 border-red-600 hover:bg-red-50"
-                        disabled={deleteMessage.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 border-red-600 hover:bg-red-50"
+                            disabled={deleteMessage.isPending}
+                            onClick={() => setDeleteMessageId(message.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-right">מחק הודעה מתוזמנת</AlertDialogTitle>
+                            <AlertDialogDescription className="text-right">
+                              האם אתה בטוח שברצונך למחוק הודעה זו? הפעולה בלתי הפיכה והודעה לא תישלח.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>ביטול</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={handleDeleteConfirm}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              מחק
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </CardContent>
