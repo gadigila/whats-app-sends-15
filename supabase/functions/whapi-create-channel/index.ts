@@ -132,7 +132,9 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        webhooks: [{
+      sent_status: false,        // ← ADD THIS LINE
+      pass_through: false,       // ← ADD THIS LINE
+      webhooks: [{
           url: webhookUrl,
           events: [
             // ✅ FIXED: Only essential events to avoid notification conflicts
