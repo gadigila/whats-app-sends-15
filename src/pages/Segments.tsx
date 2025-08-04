@@ -377,25 +377,14 @@ const Segments = () => {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>
+                  <DialogTitle className="text-right">
                     {editingSegment ? 'ערוך קטגוריה' : 'צור קטגוריה חדשה'}
                   </DialogTitle>
                 </DialogHeader>
                 
                 <div className="space-y-6">
                   <div>
-                    <Label htmlFor="segmentName">שם הקטגוריה</Label>
-                    <Input
-                      id="segmentName"
-                      placeholder="הכנס שם לקטגוריה..."
-                      value={newSegmentName}
-                      onChange={(e) => setNewSegmentName(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label>בחר קבוצות</Label>
+                    <Label className="text-lg font-semibold">1. בחר קבוצות</Label>
                     
                     <div className="mt-3 space-y-3">
                       <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
@@ -485,7 +474,18 @@ const Segments = () => {
                         }, 0)}
                       </p>
                     </div>
-                  )}
+                   )}
+
+                  <div>
+                    <Label htmlFor="segmentName" className="text-lg font-semibold">2. בחר שם לקטגוריה</Label>
+                    <Input
+                      id="segmentName"
+                      placeholder="הכנס שם לקטגוריה..."
+                      value={newSegmentName}
+                      onChange={(e) => setNewSegmentName(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
 
                   <div className="flex justify-end gap-3">
                     <Button
