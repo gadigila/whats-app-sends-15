@@ -375,7 +375,7 @@ const Segments = () => {
                   צור קטגוריה
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl" hideCloseButton>
                 <DialogHeader>
                   <DialogTitle className="text-right">
                     {editingSegment ? 'ערוך קטגוריה' : 'צור קטגוריה חדשה'}
