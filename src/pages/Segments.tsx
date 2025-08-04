@@ -398,17 +398,18 @@ const Segments = () => {
                     <Label>בחר קבוצות</Label>
                     
                     <div className="mt-3 space-y-3">
-                      <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <Checkbox
+                          id="admin-filter"
+                          checked={showOnlyAdminGroups}
+                          onCheckedChange={(checked) => setShowOnlyAdminGroups(checked === true)}
+                        />
                         <div className="flex items-center gap-2">
                           <Star className="h-4 w-4 text-amber-600" />
-                          <span className="text-sm font-medium text-amber-900">
+                          <label htmlFor="admin-filter" className="text-sm font-medium text-amber-900 cursor-pointer">
                             הצג רק קבוצות שאני מנהל ({groupStats.adminGroups} מתוך {groupStats.totalGroups})
-                          </span>
+                          </label>
                         </div>
-                        <Switch
-                          checked={showOnlyAdminGroups}
-                          onCheckedChange={setShowOnlyAdminGroups}
-                        />
                       </div>
                       
                       <div className="relative">
