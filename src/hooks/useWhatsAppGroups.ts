@@ -70,21 +70,11 @@ export const useWhatsAppGroups = () => {
         api_calls_made = 0
       } = data;
 
-      // Success toast with comprehensive info
+      // Simple success toast without confusing numbers
       toast({
         title: "✅ סנכרון הושלם בהצלחה!",
-        description: `נמצאו ${groups_count} קבוצות בניהולך מתוך ${total_groups_scanned} קבוצות סה"כ`,
+        description: "הקבוצות שלך עודכנו במערכת",
       });
-
-      // Additional info toast for power users
-      if (groups_count > 0) {
-        setTimeout(() => {
-          toast({
-            title: "📊 פרטי הסנכרון",
-            description: `${creator_groups_count} קבוצות כיוצר • ${admin_groups_count} קבוצות כמנהל • ${total_members_in_managed_groups.toLocaleString()} חברים סה"כ`,
-          });
-        }, 2000);
-      }
 
       // Warning if large groups were skipped
       if (large_groups_skipped > 0) {
