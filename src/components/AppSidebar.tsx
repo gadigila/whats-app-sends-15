@@ -62,18 +62,15 @@ export function AppSidebar() {
   return (
     <Sidebar 
       side="right" 
-      collapsible="icon"
-      className={isCollapsed ? "w-14" : "w-64"}
+      collapsible="none"
+      className="w-64"
     >
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
           <Link to="/dashboard" className="flex items-center gap-2" onClick={handleSidebarClick}>
             <MessageSquare className="h-8 w-8 text-green-600 flex-shrink-0" />
-            {!isCollapsed && (
-              <span className="text-xl font-bold text-gray-900">WhatsApp Manager</span>
-            )}
+            <span className="text-xl font-bold text-gray-900">WhatsApp Manager</span>
           </Link>
-          {!isCollapsed && <SidebarTrigger className="h-7 w-7" />}
         </div>
       </SidebarHeader>
 
@@ -88,11 +85,10 @@ export function AppSidebar() {
                     <SidebarMenuButton 
                       asChild 
                       isActive={isActive}
-                      tooltip={isCollapsed ? item.name : undefined}
                     >
                       <Link to={item.href} className="flex items-center gap-3" onClick={handleSidebarClick}>
                         <item.icon className="h-5 w-5 flex-shrink-0" />
-                        {!isCollapsed && <span>{item.name}</span>}
+                        <span>{item.name}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -105,55 +101,35 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4">
         <div className="space-y-4">
-          <SidebarSeparator />
-          
-          {!isCollapsed && (
-            <div className="flex items-center gap-3 mb-3">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-green-100 text-green-700 text-sm">
-                  {getUserInitials()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {profile?.name || user?.email || 'משתמש'}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  {user?.email}
-                </p>
-              </div>
+          <div className="flex items-center gap-3 mb-3">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-green-100 text-green-700 text-sm">
+                {getUserInitials()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {profile?.name || user?.email || 'משתמש'}
+              </p>
+              <p className="text-xs text-gray-500 truncate">
+                {user?.email}
+              </p>
             </div>
-          )}
-          
-          {isCollapsed && (
-            <div className="flex justify-center mb-3">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-green-100 text-green-700 text-sm">
-                  {getUserInitials()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-          )}
+          </div>
           
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton 
-                asChild
-                tooltip={isCollapsed ? "תשלום" : undefined}
-              >
+              <SidebarMenuButton asChild>
                 <Link to="/billing" className="flex items-center gap-2" onClick={handleSidebarClick}>
                   <CreditCard className="h-4 w-4 flex-shrink-0" />
-                  {!isCollapsed && "תשלום"}
+                  תשלום
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton 
-                onClick={handleSignOut}
-                tooltip={isCollapsed ? "התנתק" : undefined}
-              >
+              <SidebarMenuButton onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 flex-shrink-0" />
-                {!isCollapsed && "התנתק"}
+                התנתק
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

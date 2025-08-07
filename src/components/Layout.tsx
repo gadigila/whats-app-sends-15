@@ -22,12 +22,12 @@ const Layout = ({ children }: LayoutProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 w-full" dir="rtl">
+    <div className="min-h-screen bg-background w-full" dir="rtl">
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset>
           {/* Mobile header */}
-          <header className="flex h-16 shrink-0 items-center justify-between border-b bg-white px-4 md:hidden">
+          <header className="flex h-16 shrink-0 items-center justify-between border-b bg-background px-4 md:hidden">
             <SidebarTrigger>
               <Menu className="h-6 w-6" />
             </SidebarTrigger>
