@@ -1,5 +1,5 @@
 
-import { Button } from '@/components/ui/button';
+import { ThreeDButton } from '@/components/ui/button';
 import { MessageSquare, Clock, Users, Zap, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,9 +28,9 @@ const LandingPage = () => {
           </p>
           
           <Link to="/auth">
-            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg rounded-full shadow-lg hover:shadow-xl transition-all duration-200">
+            <ThreeDButton variant="primary" size="lg">
               התחל ניסיון 3 ימים חינם
-            </Button>
+            </ThreeDButton>
           </Link>
           
           <p className="text-sm text-gray-500 mt-4">
@@ -115,9 +115,9 @@ const LandingPage = () => {
                   </div>
                 </div>
                 <Link to="/auth" className="block w-full mt-6">
-                  <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
+                  <ThreeDButton variant="primary" className="w-full">
                     התחל ניסיון חינם
-                  </Button>
+                  </ThreeDButton>
                 </Link>
               </CardContent>
             </Card>
@@ -157,9 +157,9 @@ const LandingPage = () => {
                   </div>
                 </div>
                 <Link to="/auth" className="block w-full mt-6">
-                  <Button variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-50">
+                  <ThreeDButton variant="secondary" className="w-full">
                     התחל עם הניסיון החינם
-                  </Button>
+                  </ThreeDButton>
                 </Link>
               </CardContent>
             </Card>
@@ -175,9 +175,9 @@ const LandingPage = () => {
             הצטרף לאלפי משתמשים שחוסכים שעות כל שבוע עם הודעות וואטסאפ אוטומטיות.
           </p>
           <Link to="/auth">
-            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg rounded-full">
+            <ThreeDButton variant="primary" size="lg">
               התחל את הניסיון החינם שלך - 3 ימים
-            </Button>
+            </ThreeDButton>
           </Link>
         </div>
       </div>

@@ -1,6 +1,6 @@
 
 import { Lock, Crown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
 
@@ -26,12 +26,12 @@ const LockedFeature = ({ title, description, className }: LockedFeatureProps) =>
           {description}
         </p>
 
-        <Button asChild className="bg-green-500 hover:bg-green-600">
-          <Link to="/billing">
+        <Link to="/billing">
+          <ThreeDButton variant="primary">
             <Crown className="h-4 w-4 ml-2" />
             שדרג עכשיו
-          </Link>
-        </Button>
+          </ThreeDButton>
+        </Link>
       </CardContent>
     </Card>
   );

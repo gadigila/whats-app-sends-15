@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
-import { Button } from '@/components/ui/button';
+import { ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Crown, Star, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -165,10 +165,11 @@ const Billing = () => {
                     </li>
                   ))}
                 </ul>
-                <Button 
+                <ThreeDButton 
                   onClick={handleUpgrade}
                   disabled={loading || isPaid}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white py-4 text-lg rounded-full"
+                  variant="primary"
+                  className="w-full"
                 >
                   {loading ? (
                     "מעבד..."
@@ -180,7 +181,7 @@ const Billing = () => {
                       <ArrowLeft className="mr-2 h-5 w-5" />
                     </>
                   )}
-                </Button>
+                </ThreeDButton>
                 
                 {!isPaid && (
                   <p className="text-center text-sm text-gray-500 mt-4">

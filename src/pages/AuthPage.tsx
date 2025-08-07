@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MessageSquare, Loader2 } from 'lucide-react';
@@ -114,10 +114,10 @@ const AuthPage = () => {
           </div>
 
           {/* Google Sign In */}
-          <Button
+          <ThreeDButton
             onClick={handleGoogleAuth}
-            variant="outline"
-            className="w-full mb-4 h-12 text-gray-700 border-gray-300 hover:bg-gray-50"
+            variant="secondary"
+            className="w-full mb-4"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -131,7 +131,7 @@ const AuthPage = () => {
               </svg>
             )}
             {isLoading ? "מתחבר..." : "המשך עם Google"}
-          </Button>
+          </ThreeDButton>
 
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
@@ -188,9 +188,10 @@ const AuthPage = () => {
               />
             </div>
 
-            <Button
+            <ThreeDButton
               type="submit"
-              className="w-full h-12 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium"
+              variant="primary"
+              className="w-full"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -201,7 +202,7 @@ const AuthPage = () => {
               ) : (
                 isLogin ? "התחבר" : "התחל ניסיון חינם"
               )}
-            </Button>
+            </ThreeDButton>
           </form>
 
           {/* Toggle */}
