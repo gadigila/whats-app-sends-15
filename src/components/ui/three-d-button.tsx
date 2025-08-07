@@ -10,9 +10,9 @@ export interface ThreeDButtonProps
 const ThreeDButton = React.forwardRef<HTMLButtonElement, ThreeDButtonProps>(
   ({ className, variant = "primary", size = "default", children, ...props }, ref) => {
     const sizeClasses = {
-      default: "py-3 px-6 text-base",
-      sm: "py-2 px-4 text-sm",
-      lg: "py-4 px-8 text-lg"
+      default: "h-12 px-6 text-base",
+      sm: "h-10 px-4 text-sm",
+      lg: "h-14 px-8 text-lg"
     }
 
     return (
