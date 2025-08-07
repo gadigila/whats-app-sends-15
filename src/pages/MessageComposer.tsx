@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -664,10 +664,11 @@ const MessageComposer = () => {
                 <CardTitle>פעולות</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button
-                  onClick={handleSendNow}
-                  className="w-full bg-green-600 hover:bg-green-700"
+                <ThreeDButton
+                  variant="primary"
+                  className="w-full"
                   size="lg"
+                  onClick={handleSendNow}
                   disabled={sendImmediateMessage.isPending || isUploading}
                 >
                   {isUploading ? (
@@ -681,13 +682,13 @@ const MessageComposer = () => {
                       {sendImmediateMessage.isPending ? 'שולח...' : 'שלח עכשיו'}
                     </>
                   )}
-                </Button>
+                </ThreeDButton>
                 
-                <Button
-                  onClick={handleSchedule}
-                  variant="outline"
+                <ThreeDButton
+                  variant="secondary"
                   className="w-full"
                   size="lg"
+                  onClick={handleSchedule}
                   disabled={!scheduleDate || !scheduleTime || scheduleMessage.isPending || isUploading}
                 >
                   {isUploading ? (
@@ -701,7 +702,7 @@ const MessageComposer = () => {
                       {scheduleMessage.isPending ? 'מתזמן...' : 'תזמן הודעה'}
                     </>
                   )}
-                </Button>
+                </ThreeDButton>
               </CardContent>
             </Card>
 

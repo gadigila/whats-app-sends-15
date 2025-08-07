@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { MessageSquare, Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -17,9 +17,9 @@ const Index = () => {
             <h1 className="text-2xl font-bold text-gray-900">Reecher.app</h1>
           </div>
           <Link to="/auth">
-            <Button variant="outline" className="border-green-500 text-green-600 hover:bg-green-50">
+            <ThreeDButton variant="secondary">
               התחבר
-            </Button>
+            </ThreeDButton>
           </Link>
         </div>
       </header>
@@ -39,10 +39,10 @@ const Index = () => {
             מערכת חכמה לשליחת הודעות מתוזמנות לכל הקבוצות שלך ב-WhatsApp.
           </p>
           <Link to="/auth">
-            <Button className="bg-green-500 hover:bg-green-600 text-white px-8 py-4 text-lg rounded-full shadow-lg hover:shadow-xl transition-all">
+            <ThreeDButton variant="primary" size="lg">
               התחל עכשיו בחינם
               <ArrowLeft className="mr-2 h-5 w-5" />
-            </Button>
+            </ThreeDButton>
           </Link>
         </div>
       </section>
@@ -268,9 +268,9 @@ const Index = () => {
                 </li>
               </ul>
               <Link to="/auth">
-                <Button className="w-full bg-green-500 hover:bg-green-600 text-white py-3 text-lg rounded-full">
+                <ThreeDButton variant="primary" className="w-full" size="lg">
                   התחל עכשיו
-                </Button>
+                </ThreeDButton>
               </Link>
             </CardContent>
           </Card>

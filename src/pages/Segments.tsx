@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -336,13 +336,11 @@ const Segments = () => {
           </div>
           <div className="flex gap-3">
             {/* Updated Sync Groups Button */}
-            <Button
+            <ThreeDButton
+              variant="secondary"
               onClick={handleEnhancedSyncGroups}
-              variant="outline"
               disabled={isSyncing || !isWhatsAppConnected}
-              className={`border-green-600 text-green-600 hover:bg-green-50 ${
-                !isWhatsAppConnected ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              className={!isWhatsAppConnected ? 'opacity-50 cursor-not-allowed' : ''}
             >
               {isSyncing ? (
                 <>
@@ -360,20 +358,20 @@ const Segments = () => {
                   סנכרן קבוצות בניהולי
                 </>
               )}
-            </Button>
+            </ThreeDButton>
             
             <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
               setIsCreateDialogOpen(open);
               if (!open) resetDialog();
             }}>
               <DialogTrigger asChild>
-                <Button 
-                  className="bg-green-600 hover:bg-green-700"
+                <ThreeDButton
+                  variant="primary"
                   disabled={allGroups.length === 0}
                 >
                   <Plus className="h-4 w-4 ml-2" />
                   צור קטגוריה
-                </Button>
+                </ThreeDButton>
               </DialogTrigger>
               <DialogContent className="max-w-2xl" hideCloseButton>
                 <DialogHeader>
@@ -494,13 +492,13 @@ const Segments = () => {
                     >
                       ביטול
                     </Button>
-                    <Button
+                    <ThreeDButton
+                      variant="primary"
                       onClick={editingSegment ? handleUpdateSegment : handleCreateSegment}
-                      className="bg-green-600 hover:bg-green-700"
                       disabled={createSegmentMutation.isPending || updateSegmentMutation.isPending}
                     >
                       {editingSegment ? 'עדכן קטגוריה' : 'צור קטגוריה'}
-                    </Button>
+                    </ThreeDButton>
                   </div>
                 </div>
               </DialogContent>
@@ -536,13 +534,13 @@ const Segments = () => {
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">לא נוצרו קטגוריות</h3>
                 <p className="text-gray-600 mb-6">צור את הקטגוריה הראשונה שלך כדי לארגן את הקבוצות שלך להודעות ממוקדות.</p>
-                <Button 
+                <ThreeDButton 
+                  variant="primary"
                   onClick={() => setIsCreateDialogOpen(true)}
-                  className="bg-green-600 hover:bg-green-700"
                 >
                   <Plus className="h-4 w-4 ml-2" />
                   צור קטגוריה חדשה
-                </Button>
+                </ThreeDButton>
               </CardContent>
             </Card>
           ) : (
@@ -589,14 +587,14 @@ const Segments = () => {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                      <Button
+                      <ThreeDButton
+                        variant="primary"
                         size="sm"
                         onClick={() => navigate('/compose', { state: { selectedSegmentId: segment.id } })}
-                        className="bg-green-600 hover:bg-green-700"
                       >
                         <MessageSquare className="h-4 w-4 ml-1" />
                         הודעה
-                      </Button>
+                      </ThreeDButton>
                     </div>
                   </div>
                 </CardContent>

@@ -1,6 +1,6 @@
 
 import Layout from '@/components/Layout';
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, Trash2, Users, MessageSquare } from 'lucide-react';
@@ -80,9 +80,9 @@ const ScheduledMessages = () => {
             <p className="text-gray-600">נהל את משלוחי ההודעות העתידיים שלך</p>
           </div>
           <Link to="/compose">
-            <Button className="bg-green-600 hover:bg-green-700">
+            <ThreeDButton variant="primary">
               תזמן הודעה חדשה
-            </Button>
+            </ThreeDButton>
           </Link>
         </div>
 
@@ -142,9 +142,9 @@ const ScheduledMessages = () => {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">אין הודעות מתוזמנות</h3>
                 <p className="text-gray-600 mb-6">עדיין לא תזמנת הודעות. תזמן את ההודעה הראשונה שלך עכשיו.</p>
                 <Link to="/compose">
-                  <Button className="bg-green-600 hover:bg-green-700">
+                  <ThreeDButton variant="primary">
                     תזמן את ההודעה הראשונה שלך
-                  </Button>
+                  </ThreeDButton>
                 </Link>
               </CardContent>
             </Card>

@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { MessageCircle, Loader2 } from 'lucide-react';
 
@@ -36,11 +36,11 @@ const WhatsAppInitialState = ({ onCreateChannel }: WhatsAppInitialStateProps) =>
         <p className="text-gray-600 mb-6">
           נתחיל ביצירת חיבור בטוח בינך לבין וואטסאפ
         </p>
-        <Button
+        <ThreeDButton
+          variant="primary"
+          size="lg"
           onClick={handleCreateChannel}
           disabled={isCreating}
-          size="lg"
-          className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 text-lg font-semibold"
         >
           {isCreating ? (
             <>
@@ -50,7 +50,7 @@ const WhatsAppInitialState = ({ onCreateChannel }: WhatsAppInitialStateProps) =>
           ) : (
             "התחבר לוואטסאפ"
           )}
-        </Button>
+        </ThreeDButton>
       </CardContent>
     </Card>
   );

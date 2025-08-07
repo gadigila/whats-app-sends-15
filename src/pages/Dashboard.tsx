@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, Users, Calendar, CheckCircle, AlertTriangle, Crown, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -76,17 +76,17 @@ const Dashboard = () => {
                   תחילה, בחר את התוכנית שלך כדי לגשת לכל התכונות
                 </p>
                 <Link to="/billing">
-                  <Button className="bg-green-500 hover:bg-green-600 text-white px-8 py-4 text-lg rounded-full">
+                  <ThreeDButton variant="primary" size="lg">
                     <Crown className="mr-2 h-5 w-5" />
                     בחר תוכנית ומשך לחיבור
-                  </Button>
+                  </ThreeDButton>
                 </Link>
               </div>
             ) : (
               <Link to="/connect">
-                <Button className="bg-green-500 hover:bg-green-600 text-white px-8 py-4 text-lg rounded-full">
+                <ThreeDButton variant="primary" size="lg">
                   חבר את הוואטסאפ שלך
-                </Button>
+                </ThreeDButton>
               </Link>
             )}
           </div>
@@ -160,10 +160,10 @@ const Dashboard = () => {
                     כל הפעולות יהיו זמינות לאחר הרכישה
                   </p>
                   <Link to="/billing" className="block">
-                    <Button className="w-full bg-green-500 hover:bg-green-600">
+                    <ThreeDButton variant="primary" className="w-full">
                       <Crown className="mr-2 h-4 w-4" />
                       שדרג עכשיו
-                    </Button>
+                    </ThreeDButton>
                   </Link>
                 </div>
               </CardContent>
@@ -277,10 +277,10 @@ const Dashboard = () => {
           </div>
           
           <Link to="/compose">
-            <Button className="bg-green-500 hover:bg-green-600">
+            <ThreeDButton variant="primary">
               <MessageSquare className="h-4 w-4 mr-2" />
               שלח הודעה חדשה
-            </Button>
+            </ThreeDButton>
           </Link>
         </div>
 

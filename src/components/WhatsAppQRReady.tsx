@@ -1,5 +1,5 @@
 
-import { Button } from '@/components/ui/button';
+import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Smartphone, Loader2 } from 'lucide-react';
 
@@ -21,11 +21,11 @@ const WhatsAppQRReady = ({ onGetQR, isGettingQR }: WhatsAppQRReadyProps) => {
         <p className="text-gray-600 mb-6">
           כעת תוכל לקבל קוד QR כדי לחבר את הוואטסאפ שלך
         </p>
-        <Button
+        <ThreeDButton
+          variant="primary"
+          size="lg"
           onClick={onGetQR}
           disabled={isGettingQR}
-          size="lg"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold"
         >
           {isGettingQR ? (
             <>
@@ -35,7 +35,7 @@ const WhatsAppQRReady = ({ onGetQR, isGettingQR }: WhatsAppQRReadyProps) => {
           ) : (
             "קבל קוד QR"
           )}
-        </Button>
+        </ThreeDButton>
       </CardContent>
     </Card>
   );
