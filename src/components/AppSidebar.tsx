@@ -62,7 +62,7 @@ export function AppSidebar() {
   return (
     <Sidebar 
       side="right" 
-      collapsible="none"
+      collapsible="offcanvas"
       className="w-64"
     >
       <SidebarHeader className="p-4">
