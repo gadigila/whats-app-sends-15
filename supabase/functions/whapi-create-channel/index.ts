@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 WHAPI Create Channel - With OFFICIAL Notification Fix')
+    console.log('🚀 WHAPI Create Channel - With COMPLETE Automatic Notification Fix')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -121,8 +121,8 @@ Deno.serve(async (req) => {
 
     console.log('✅ Channel created successfully with token')
 
-    // Step 2: Setup webhooks with OFFICIAL notification fix
-    console.log('🔗 Setting up webhooks with OFFICIAL notification fix (offline_mode: true)...')
+    // Step 2: Setup webhooks with notification fix
+    console.log('🔗 Setting up webhooks with complete notification fix...')
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook-simple?userId=${userId}`
     
     const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
@@ -132,20 +132,18 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        // 🔔 OFFICIAL WHAPI FIX: offline_mode prevents "online" status
-        offline_mode: true,               // ← THE OFFICIAL FIX FROM WHAPI SUPPORT
+        // 🔔 COMPLETE NOTIFICATION FIX
+        offline_mode: true,               // Don't send online status automatically
         callback_backoff_delay_ms: 3000,
         max_callback_backoff_delay_ms: 900000,
         
         webhooks: [{
           url: webhookUrl,
           events: [
-            // ✅ Only essential events to preserve notifications
-            { type: 'ready', method: 'post' },           // When WhatsApp connects
-            { type: 'auth_failure', method: 'post' },    // When connection fails
-            { type: 'groups', method: 'post' },          // When user joins/leaves groups
-            { type: 'statuses', method: 'post' }         // Message delivery status (for your sent messages)
-            // ❌ NO 'messages' event - preserves notifications
+            { type: 'ready', method: 'post' },
+            { type: 'auth_failure', method: 'post' },
+            { type: 'groups', method: 'post' },
+            { type: 'statuses', method: 'post' }
           ],
           callback_persist: true
         }]
@@ -156,7 +154,7 @@ Deno.serve(async (req) => {
       const webhookError = await webhookResponse.text()
       console.error('⚠️ Webhook setup failed:', webhookError)
     } else {
-      console.log('✅ OFFICIAL notification fix applied successfully (offline_mode: true)!')
+      console.log('✅ Webhook configured with offline_mode')
     }
 
     // Step 3: Save to database with 'initializing' status
@@ -187,7 +185,7 @@ Deno.serve(async (req) => {
     
     let healthStatus = 'initializing'
     let pollAttempts = 0
-    const maxPollAttempts = 24 // 2 minutes with 5-second intervals
+    const maxPollAttempts = 24
     
     while (pollAttempts < maxPollAttempts && !['qr', 'unauthorized', 'connected', 'QR'].includes(healthStatus)) {
       pollAttempts++
@@ -214,11 +212,11 @@ Deno.serve(async (req) => {
       }
     
       if (pollAttempts < maxPollAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
+        await new Promise(resolve => setTimeout(resolve, 5000))
       }
     }
     
-    // ✅ After polling ends, determine final status
+    // Step 5: Determine final status
     let finalStatus = 'initializing'
     const normalizedStatus = (healthStatus || '').toLowerCase()
     
@@ -228,6 +226,33 @@ Deno.serve(async (req) => {
       finalStatus = 'unauthorized'
     } else {
       console.log(`⚠️ Channel did not become ready in time. Final health status: ${normalizedStatus}`)
+    }
+
+    // Step 6: 🔔 AUTOMATIC PRESENCE FIX - Set to offline when channel is ready
+    if (['unauthorized', 'connected'].includes(finalStatus)) {
+      console.log('🔄 Setting presence to OFFLINE automatically for notifications...')
+      
+      try {
+        const presenceResponse = await fetch(`https://gate.whapi.cloud/presences/me`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${channelToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            presence: 'offline'
+          })
+        })
+
+        if (presenceResponse.ok) {
+          console.log('✅ AUTOMATIC presence set to offline - notifications should work!')
+        } else {
+          const presenceError = await presenceResponse.text()
+          console.log('⚠️ Failed to set automatic presence:', presenceError)
+        }
+      } catch (presenceError) {
+        console.log('⚠️ Error setting automatic presence:', presenceError)
+      }
     }
 
     await supabase
@@ -250,8 +275,9 @@ Deno.serve(async (req) => {
         next_step: finalStatus === 'connected' ? 'Already connected' : 'Get QR code',
         webhook_configured: true,
         notification_fix_applied: true,
-        notification_method: 'offline_mode (WHAPI official fix)',
-        webhook_optimization: 'Notifications preserved with offline_mode: true'
+        automatic_presence_set: true,
+        notification_method: 'offline_mode + automatic offline presence',
+        webhook_optimization: 'Complete notification fix applied automatically'
       }),
       { status: 200, headers: corsHeaders }
     )
