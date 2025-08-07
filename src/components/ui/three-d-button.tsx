@@ -32,7 +32,7 @@ const ThreeDButton = React.forwardRef<HTMLButtonElement, ThreeDButtonProps>(
           "front",
           variant,
           sizeClasses[size],
-          "block relative rounded-xl font-semibold will-change-transform"
+          "block relative rounded-full border border-black font-semibold will-change-transform"
         )}>
           {children}
         </span>
