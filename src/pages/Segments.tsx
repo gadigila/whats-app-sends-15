@@ -541,10 +541,9 @@ const Segments = () => {
                   זהו הסנכרון הראשון שלך - ייתכן שתצטרך ללחוץ שוב או להמתין כמה דקות כדי לראות את כל הקבוצות והנתונים.
                 </p>
                 <ThreeDButton
-                  variant="primary"
+                  variant="secondary"
                   onClick={handleEnhancedSyncGroups}
                   disabled={isSyncing}
-                  className="text-lg px-8 py-3"
                 >
                   {isSyncing ? (
                     <>
