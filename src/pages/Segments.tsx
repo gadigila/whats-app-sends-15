@@ -528,7 +528,39 @@ const Segments = () => {
 
         {/* Segments List */}
         <div className="space-y-4">
-          {segments.length === 0 && allGroups.length > 0 ? (
+          {/* Empty state for no synced groups */}
+          {allGroups.length === 0 && isWhatsAppConnected ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <div className="text-6xl mb-4">🌱</div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">אין עדיין קבוצות 🌱</h3>
+                <p className="text-gray-600 mb-4">
+                  סנכרן את הקבוצות שלך כדי לנהל אותן בקלות, להוסיף קטגוריות ולהתחיל לעבוד מרוכז.
+                </p>
+                <p className="text-sm text-gray-500 mb-6">
+                  זהו הסנכרון הראשון שלך - ייתכן שתצטרך ללחוץ שוב או להמתין כמה דקות כדי לראות את כל הקבוצות והנתונים.
+                </p>
+                <ThreeDButton
+                  variant="primary"
+                  onClick={handleEnhancedSyncGroups}
+                  disabled={isSyncing}
+                  className="text-lg px-8 py-3"
+                >
+                  {isSyncing ? (
+                    <>
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      מסנכרן קבוצות...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-5 w-5 mr-2" />
+                      התחל סנכרון קבוצות
+                    </>
+                  )}
+                </ThreeDButton>
+              </CardContent>
+            </Card>
+          ) : segments.length === 0 && allGroups.length > 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
