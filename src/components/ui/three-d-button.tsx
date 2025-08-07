@@ -1,0 +1,45 @@
+import * as React from "react"
+import { cn } from "@/lib/utils"
+
+export interface ThreeDButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "secondary"
+  size?: "default" | "sm" | "lg"
+}
+
+const ThreeDButton = React.forwardRef<HTMLButtonElement, ThreeDButtonProps>(
+  ({ className, variant = "primary", size = "default", children, ...props }, ref) => {
+    const sizeClasses = {
+      default: "py-3 px-6 text-base",
+      sm: "py-2 px-4 text-sm",
+      lg: "py-4 px-8 text-lg"
+    }
+
+    return (
+      <button
+        className={cn(
+          "pushable",
+          "relative border-0 bg-transparent p-0 cursor-pointer outline-offset-4 transition-all duration-250 hover:brightness-110 select-none",
+          "[&]:[-webkit-tap-highlight-color:transparent]",
+          className
+        )}
+        ref={ref}
+        {...props}
+      >
+        <span className={cn("shadow", variant)} />
+        <span className={cn("edge", variant)} />
+        <span className={cn(
+          "front",
+          variant,
+          sizeClasses[size],
+          "block relative rounded-xl font-semibold will-change-transform"
+        )}>
+          {children}
+        </span>
+      </button>
+    )
+  }
+)
+ThreeDButton.displayName = "ThreeDButton"
+
+export { ThreeDButton }
