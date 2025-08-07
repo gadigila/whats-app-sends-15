@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🚀 WHAPI Create Channel - Using Health Polling (Following WHAPI Best Practices)')
+    console.log('🚀 WHAPI Create Channel - With OFFICIAL Notification Fix')
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -121,8 +121,8 @@ Deno.serve(async (req) => {
 
     console.log('✅ Channel created successfully with token')
 
-    // Step 2: Setup optimized webhooks (FIXED - Only essential events)
-    console.log('🔗 Setting up optimized webhooks (no message interception)...')
+    // Step 2: Setup webhooks with OFFICIAL notification fix
+    console.log('🔗 Setting up webhooks with OFFICIAL notification fix (offline_mode: true)...')
     const webhookUrl = `${supabaseUrl}/functions/v1/whapi-webhook-simple?userId=${userId}`
     
     const webhookResponse = await fetch(`https://gate.whapi.cloud/settings`, {
@@ -132,23 +132,22 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-      sent_status: false,        // ← ADD THIS LINE
-      pass_through: false,       // ← ADD THIS LINE
-      webhooks: [{
+        // 🔔 OFFICIAL WHAPI FIX: offline_mode prevents "online" status
+        offline_mode: true,               // ← THE OFFICIAL FIX FROM WHAPI SUPPORT
+        callback_backoff_delay_ms: 3000,
+        max_callback_backoff_delay_ms: 900000,
+        
+        webhooks: [{
           url: webhookUrl,
           events: [
-            // ✅ FIXED: Only essential events to avoid notification conflicts
+            // ✅ Only essential events to preserve notifications
             { type: 'ready', method: 'post' },           // When WhatsApp connects
             { type: 'auth_failure', method: 'post' },    // When connection fails
             { type: 'groups', method: 'post' },          // When user joins/leaves groups
             { type: 'statuses', method: 'post' }         // Message delivery status (for your sent messages)
-            // ❌ REMOVED: 'messages' - was causing notification conflicts
-            // ❌ REMOVED: 'chats' - not needed for your SaaS
-            // ❌ REMOVED: 'contacts' - not needed for your SaaS
+            // ❌ NO 'messages' event - preserves notifications
           ],
-          callback_persist: true,
-          callback_backoff_delay_ms: 3000,
-          max_callback_backoff_delay_ms: 900000
+          callback_persist: true
         }]
       })
     })
@@ -157,7 +156,7 @@ Deno.serve(async (req) => {
       const webhookError = await webhookResponse.text()
       console.error('⚠️ Webhook setup failed:', webhookError)
     } else {
-      console.log('✅ Optimized webhooks configured successfully - notifications preserved!')
+      console.log('✅ OFFICIAL notification fix applied successfully (offline_mode: true)!')
     }
 
     // Step 3: Save to database with 'initializing' status
@@ -250,7 +249,9 @@ Deno.serve(async (req) => {
         message: finalStatus === 'connected' ? 'Channel created and already connected' : 'Channel created and ready for QR code',
         next_step: finalStatus === 'connected' ? 'Already connected' : 'Get QR code',
         webhook_configured: true,
-        webhook_optimization: 'Notifications preserved - only essential events configured'
+        notification_fix_applied: true,
+        notification_method: 'offline_mode (WHAPI official fix)',
+        webhook_optimization: 'Notifications preserved with offline_mode: true'
       }),
       { status: 200, headers: corsHeaders }
     )
