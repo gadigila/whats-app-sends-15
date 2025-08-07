@@ -582,18 +582,17 @@ const MessageComposer = () => {
                     <Label htmlFor="time">שעה</Label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <div className="relative">
-                          <Clock className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none z-10" />
-                          <Input
-                            id="time"
-                            type="time"
-                            value={scheduleTime}
-                            onChange={(e) => setScheduleTime(e.target.value)}
-                            className="h-12 text-base pr-10 cursor-pointer"
-                            disabled={isUploading}
-                            placeholder="בחר שעה"
-                          />
-                        </div>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "h-12 w-full justify-between text-base pr-10",
+                            !scheduleTime && "text-muted-foreground"
+                          )}
+                          disabled={isUploading}
+                        >
+                          <span>{scheduleTime || "בחר שעה"}</span>
+                          <Clock className="h-5 w-5 text-gray-400" />
+                        </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-2" align="start">
                         <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
