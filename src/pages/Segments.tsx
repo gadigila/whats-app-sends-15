@@ -373,14 +373,14 @@ const Segments = () => {
                   צור קטגוריה
                 </ThreeDButton>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl h-full flex flex-col sm:h-auto sm:block sm:max-h-[85vh]" hideCloseButton>
-                <DialogHeader className="flex-shrink-0 sm:flex-shrink">
+              <DialogContent className="max-w-2xl" hideCloseButton>
+                <DialogHeader>
                   <DialogTitle className="text-right">
                     {editingSegment ? 'ערוך קטגוריה' : 'צור קטגוריה חדשה'}
                   </DialogTitle>
                 </DialogHeader>
                 
-                <div className="flex-1 overflow-y-auto space-y-6 sm:flex-none sm:overflow-visible sm:max-h-[60vh] sm:overflow-y-auto">
+                <div className="space-y-6">
                   <div>
                     <Label className="text-lg font-semibold">1. בחר קבוצות</Label>
                     
@@ -405,7 +405,7 @@ const Segments = () => {
                           placeholder="חפש קבוצות..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pr-10 pl-10 min-h-[48px] md:min-h-[40px] text-base md:text-sm"
+                          className="pr-10 pl-10"
                         />
                         {searchQuery && (
                           <button
@@ -429,20 +429,19 @@ const Segments = () => {
                         </div>
                       ) : (
                         filteredGroups.map((group) => (
-                          <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-3 hover:bg-gray-50 rounded-lg touch-manipulation">
+                          <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
                             <Checkbox
                               id={group.group_id}
                               checked={selectedGroupIds.includes(group.group_id)}
                               onCheckedChange={() => handleGroupToggle(group.group_id)}
-                              className="h-5 w-5 md:h-4 md:w-4"
                             />
-                            <div className="flex-1 min-w-0">
+                            <div className="flex-1">
                               <div className="flex items-center gap-2">
-                                <label htmlFor={group.group_id} className="text-sm md:text-sm font-medium cursor-pointer truncate">
+                                <label htmlFor={group.group_id} className="text-sm font-medium cursor-pointer">
                                   {group.name}
                                 </label>
                                 {group.is_admin && (
-                                  <Star className="h-4 w-4 md:h-3 md:w-3 text-amber-500 flex-shrink-0" />
+                                  <Star className="h-3 w-3 text-amber-500" />
                                 )}
                               </div>
                               <p className="text-xs text-gray-500">
@@ -485,9 +484,7 @@ const Segments = () => {
                       className="mt-1"
                     />
                   </div>
-                </div>
 
-                <div className="flex-shrink-0 pt-4 border-t sm:flex-shrink sm:border-t-0 sm:pt-6">
                   <div className="flex justify-end gap-3">
                     <Button
                       variant="outline"

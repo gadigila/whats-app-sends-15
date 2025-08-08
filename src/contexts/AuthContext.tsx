@@ -37,13 +37,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     console.log('🔐 AuthProvider: Initializing auth...');
-    let mounted = true;
     
     // Listen for auth changes FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        if (!mounted) return; // Prevent state updates if component is unmounted
-        
         console.log('🔐 Auth state change:', event, session?.user?.email || 'no user');
         
         if (session?.user) {
@@ -60,9 +57,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         setLoading(false);
-        if (!isAuthReady) {
-          setIsAuthReady(true);
-        }
+        setIsAuthReady(true);
       }
     );
 
@@ -70,37 +65,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initializeAuth = async () => {
       try {
         console.log('🔐 Checking for existing session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('🔐 Session error:', error);
-          throw error;
-        }
-        
-        if (!mounted) return; // Prevent state updates if component is unmounted
+        const { data: { session } } = await supabase.auth.getSession();
         
         if (session?.user) {
           console.log('🔐 Found existing session for:', session.user.email);
-          const newUser = {
+          setUser({
             id: session.user.id,
             email: session.user.email!,
             name: session.user.user_metadata?.name || session.user.email!.split('@')[0]
-          };
-          setUser(newUser);
+          });
         } else {
           console.log('🔐 No existing session found');
-          setUser(null);
         }
       } catch (error) {
         console.error('🔐 Error checking initial session:', error);
-        if (mounted) {
-          setUser(null);
-        }
       } finally {
-        if (mounted) {
-          setLoading(false);
-          setIsAuthReady(true);
-        }
+        setLoading(false);
+        setIsAuthReady(true);
       }
     };
 
@@ -108,7 +89,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => {
       console.log('🔐 Cleaning up auth subscription');
-      mounted = false;
       subscription.unsubscribe();
     };
   }, []);
