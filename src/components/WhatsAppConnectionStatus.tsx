@@ -107,12 +107,11 @@ const WhatsAppConnectionStatus = ({
               </ul>
             </div>
             
-            <div className="flex gap-3 justify-center">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <ThreeDButton
                 onClick={onCloseDisconnectDialog}
                 variant="secondary"
                 disabled={isHardDisconnecting}
-                className="px-6"
               >
                 ביטול
               </ThreeDButton>
@@ -121,7 +120,6 @@ const WhatsAppConnectionStatus = ({
                 onClick={onConfirmHardDisconnect}
                 variant="destructive"
                 disabled={isHardDisconnecting}
-                className="px-6"
               >
                 {isHardDisconnecting ? (
                   <>
