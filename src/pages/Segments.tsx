@@ -373,14 +373,14 @@ const Segments = () => {
                   צור קטגוריה
                 </ThreeDButton>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl h-full flex flex-col" hideCloseButton>
-                <DialogHeader className="flex-shrink-0">
+              <DialogContent className="max-w-2xl h-full flex flex-col sm:h-auto sm:block sm:max-h-[85vh]" hideCloseButton>
+                <DialogHeader className="flex-shrink-0 sm:flex-shrink">
                   <DialogTitle className="text-right">
                     {editingSegment ? 'ערוך קטגוריה' : 'צור קטגוריה חדשה'}
                   </DialogTitle>
                 </DialogHeader>
                 
-                <div className="flex-1 overflow-y-auto space-y-6">
+                <div className="flex-1 overflow-y-auto space-y-6 sm:flex-none sm:overflow-visible sm:max-h-[60vh] sm:overflow-y-auto">
                   <div>
                     <Label className="text-lg font-semibold">1. בחר קבוצות</Label>
                     
@@ -487,7 +487,7 @@ const Segments = () => {
                   </div>
                 </div>
 
-                <div className="flex-shrink-0 pt-4 border-t">
+                <div className="flex-shrink-0 pt-4 border-t sm:flex-shrink sm:border-t-0 sm:pt-6">
                   <div className="flex justify-end gap-3">
                     <Button
                       variant="outline"
