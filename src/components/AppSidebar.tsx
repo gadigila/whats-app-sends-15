@@ -119,7 +119,10 @@ export function AppSidebar() {
           
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild>
+              <SidebarMenuButton 
+                asChild 
+                isActive={location.pathname === '/billing'}
+              >
                 <Link to="/billing" className="flex items-center gap-2" onClick={handleSidebarClick}>
                   <CreditCard className="h-4 w-4 flex-shrink-0" />
                   תשלום
