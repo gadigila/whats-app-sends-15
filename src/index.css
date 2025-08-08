@@ -158,6 +158,19 @@
     background: hsl(0deg 0% 100%);
   }
 
+  .shadow.destructive {
+    background: linear-gradient(225deg, #DC2626 0%, #B91C1C 50%);
+  }
+
+  .edge.destructive {
+    background: linear-gradient(225deg, #DC2626 0%, #B91C1C 50%);
+  }
+
+  .front.destructive {
+    background: #EF4444;
+    color: white;
+  }
+
   /* Hover states */
   .pushable:hover .front {
     transform: translateY(-6px);

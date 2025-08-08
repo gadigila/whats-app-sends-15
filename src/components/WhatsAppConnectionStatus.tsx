@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, WifiOff, Users } from 'lucide-react';
 
@@ -51,36 +51,34 @@ const WhatsAppConnectionStatus = ({
             הוואטסאפ שלך מחובר עכשיו לשירות שלנו. אתה יכול להתחיל לשלוח הודעות לקבוצות שלך.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
+            <ThreeDButton
               onClick={onNavigateToCompose}
-              className="bg-green-600 hover:bg-green-700"
+              variant="primary"
             >
               התחל לשלוח הודעות
-            </Button>
+            </ThreeDButton>
             
             {/* Updated: Navigate to Groups page instead of sync */}
-            <Button
+            <ThreeDButton
               onClick={onNavigateToGroups}
-              variant="outline"
-              className="border-green-600 text-green-600 hover:bg-green-50"
+              variant="secondary"
             >
               <Users className="h-4 w-4 mr-2" />
               קבוצות
-            </Button>
+            </ThreeDButton>
             
-            <Button
+            <ThreeDButton
               onClick={handleDisconnectClick}
-              variant="outline"
+              variant="destructive"
               disabled={isDisconnecting || isHardDisconnecting}
-              className="text-red-600 border-red-600 hover:bg-red-50"
             >
               {(isDisconnecting || isHardDisconnecting) ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
               ) : (
                 <WifiOff className="h-4 w-4 mr-2" />
               )}
               {isHardDisconnecting ? 'מנתק...' : 'נתק'}
-            </Button>
+            </ThreeDButton>
           </div>
         </CardContent>
       </Card>
@@ -110,19 +108,20 @@ const WhatsAppConnectionStatus = ({
             </div>
             
             <div className="flex gap-3 justify-center">
-              <Button
+              <ThreeDButton
                 onClick={onCloseDisconnectDialog}
-                variant="outline"
+                variant="secondary"
                 disabled={isHardDisconnecting}
                 className="px-6"
               >
                 ביטול
-              </Button>
+              </ThreeDButton>
               
-              <Button
+              <ThreeDButton
                 onClick={onConfirmHardDisconnect}
+                variant="destructive"
                 disabled={isHardDisconnecting}
-                className="px-6 bg-red-600 hover:bg-red-700 text-white"
+                className="px-6"
               >
                 {isHardDisconnecting ? (
                   <>
@@ -132,7 +131,7 @@ const WhatsAppConnectionStatus = ({
                 ) : (
                   'כן, נתק'
                 )}
-              </Button>
+              </ThreeDButton>
             </div>
           </div>
         </div>
