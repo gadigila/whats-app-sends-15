@@ -405,7 +405,7 @@ const Segments = () => {
                           placeholder="חפש קבוצות..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pr-10 pl-10"
+                          className="pr-10 pl-10 min-h-[48px] md:min-h-[40px] text-base md:text-sm"
                         />
                         {searchQuery && (
                           <button
@@ -429,19 +429,20 @@ const Segments = () => {
                         </div>
                       ) : (
                         filteredGroups.map((group) => (
-                          <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-2 hover:bg-gray-50 rounded-lg">
+                          <div key={group.group_id} className="flex items-center space-x-3 space-x-reverse p-3 hover:bg-gray-50 rounded-lg touch-manipulation">
                             <Checkbox
                               id={group.group_id}
                               checked={selectedGroupIds.includes(group.group_id)}
                               onCheckedChange={() => handleGroupToggle(group.group_id)}
+                              className="h-5 w-5 md:h-4 md:w-4"
                             />
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <label htmlFor={group.group_id} className="text-sm font-medium cursor-pointer">
+                                <label htmlFor={group.group_id} className="text-sm md:text-sm font-medium cursor-pointer truncate">
                                   {group.name}
                                 </label>
                                 {group.is_admin && (
-                                  <Star className="h-3 w-3 text-amber-500" />
+                                  <Star className="h-4 w-4 md:h-3 md:w-3 text-amber-500 flex-shrink-0" />
                                 )}
                               </div>
                               <p className="text-xs text-gray-500">
