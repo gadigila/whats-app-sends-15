@@ -334,7 +334,7 @@ const Segments = () => {
             <h1 className="text-3xl font-bold text-gray-900">קבוצות וקטגוריות</h1>
             <p className="text-gray-600">נהל את הקבוצות שלך וצור קטגוריות להודעות ממוקדות</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             {/* Updated Sync Groups Button */}
             <ThreeDButton
               variant="secondary"
@@ -485,7 +485,7 @@ const Segments = () => {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-3">
+                  <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
                     <Button
                       variant="outline"
                       onClick={() => setIsCreateDialogOpen(false)}
@@ -600,7 +600,7 @@ const Segments = () => {
                       </p>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
