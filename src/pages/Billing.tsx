@@ -102,13 +102,13 @@ const Billing = () => {
         {/* Billing Period Toggle */}
         {!isPaid && (
           <div className="flex justify-center">
-            <div className="bg-gray-100 p-1 rounded-lg">
+            <div className="bg-gray-300 p-1 rounded-lg">
               <button
                 onClick={() => setBillingPeriod('monthly')}
                 className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
                   billingPeriod === 'monthly'
                     ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    : 'text-gray-800 hover:text-gray-900 hover:bg-gray-100/50'
                 }`}
               >
                 חודשי
@@ -118,7 +118,7 @@ const Billing = () => {
                 className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
                   billingPeriod === 'yearly'
                     ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    : 'text-gray-800 hover:text-gray-900 hover:bg-gray-100/50'
                 }`}
               >
                 שנתי
