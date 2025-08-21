@@ -11,10 +11,11 @@ const SelectionCard = React.forwardRef<HTMLButtonElement, SelectionCardProps>(
     return (
       <button
         className={cn(
-          "w-full px-6 py-3 text-right transition-all duration-200 h-11",
+          "w-full px-6 py-0 text-right transition-all duration-200 h-11",
           "text-[15px] font-medium",
           "rounded-[50.71px]",
           "border-2",
+          "flex items-center justify-center",
           isSelected 
             ? "border-blue-500 bg-blue-50 text-blue-700" 
             : "border-[#DEDDD5] bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50",

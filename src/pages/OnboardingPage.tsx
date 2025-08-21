@@ -34,8 +34,8 @@ const OnboardingPage = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  // If user is already onboarded, redirect to dashboard
-  if (profile?.is_onboarded) {
+  // If user is already onboarded and not showing welcome, redirect to dashboard
+  if (profile?.is_onboarded && !showWelcome) {
     return <Navigate to="/dashboard" replace />;
   }
 
