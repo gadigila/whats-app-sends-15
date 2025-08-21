@@ -128,21 +128,12 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                 </SelectionCard>
               ))}
             </div>
-            <div className="flex gap-4 pt-4 mt-4">
-              <ThreeDButton
-                variant="neutral"
-                size="lg"
-                onClick={prevStep}
-                className="flex-1"
-              >
-                <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-                חזרה
-              </ThreeDButton>
+            <div className="flex justify-center pt-4 mt-4">
               <ThreeDButton
                 variant="primary"
                 size="lg"
                 onClick={nextStep}
-                className="flex-1"
+                className="px-8"
               >
                 המשך
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -158,9 +149,6 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
               <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 כמה קבוצות וואטסאפ אתה מנהל כרגע?
               </h2>
-              <p className="text-gray-600 text-base">
-                <Badge variant="secondary" className="bg-green-100 text-green-700">שאלה חובה</Badge>
-              </p>
             </div>
             <div className="space-y-3">
               {groupCounts.map((count) => (
@@ -172,18 +160,6 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                   {isSubmitting ? 'שומר...' : count}
                 </SelectionCard>
               ))}
-            </div>
-            <div className="flex gap-4 pt-6">
-              <ThreeDButton
-                variant="neutral"
-                size="lg"
-                onClick={prevStep}
-                disabled={isSubmitting}
-                className="flex-1"
-              >
-                <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
-                חזרה
-              </ThreeDButton>
             </div>
           </div>
         );
@@ -200,16 +176,28 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
           <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
             <MessageSquare className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">בואו נכיר!</h1>
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              {currentStep > 0 && (
+                <button
+                  onClick={prevStep}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                  aria-label="חזרה"
+                >
+                  <ArrowRight className="w-4 h-4 text-gray-600" />
+                </button>
+              )}
+              <p className="text-sm text-gray-500">
+                {currentStep + 1}/{totalSteps}
+              </p>
+            </div>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
             <div 
               className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-sm text-gray-500">
-            שאלה {currentStep + 1} מתוך {totalSteps}
-          </p>
         </div>
         
         {renderQuestion()}
