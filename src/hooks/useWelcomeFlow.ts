@@ -40,10 +40,8 @@ export const useWelcomeFlow = () => {
       });
     }
     
-    // Add delay before showing welcome message for better UX
-    setTimeout(() => {
-      setShowWelcome(true);
-    }, 800);
+    // Show welcome immediately after quiz completion
+    setShowWelcome(true);
   };
 
   const handleWelcomeComplete = () => {
