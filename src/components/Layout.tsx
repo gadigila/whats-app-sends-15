@@ -6,6 +6,9 @@ import TrialStatusBanner from '@/components/TrialStatusBanner';
 import { Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserProfile } from '@/hooks/useUserProfile';
+import { useWelcomeFlow } from '@/hooks/useWelcomeFlow';
+import OnboardingQuiz from '@/components/OnboardingQuiz';
+import WelcomeMessage from '@/components/WelcomeMessage';
 
 interface LayoutProps {
   children: ReactNode;
@@ -14,6 +17,14 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   const { user } = useAuth();
   const { data: profile } = useUserProfile();
+  const {
+    showQuiz,
+    showWelcome,
+    quizAnswers,
+    shouldShowOnboarding,
+    handleQuizComplete,
+    handleWelcomeComplete
+  } = useWelcomeFlow();
 
   const getUserName = () => {
     if (profile?.name) return profile.name;
@@ -42,6 +53,22 @@ const Layout = ({ children }: LayoutProps) => {
           </main>
         </SidebarInset>
       </SidebarProvider>
+
+      {/* Onboarding Overlay */}
+      {showQuiz && (
+        <div className="fixed inset-0 z-50">
+          <OnboardingQuiz onComplete={handleQuizComplete} />
+        </div>
+      )}
+
+      {showWelcome && (
+        <div className="fixed inset-0 z-50">
+          <WelcomeMessage 
+            onContinue={handleWelcomeComplete}
+            userAnswers={quizAnswers} 
+          />
+        </div>
+      )}
     </div>
   );
 };
