@@ -47,7 +47,9 @@ export const useOnboardingQuiz = () => {
     },
     onSuccess: () => {
       toast.success('הקוויז הושלם בהצלחה!');
-      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      // Invalidate and refetch the specific user's profile
+      queryClient.invalidateQueries({ queryKey: ['userProfile', user?.id] });
+      queryClient.refetchQueries({ queryKey: ['userProfile', user?.id] });
     },
     onError: (error) => {
       console.error('Quiz submission error:', error);

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useUserProfile } from '@/hooks/useUserProfile';
 
 export const useWelcomeFlow = () => {
-  const { data: profile } = useUserProfile();
-  const [showQuiz, setShowQuiz] = useState(false);
+  const { data: profile, isLoading: isLoadingProfile } = useUserProfile();
+  const [dismissedThisSession, setDismissedThisSession] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<{
     community_type?: string;
@@ -11,17 +11,25 @@ export const useWelcomeFlow = () => {
     group_count_range: string;
   } | null>(null);
 
+  // Derived state - quiz shows when profile is loaded and user is not onboarded
+  const shouldShowQuiz = !isLoadingProfile && 
+                        !!profile && 
+                        !profile.is_onboarded && 
+                        !dismissedThisSession;
+
   useEffect(() => {
     if (profile) {
-      // Show quiz immediately after first sign-in if user is not onboarded
-      if (!profile.is_onboarded) {
-        setShowQuiz(true);
-      }
+      console.log('🔍 Profile loaded:', {
+        id: profile.id,
+        is_onboarded: profile.is_onboarded,
+        shouldShowQuiz: !isLoadingProfile && !profile.is_onboarded && !dismissedThisSession
+      });
     }
-  }, [profile]);
+  }, [profile, isLoadingProfile, dismissedThisSession]);
 
   const handleQuizComplete = () => {
-    setShowQuiz(false);
+    console.log('🎉 Quiz completed, dismissing for this session');
+    setDismissedThisSession(true);
     
     // Store the quiz answers for the welcome message
     if (profile) {
@@ -40,10 +48,10 @@ export const useWelcomeFlow = () => {
     setQuizAnswers(null);
   };
 
-  const shouldShowOnboarding = showQuiz || showWelcome;
+  const shouldShowOnboarding = shouldShowQuiz || showWelcome;
 
   return {
-    showQuiz,
+    showQuiz: shouldShowQuiz, // Use derived state
     showWelcome,
     quizAnswers,
     shouldShowOnboarding,

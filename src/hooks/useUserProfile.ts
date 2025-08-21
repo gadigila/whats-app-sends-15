@@ -64,5 +64,6 @@ export const useUserProfile = () => {
     enabled: !!user?.id,
     retry: 1,
     staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchOnMount: 'always', // Always refetch after sign-in
   });
 };
