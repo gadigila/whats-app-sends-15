@@ -176,27 +176,25 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
           <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
             <MessageSquare className="w-8 h-8 text-white" />
           </div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              {currentStep > 0 && (
-                <button
-                  onClick={prevStep}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                  aria-label="חזרה"
-                >
-                  <ArrowRight className="w-4 h-4 text-gray-600" />
-                </button>
-              )}
-              <p className="text-sm text-gray-500">
-                {currentStep + 1}/{totalSteps}
-              </p>
+          <div className="flex items-center gap-3 mb-2">
+            {currentStep > 0 && (
+              <button
+                onClick={prevStep}
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="חזרה"
+              >
+                <ArrowRight className="w-4 h-4 text-gray-600" />
+              </button>
+            )}
+            <span className="text-sm text-gray-500 min-w-[30px]">
+              {currentStep + 1}/{totalSteps}
+            </span>
+            <div className="flex-1 bg-gray-200 rounded-full h-3">
+              <div 
+                className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
             </div>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div 
-              className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
           </div>
         </div>
         
