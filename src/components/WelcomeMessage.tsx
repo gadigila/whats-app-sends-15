@@ -1,8 +1,7 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, MessageSquare, Users, BarChart3, Clock, Sparkles } from 'lucide-react';
+import { ThreeDButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, MessageSquare, Users, BarChart3, Clock } from 'lucide-react';
 
 interface WelcomeMessageProps {
   onContinue: () => void;
@@ -60,58 +59,31 @@ const WelcomeMessage = ({ onContinue, userAnswers }: WelcomeMessageProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl mx-auto animate-scale-in">
-        <CardHeader className="text-center space-y-4">
-          <div className="flex justify-center">
-            <div className="relative">
-              <CheckCircle className="h-16 w-16 text-green-500" />
-              <Sparkles className="h-6 w-6 text-yellow-500 absolute -top-1 -right-1 animate-pulse" />
-            </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-green-50 to-white">
+      <div className="w-full max-w-lg mx-4 bg-white rounded-2xl shadow-xl p-8">
+        <div className="text-center pb-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <CheckCircle className="w-10 h-10 text-white" />
           </div>
-          <CardTitle className="text-3xl font-bold text-foreground">
-            ברוך הבא ל-reacher.app! 🎉
-          </CardTitle>
-          <p className="text-lg text-muted-foreground max-w-md mx-auto">
+          <h1 className="text-3xl font-bold text-right text-gray-900 mb-4">
             {getPersonalizedMessage()}
-          </p>
+          </h1>
           {userAnswers?.group_count_range && (
-            <Badge variant="secondary" className="text-sm">
+            <Badge variant="secondary" className="bg-green-100 text-green-700 text-sm">
               מנהל {userAnswers.group_count_range} קבוצות
             </Badge>
           )}
-        </CardHeader>
-        
-        <CardContent className="space-y-8">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-foreground mb-6">
-              היתרונות שאתה עומד לקבל:
-            </h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              {benefits.map((benefit, index) => (
-                <div 
-                  key={index}
-                  className="flex items-start space-x-3 space-x-reverse p-4 rounded-lg bg-accent/50 hover:bg-accent transition-colors animate-fade-in"
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <benefit.icon className="h-6 w-6 text-primary flex-shrink-0 mt-0.5" />
-                  <div className="text-right">
-                    <h4 className="font-medium text-foreground">{benefit.title}</h4>
-                    <p className="text-sm text-muted-foreground mt-1">{benefit.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        </div>
 
+        <div className="space-y-8">
           {userAnswers?.niches && userAnswers.niches.length > 0 && (
             <div className="text-center space-y-3">
-              <h4 className="text-lg font-medium text-foreground">
+              <h4 className="text-lg font-semibold text-gray-900">
                 מותאם במיוחד עבור:
               </h4>
               <div className="flex flex-wrap gap-2 justify-center">
                 {userAnswers.niches.map((niche, index) => (
-                  <Badge key={index} variant="outline" className="text-sm">
+                  <Badge key={index} variant="secondary" className="text-sm bg-green-100 text-green-700">
                     {niche}
                   </Badge>
                 ))}
@@ -119,23 +91,34 @@ const WelcomeMessage = ({ onContinue, userAnswers }: WelcomeMessageProps) => {
             </div>
           )}
 
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 text-center">
-            <h4 className="text-lg font-semibold text-primary mb-2">
-              הכל מוכן לשימוש! 
-            </h4>
-            <p className="text-muted-foreground mb-4">
-              עכשיו תוכל להתחיל לשלוח הודעות לכל הקבוצות שלך בקליק אחד
-            </p>
-            <Button 
-              onClick={onContinue}
-              size="lg"
-              className="min-w-[200px] animate-pulse hover:animate-none"
-            >
-              בואו נתחיל! 🚀
-            </Button>
+          <div className="space-y-6">
+            <h3 className="text-xl font-semibold text-right text-gray-900">היתרונות שאתה עומד לקבל:</h3>
+            <div className="space-y-4">
+              {benefits.map((benefit, index) => (
+                <div 
+                  key={index}
+                  className="flex items-start gap-4 text-right p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <benefit.icon className="w-6 h-6 text-green-600 mt-1 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-medium text-base text-gray-900">{benefit.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1">{benefit.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <ThreeDButton 
+            onClick={onContinue}
+            variant="primary"
+            size="lg"
+            className="w-full"
+          >
+            בואו נתחיל! 🚀
+          </ThreeDButton>
+        </div>
+      </div>
     </div>
   );
 };

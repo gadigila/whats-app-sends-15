@@ -1,11 +1,8 @@
-
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
+import { ThreeDButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useOnboardingQuiz } from '@/hooks/useOnboardingQuiz';
-import { Check } from 'lucide-react';
+import { Check, MessageSquare, ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface OnboardingQuizProps {
   onComplete: () => void;
@@ -64,7 +61,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
 
   const handleCommunitySelect = (type: string) => {
     updateAnswer('community_type', type);
-    setTimeout(nextStep, 300);
+    nextStep();
   };
 
   const handleNicheToggle = (niche: string) => {
@@ -77,7 +74,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
 
   const handleGroupCountSelect = (count: string) => {
     updateAnswer('group_count_range', count);
-    setTimeout(() => handleSubmit(count), 300);
+    handleSubmit(count);
   };
 
   const progress = ((currentStep + 1) / totalSteps) * 100;
@@ -88,21 +85,22 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 איזה סוג קהילה אתה מנהל?
               </h2>
-              <p className="text-muted-foreground">בחר אפשרות אחת</p>
+              <p className="text-gray-600 text-base">בחר אפשרות אחת</p>
             </div>
-            <div className="grid gap-3">
+            <div className="space-y-3">
               {communityTypes.map((type) => (
-                 <Button
+                <ThreeDButton
                   key={type}
-                  variant="outline"
+                  variant="secondary"
+                  size="lg"
                   onClick={() => handleCommunitySelect(type)}
-                  className="h-auto p-4 text-right justify-start hover:bg-muted hover:text-foreground animate-fade-in"
+                  className="w-full text-right"
                 >
                   {type}
-                </Button>
+                </ThreeDButton>
               ))}
             </div>
           </div>
@@ -112,41 +110,47 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 באילו נישות פועלת הקהילה שלך?
               </h2>
-              <p className="text-muted-foreground">ניתן לבחור מספר אפשרויות</p>
+              <p className="text-gray-600 text-base">ניתן לבחור מספר אפשרויות</p>
             </div>
-            <div className="grid gap-3">
+            <div className="space-y-3">
               {niches.map((niche) => (
-                <Button
+                <ThreeDButton
                   key={niche}
-                  variant={answers.niches.includes(niche) ? "default" : "outline"}
+                  variant={answers.niches.includes(niche) ? "primary" : "secondary"}
+                  size="lg"
                   onClick={() => handleNicheToggle(niche)}
-                  className="h-auto p-4 text-right justify-between hover:bg-muted hover:text-foreground animate-fade-in"
+                  className="w-full text-right flex items-center justify-between"
                 >
                   <span>{niche}</span>
                   {answers.niches.includes(niche) && (
-                    <Check className="h-4 w-4" />
+                    <Check className="h-5 w-5" />
                   )}
-                </Button>
+                </ThreeDButton>
               ))}
             </div>
-            <div className="flex gap-3 justify-between pt-4">
-              <Button
-                variant="ghost"
+            <div className="flex gap-4 pt-6">
+              <ThreeDButton
+                variant="secondary"
+                size="lg"
                 onClick={prevStep}
                 className="flex-1"
               >
+                <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
                 חזרה
-              </Button>
-              <Button
+              </ThreeDButton>
+              <ThreeDButton
+                variant="primary"
+                size="lg"
                 onClick={nextStep}
                 className="flex-1"
                 disabled={!answers.niches.length}
               >
                 המשך
-              </Button>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+              </ThreeDButton>
             </div>
           </div>
         );
@@ -155,34 +159,38 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
         return (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-foreground mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 כמה קבוצות וואטסאפ אתה מנהל כרגע?
               </h2>
-              <p className="text-muted-foreground text-sm">
-                <Badge variant="secondary">שאלה חובה</Badge>
+              <p className="text-gray-600 text-base">
+                <Badge variant="secondary" className="bg-green-100 text-green-700">שאלה חובה</Badge>
               </p>
             </div>
-            <div className="grid gap-3">
+            <div className="space-y-3">
               {groupCounts.map((count) => (
-                <Button
+                <ThreeDButton
                   key={count}
-                  variant="outline"
+                  variant="secondary"
+                  size="lg"
                   onClick={() => handleGroupCountSelect(count)}
-                  className="h-auto p-4 text-right justify-start hover:bg-muted hover:text-foreground animate-fade-in"
+                  className="w-full text-right"
                   disabled={isSubmitting}
                 >
-                  {count}
-                </Button>
+                  {isSubmitting ? 'שומר...' : count}
+                </ThreeDButton>
               ))}
             </div>
-            <div className="flex gap-3 justify-start pt-4">
-              <Button
-                variant="ghost"
+            <div className="flex gap-4 pt-6">
+              <ThreeDButton
+                variant="secondary"
+                size="lg"
                 onClick={prevStep}
                 disabled={isSubmitting}
+                className="flex-1"
               >
+                <ArrowRight className="w-4 h-4 mr-2 rotate-180" />
                 חזרה
-              </Button>
+              </ThreeDButton>
             </div>
           </div>
         );
@@ -193,36 +201,41 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md mx-auto animate-scale-in">
-        <CardHeader className="text-center">
-          <CardTitle className="text-lg text-muted-foreground">
-            שאלון התאמה אישית
-          </CardTitle>
-          <div className="space-y-2">
-            <Progress value={progress} className="h-2" />
-            <p className="text-sm text-muted-foreground">
-              שאלה {currentStep + 1} מתוך {totalSteps}
-            </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-green-50 to-white">
+      <div className="w-full max-w-md mx-4 bg-white rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <MessageSquare className="w-8 h-8 text-white" />
           </div>
-        </CardHeader>
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">בואו נכיר!</h1>
+          <p className="text-base text-gray-600 mb-6">
+            כמה שאלות קצרות שיעזרו לנו להתאים עבורכם את המערכת
+          </p>
+          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+            <div 
+              className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="text-sm text-gray-500">
+            שאלה {currentStep + 1} מתוך {totalSteps}
+          </p>
+        </div>
         
-        <CardContent>
-          {renderQuestion()}
-          
-          {canSkipCurrentStep && currentStep !== 1 && (
-            <div className="flex justify-center pt-6">
-              <Button 
-                variant="ghost" 
-                onClick={skipStep}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                דלג
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {renderQuestion()}
+        
+        {canSkipCurrentStep && currentStep !== 1 && (
+          <div className="flex justify-center pt-6">
+            <ThreeDButton 
+              variant="secondary"
+              onClick={skipStep}
+              className="text-gray-500"
+            >
+              דלג
+            </ThreeDButton>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
