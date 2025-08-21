@@ -1,5 +1,6 @@
 import React from 'react';
 import { ThreeDButton } from "@/components/ui/three-d-button";
+import { SelectionCard } from "@/components/ui/selection-card";
 import { Badge } from "@/components/ui/badge";
 import { useOnboardingQuiz } from '@/hooks/useOnboardingQuiz';
 import { Check, MessageSquare, ArrowRight, ArrowLeft } from 'lucide-react';
@@ -92,15 +93,12 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
             </div>
             <div className="space-y-3">
               {communityTypes.map((type) => (
-                <ThreeDButton
+                <SelectionCard
                   key={type}
-                  variant="neutral"
-                  size="lg"
                   onClick={() => handleCommunitySelect(type)}
-                  className="w-full text-right"
                 >
                   {type}
-                </ThreeDButton>
+                </SelectionCard>
               ))}
             </div>
           </div>
@@ -117,18 +115,17 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
             </div>
             <div className="space-y-3 flex-1 overflow-y-auto max-h-64">
               {niches.map((niche) => (
-                <ThreeDButton
+                <SelectionCard
                   key={niche}
-                  variant={answers.niches.includes(niche) ? "primary" : "neutral"}
-                  size="lg"
+                  isSelected={answers.niches.includes(niche)}
                   onClick={() => handleNicheToggle(niche)}
-                  className="w-full text-right flex items-center justify-between"
+                  className="flex items-center justify-between"
                 >
                   <span>{niche}</span>
                   {answers.niches.includes(niche) && (
-                    <Check className="h-5 w-5" />
+                    <Check className="w-5 h-5 mr-2" />
                   )}
-                </ThreeDButton>
+                </SelectionCard>
               ))}
             </div>
             <div className="flex gap-4 pt-4 mt-4">
@@ -167,16 +164,13 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
             </div>
             <div className="space-y-3">
               {groupCounts.map((count) => (
-                <ThreeDButton
+                <SelectionCard
                   key={count}
-                  variant="neutral"
-                  size="lg"
                   onClick={() => handleGroupCountSelect(count)}
-                  className="w-full text-right"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? 'שומר...' : count}
-                </ThreeDButton>
+                </SelectionCard>
               ))}
             </div>
             <div className="flex gap-4 pt-6">
@@ -207,9 +201,6 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
             <MessageSquare className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-3">בואו נכיר!</h1>
-          <p className="text-base text-gray-600 mb-6">
-            כמה שאלות קצרות שיעזרו לנו להתאים עבורכם את המערכת
-          </p>
           <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
             <div 
               className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
