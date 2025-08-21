@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 
 export interface ThreeDButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "destructive"
+  variant?: "primary" | "secondary" | "neutral" | "destructive"
   size?: "default" | "sm" | "lg"
 }
 

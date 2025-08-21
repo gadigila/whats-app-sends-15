@@ -1,5 +1,5 @@
 import React from 'react';
-import { ThreeDButton } from "@/components/ui/button";
+import { ThreeDButton } from "@/components/ui/three-d-button";
 import { Badge } from "@/components/ui/badge";
 import { useOnboardingQuiz } from '@/hooks/useOnboardingQuiz';
 import { Check, MessageSquare, ArrowRight, ArrowLeft } from 'lucide-react';
@@ -94,7 +94,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
               {communityTypes.map((type) => (
                 <ThreeDButton
                   key={type}
-                  variant="secondary"
+                  variant="neutral"
                   size="lg"
                   onClick={() => handleCommunitySelect(type)}
                   className="w-full text-right"
@@ -108,18 +108,18 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
 
       case 1:
         return (
-          <div className="space-y-6">
+          <div className="space-y-6 flex flex-col h-full">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 באילו נישות פועלת הקהילה שלך?
               </h2>
               <p className="text-gray-600 text-base">ניתן לבחור מספר אפשרויות</p>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 flex-1 overflow-y-auto max-h-64">
               {niches.map((niche) => (
                 <ThreeDButton
                   key={niche}
-                  variant={answers.niches.includes(niche) ? "primary" : "secondary"}
+                  variant={answers.niches.includes(niche) ? "primary" : "neutral"}
                   size="lg"
                   onClick={() => handleNicheToggle(niche)}
                   className="w-full text-right flex items-center justify-between"
@@ -131,9 +131,9 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                 </ThreeDButton>
               ))}
             </div>
-            <div className="flex gap-4 pt-6">
+            <div className="flex gap-4 pt-4 mt-4">
               <ThreeDButton
-                variant="secondary"
+                variant="neutral"
                 size="lg"
                 onClick={prevStep}
                 className="flex-1"
@@ -146,7 +146,6 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                 size="lg"
                 onClick={nextStep}
                 className="flex-1"
-                disabled={!answers.niches.length}
               >
                 המשך
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -170,7 +169,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
               {groupCounts.map((count) => (
                 <ThreeDButton
                   key={count}
-                  variant="secondary"
+                  variant="neutral"
                   size="lg"
                   onClick={() => handleGroupCountSelect(count)}
                   className="w-full text-right"
@@ -182,7 +181,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
             </div>
             <div className="flex gap-4 pt-6">
               <ThreeDButton
-                variant="secondary"
+                variant="neutral"
                 size="lg"
                 onClick={prevStep}
                 disabled={isSubmitting}
@@ -227,7 +226,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
         {canSkipCurrentStep && currentStep !== 1 && (
           <div className="flex justify-center pt-6">
             <ThreeDButton 
-              variant="secondary"
+              variant="neutral"
               onClick={skipStep}
               className="text-gray-500"
             >
