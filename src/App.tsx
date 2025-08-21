@@ -9,6 +9,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 // Regular imports instead of lazy loading
 import Index from "./pages/Index";
 import AuthPage from "./pages/AuthPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import Dashboard from "./pages/Dashboard";
 import WhatsAppConnect from "./pages/WhatsAppConnect";
 import MessageComposer from "./pages/MessageComposer";
@@ -29,6 +30,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <Dashboard />
