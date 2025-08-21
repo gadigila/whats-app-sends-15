@@ -12,7 +12,7 @@ const SelectionCard = React.forwardRef<HTMLButtonElement, SelectionCardProps>(
       <button
         className={cn(
           "w-full px-6 py-0 text-right transition-all duration-200 h-11",
-          "text-[15px] font-medium leading-none",
+          "text-[15px] font-medium",
           "rounded-[50.71px]",
           "border-2",
           "flex items-center justify-center",

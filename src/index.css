@@ -220,11 +220,6 @@
   .pushable:disabled:hover .shadow {
     transform: translateY(2px);
   }
-
-  /* Expand front layer when button set to full width */
-  .pushable.w-full .front {
-    width: 100%;
-  }
 }
 
 /* Welcome Message Animations */
