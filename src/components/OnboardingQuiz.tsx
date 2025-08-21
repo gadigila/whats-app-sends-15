@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useOnboardingQuiz } from '@/hooks/useOnboardingQuiz';
-import { ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 interface OnboardingQuizProps {
   onComplete: () => void;
@@ -95,11 +95,11 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
             </div>
             <div className="grid gap-3">
               {communityTypes.map((type) => (
-                <Button
+                 <Button
                   key={type}
                   variant="outline"
                   onClick={() => handleCommunitySelect(type)}
-                  className="h-auto p-4 text-right justify-start hover:bg-accent animate-fade-in"
+                  className="h-auto p-4 text-right justify-start hover:bg-muted hover:text-foreground animate-fade-in"
                 >
                   {type}
                 </Button>
@@ -123,7 +123,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                   key={niche}
                   variant={answers.niches.includes(niche) ? "default" : "outline"}
                   onClick={() => handleNicheToggle(niche)}
-                  className="h-auto p-4 text-right justify-between hover:bg-accent animate-fade-in"
+                  className="h-auto p-4 text-right justify-between hover:bg-muted hover:text-foreground animate-fade-in"
                 >
                   <span>{niche}</span>
                   {answers.niches.includes(niche) && (
@@ -138,7 +138,6 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                 onClick={prevStep}
                 className="flex-1"
               >
-                <ChevronLeft className="h-4 w-4 mr-2" />
                 חזרה
               </Button>
               <Button
@@ -147,7 +146,6 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                 disabled={!answers.niches.length}
               >
                 המשך
-                <ChevronRight className="h-4 w-4 ml-2" />
               </Button>
             </div>
           </div>
@@ -170,7 +168,7 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                   key={count}
                   variant="outline"
                   onClick={() => handleGroupCountSelect(count)}
-                  className="h-auto p-4 text-right justify-start hover:bg-accent animate-fade-in"
+                  className="h-auto p-4 text-right justify-start hover:bg-muted hover:text-foreground animate-fade-in"
                   disabled={isSubmitting}
                 >
                   {count}
@@ -183,7 +181,6 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                 onClick={prevStep}
                 disabled={isSubmitting}
               >
-                <ChevronLeft className="h-4 w-4 mr-2" />
                 חזרה
               </Button>
             </div>

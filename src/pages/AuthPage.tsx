@@ -107,7 +107,7 @@ const AuthPage = () => {
             <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
               <MessageSquare className="h-8 w-8 text-green-600" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">מתזמן וואטסאפ</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Reecher.app</h1>
             <p className="text-gray-600 mt-2">
               {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}
             </p>

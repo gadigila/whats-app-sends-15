@@ -13,8 +13,8 @@ export const useWelcomeFlow = () => {
 
   useEffect(() => {
     if (profile) {
-      // If user is not onboarded and has connected WhatsApp, show quiz
-      if (!profile.is_onboarded && profile.instance_status === 'connected') {
+      // Show quiz immediately after first sign-in if user is not onboarded
+      if (!profile.is_onboarded) {
         setShowQuiz(true);
       }
     }
