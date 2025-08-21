@@ -40,7 +40,10 @@ export const useWelcomeFlow = () => {
       });
     }
     
-    setShowWelcome(true);
+    // Add delay before showing welcome message for better UX
+    setTimeout(() => {
+      setShowWelcome(true);
+    }, 800);
   };
 
   const handleWelcomeComplete = () => {

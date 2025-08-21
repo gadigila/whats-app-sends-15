@@ -1,5 +1,5 @@
 import React from 'react';
-import { ThreeDButton } from "@/components/ui/button";
+import { ThreeDButton } from "@/components/ui/three-d-button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, MessageSquare, Users, BarChart3, Clock } from 'lucide-react';
 
@@ -59,8 +59,8 @@ const WelcomeMessage = ({ onContinue, userAnswers }: WelcomeMessageProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-green-50 to-white">
-      <div className="w-full max-w-lg mx-4 bg-white rounded-2xl shadow-xl p-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-green-50 to-white animate-fade-in">
+      <div className="w-full max-w-lg mx-4 bg-white rounded-2xl shadow-xl p-8 animate-scale-in">
         <div className="text-center pb-8">
           <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
             <CheckCircle className="w-10 h-10 text-white" />

@@ -113,20 +113,23 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
               </h2>
               <p className="text-gray-600 text-base">ניתן לבחור מספר אפשרויות</p>
             </div>
-            <div className="space-y-3 flex-1 overflow-y-auto max-h-64">
-              {niches.map((niche) => (
-                <SelectionCard
-                  key={niche}
-                  isSelected={answers.niches.includes(niche)}
-                  onClick={() => handleNicheToggle(niche)}
-                  className="flex items-center justify-between"
-                >
-                  <span>{niche}</span>
-                  {answers.niches.includes(niche) && (
-                    <Check className="w-5 h-5 mr-2" />
-                  )}
-                </SelectionCard>
-              ))}
+            <div className="relative flex-1">
+              <div className="space-y-3 overflow-y-auto max-h-64 pb-4">
+                {niches.map((niche) => (
+                  <SelectionCard
+                    key={niche}
+                    isSelected={answers.niches.includes(niche)}
+                    onClick={() => handleNicheToggle(niche)}
+                    className="flex items-center justify-between"
+                  >
+                    <span>{niche}</span>
+                    {answers.niches.includes(niche) && (
+                      <Check className="w-5 h-5 mr-2" />
+                    )}
+                  </SelectionCard>
+                ))}
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent pointer-events-none" />
             </div>
             <div className="flex justify-center pt-4 mt-4">
               <ThreeDButton
