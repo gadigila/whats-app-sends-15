@@ -217,6 +217,40 @@ const Billing = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Legal Policies Footer */}
+        <Card className="bg-gray-50">
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <h4 className="text-sm font-medium text-gray-900">מסמכים משפטיים</h4>
+              <div className="flex flex-wrap justify-center gap-4 text-xs">
+                <a 
+                  href="/terms-of-service" 
+                  className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                >
+                  תנאי שימוש • Terms of Service
+                </a>
+                <span className="text-gray-400">•</span>
+                <a 
+                  href="/privacy-policy" 
+                  className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                >
+                  מדיניות פרטיות • Privacy Policy
+                </a>
+                <span className="text-gray-400">•</span>
+                <a 
+                  href="/refund-policy" 
+                  className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                >
+                  מדיניות החזרים • Refund Policy
+                </a>
+              </div>
+              <p className="text-xs text-gray-500">
+                התשלום מעובד באמצעות Paddle • Payments processed via Paddle
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );
