@@ -577,39 +577,47 @@ const MessageComposer = () => {
                     </Popover>
                   </div>
 
-                  {/* Enhanced Time Picker */}
+                  {/* Enhanced Time Picker with Manual Input */}
                   <div className="space-y-2">
                     <Label htmlFor="time">שעה</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "h-12 w-full justify-between text-base pr-10",
-                            !scheduleTime && "text-muted-foreground"
-                          )}
-                          disabled={isUploading}
-                        >
-                          <span>{scheduleTime || "בחר שעה"}</span>
-                          <Clock className="h-5 w-5 text-gray-400" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" align="start">
-                        <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
-                          {generateTimeOptions().map((time) => (
-                            <Button
-                              key={time}
-                              variant={scheduleTime === time ? "default" : "ghost"}
-                              size="sm"
-                              className="h-8 text-sm"
-                              onClick={() => setScheduleTime(time)}
-                            >
-                              {time}
-                            </Button>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                    <div className="flex gap-2">
+                      <Input
+                        type="time"
+                        id="time"
+                        value={scheduleTime}
+                        onChange={(e) => setScheduleTime(e.target.value)}
+                        className="flex-1 h-12 text-base"
+                        disabled={isUploading}
+                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-12 w-12 flex-shrink-0"
+                            disabled={isUploading}
+                            title="בחר מרשימה מהירה"
+                          >
+                            <Clock className="h-5 w-5" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-2" align="start">
+                          <div className="grid grid-cols-4 gap-2 max-h-60 overflow-y-auto">
+                            {generateTimeOptions().map((time) => (
+                              <Button
+                                key={time}
+                                variant={scheduleTime === time ? "default" : "ghost"}
+                                size="sm"
+                                className="h-8 text-sm"
+                                onClick={() => setScheduleTime(time)}
+                              >
+                                {time}
+                              </Button>
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 </div>
                 
