@@ -7,7 +7,8 @@ const corsHeaders = {
 }
 
 interface StatusCheckRequest {
-  userId: string
+  userId?: string
+  action?: 'check_user' | 'set_all_offline' // NEW: Add action parameter
 }
 
 Deno.serve(async (req) => {
@@ -20,11 +21,99 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { userId }: StatusCheckRequest = await req.json()
+    const { userId, action }: StatusCheckRequest = await req.json()
 
+    // NEW: Handle cron job action
+    if (action === 'set_all_offline') {
+      console.log('🔄 Starting automatic presence fix for all users...')
+      
+      // Get all connected users
+      const { data: connectedUsers, error: fetchError } = await supabase
+        .from('profiles')
+        .select('id, whapi_token, instance_id')
+        .eq('instance_status', 'connected')
+        .not('whapi_token', 'is', null)
+
+      if (fetchError) {
+        console.error('❌ Error fetching users:', fetchError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch users' }),
+          { status: 500, headers: corsHeaders }
+        )
+      }
+
+      if (!connectedUsers || connectedUsers.length === 0) {
+        console.log('ℹ️ No connected users found')
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'No users to process',
+            processed: 0 
+          }),
+          { status: 200, headers: corsHeaders }
+        )
+      }
+
+      console.log(`📊 Found ${connectedUsers.length} connected users to process`)
+
+      let successCount = 0
+      let errorCount = 0
+
+      // Process each user
+      for (const user of connectedUsers) {
+        try {
+          console.log(`🔧 Setting presence to offline for user ${user.id}...`)
+          
+          const presenceResponse = await fetch(`https://gate.whapi.cloud/presences/me`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${user.whapi_token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              presence: 'offline'
+            })
+          })
+
+          if (presenceResponse.ok) {
+            console.log(`✅ Successfully set offline for user ${user.id}`)
+            successCount++
+          } else {
+            const errorText = await presenceResponse.text()
+            console.error(`❌ Failed to set offline for user ${user.id}:`, errorText)
+            errorCount++
+          }
+
+          // Small delay between users to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500))
+
+        } catch (error) {
+          console.error(`❌ Error processing user ${user.id}:`, error)
+          errorCount++
+        }
+      }
+
+      const result = {
+        success: true,
+        message: 'Presence fix completed',
+        total_users: connectedUsers.length,
+        successful: successCount,
+        errors: errorCount,
+        timestamp: new Date().toISOString()
+      }
+
+      console.log('🎯 Cron job completed:', result)
+
+      return new Response(
+        JSON.stringify(result),
+        { status: 200, headers: corsHeaders }
+      )
+    }
+
+    // EXISTING: Check single user status
     if (!userId) {
       return new Response(
-        JSON.stringify({ error: 'User ID is required' }),
+        JSON.stringify({ error: 'User ID is required for status check' }),
         { status: 400, headers: corsHeaders }
       )
     }
@@ -53,7 +142,7 @@ Deno.serve(async (req) => {
     console.log('📊 Current DB status:', profile.instance_status)
     console.log('📱 Current stored phone:', profile.phone_number || 'none')
 
-    // 🔧 FIXED: Always check /health endpoint and ensure phone is stored
+    // Check /health endpoint and ensure phone is stored
     console.log('📊 Checking /health endpoint...')
     const healthResponse = await fetch(`https://gate.whapi.cloud/health`, {
       method: 'GET',
@@ -92,7 +181,7 @@ Deno.serve(async (req) => {
     const healthData = await healthResponse.json()
     console.log('📊 Health response data:', JSON.stringify(healthData, null, 2))
 
-    // 🎯 FIXED: Extract phone number from correct location
+    // Extract phone number from correct location
     let phoneNumber = null;
     
     if (healthData?.user?.id) {
@@ -113,13 +202,13 @@ Deno.serve(async (req) => {
       console.log('📱 Cleaned phone number:', cleanPhone);
     }
 
-    // 🔧 ENHANCED: Better connection detection
+    // Better connection detection
     const isConnected = !!(
-      phoneNumber ||                        // Phone number is the strongest indicator
-      healthData?.user?.name ||             // User name indicates connection
-      healthData?.me?.name ||               // Alternative user name field
-      (healthData?.status === 'connected') || // Explicit connected status
-      (healthData?.user && Object.keys(healthData.user).length > 0) // User object exists with data
+      phoneNumber ||
+      healthData?.user?.name ||
+      healthData?.me?.name ||
+      (healthData?.status === 'connected') ||
+      (healthData?.user && Object.keys(healthData.user).length > 0)
     )
 
     if (isConnected) {
@@ -127,19 +216,15 @@ Deno.serve(async (req) => {
       
       console.log('✅ User is connected:', { phone: cleanPhone, name: userName })
       
-      // 🚀 CRUCIAL: Update database status AND phone number
+      // Update database status AND phone number
       const updateData: any = {
         instance_status: 'connected',
         updated_at: new Date().toISOString()
       }
       
-      // 🎯 ALWAYS STORE PHONE NUMBER if we have it
       if (cleanPhone) {
         updateData.phone_number = cleanPhone
         console.log('📱 Storing phone number in database:', cleanPhone)
-      } else if (!profile.phone_number) {
-        // If no phone found and none stored, log warning
-        console.log('⚠️ No phone number found in health response and none stored in DB')
       }
       
       const { error: updateError } = await supabase
@@ -157,17 +242,17 @@ Deno.serve(async (req) => {
         JSON.stringify({
           connected: true,
           status: 'connected',
-          phone: cleanPhone || profile.phone_number, // Return stored phone if current call didn't find one
+          phone: cleanPhone || profile.phone_number,
           name: userName,
           message: 'WhatsApp is connected',
-          phone_stored: !!cleanPhone, // Indicate if phone was captured this time
-          profile_data: healthData // Include for debugging
+          phone_stored: !!cleanPhone,
+          profile_data: healthData
         }),
         { status: 200, headers: corsHeaders }
       )
     }
 
-    // Not connected - profile exists but no user data
+    // Not connected
     console.log('📊 Health endpoint succeeded but no user data found - likely not connected')
 
     await supabase
@@ -183,7 +268,7 @@ Deno.serve(async (req) => {
         connected: false,
         status: 'unauthorized',
         message: 'WhatsApp not connected - no profile data',
-        profile_data: healthData // Include for debugging
+        profile_data: healthData
       }),
       { status: 200, headers: corsHeaders }
     )
