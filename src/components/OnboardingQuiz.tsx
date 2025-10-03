@@ -136,10 +136,8 @@ const OnboardingQuiz = ({ onComplete }: OnboardingQuizProps) => {
                 variant="primary"
                 size="lg"
                 onClick={nextStep}
-                className="px-8"
               >
                 המשך
-                <ArrowLeft className="w-4 h-4 mr-2" />
               </ThreeDButton>
             </div>
           </div>
