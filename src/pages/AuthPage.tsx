@@ -68,9 +68,18 @@ const AuthPage = () => {
         // Don't navigate here - let useEffect handle it after auth state updates
       } else {
         console.log('🔄 Attempting signup with:', email, name);
-        await signup(email, password, name);
-        toast({ title: "החשבון נוצר בהצלחה!" });
-        // Don't navigate here - let useEffect handle it after auth state updates
+        const result = await signup(email, password, name);
+        
+        if (result.needsEmailConfirmation) {
+          toast({ 
+            title: "בדוק את האימייל שלך",
+            description: "שלחנו לך קישור לאימות. אנא לחץ על הקישור כדי להשלים את ההרשמה.",
+          });
+          setIsSubmitting(false);
+        } else {
+          toast({ title: "החשבון נוצר בהצלחה!" });
+          // Don't navigate here - let useEffect handle it after auth state updates
+        }
       }
     } catch (error: any) {
       console.error('🔄 Auth error:', error);

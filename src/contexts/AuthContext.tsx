@@ -12,7 +12,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name: string) => Promise<void>;
+  signup: (email: string, password: string, name: string) => Promise<{ needsEmailConfirmation: boolean }>;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -138,7 +138,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       console.log('🔐 Signup successful for:', email);
-      // Don't set loading to false here - let onAuthStateChange handle it
+      
+      // Check if email confirmation is required
+      const needsEmailConfirmation = !data.session && data.user;
+      
+      if (needsEmailConfirmation) {
+        console.log('🔐 Email confirmation required');
+        setLoading(false);
+        return { needsEmailConfirmation: true };
+      }
+      
+      // Don't set loading to false here if session exists - let onAuthStateChange handle it
+      return { needsEmailConfirmation: false };
     } catch (error) {
       setLoading(false);
       throw error;
