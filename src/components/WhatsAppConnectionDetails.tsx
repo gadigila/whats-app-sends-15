@@ -28,11 +28,13 @@ const WhatsAppConnectionDetails = ({ profile }: WhatsAppConnectionDetailsProps) 
           </div>
           <div className="flex justify-between">
             <span className="text-gray-600">תוכנית:</span>
-            <span className="font-medium">{profile?.payment_plan || 'trial'}</span>
+            <span className="font-medium">
+              {profile?.payment_plan === 'trial' ? 'ניסיון' : profile?.payment_plan || 'ניסיון'}
+            </span>
           </div>
           {profile?.trial_expires_at && (
             <div className="flex justify-between">
-              <span className="text-gray-600">תוקף טריאל:</span>
+              <span className="text-gray-600">תוקף הניסיון:</span>
               <span className="font-medium">
                 {new Date(profile.trial_expires_at).toLocaleDateString('he-IL')}
               </span>

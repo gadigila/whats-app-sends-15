@@ -2,6 +2,7 @@
 import Layout from '@/components/Layout';
 import WhatsAppConnectionStatus from '@/components/WhatsAppConnectionStatus';
 import WhatsAppConnectionDetails from '@/components/WhatsAppConnectionDetails';
+import TrialUsageCard from '@/components/TrialUsageCard';
 import { useWhatsAppInstance } from '@/hooks/useWhatsAppInstance';
 
 interface Profile {
@@ -55,6 +56,8 @@ const WhatsAppConnectedView = ({
           onConfirmHardDisconnect={confirmHardDisconnect}
           isHardDisconnecting={isHardDisconnecting}
         />
+        
+        {profile?.payment_plan === 'trial' && <TrialUsageCard />}
         
         <WhatsAppConnectionDetails profile={profile} />
       </div>
