@@ -316,12 +316,23 @@ Deno.serve(async (req) => {
     console.log(`⭐ Admin groups detected: ${adminGroupsDetected}`)
     console.log(`🎯 Total admin/creator groups: ${adminGroupsDetected + creatorGroupsDetected}`)
 
-          // 💽 STEP 3: SAVE TO DATABASE (FIXED - Use UPSERT instead of delete + insert)
+    // 💽 STEP 3: SAVE TO DATABASE (FIXED - Remove duplicates then upsert)
       console.log('\n💽 === STEP 3: SAVE TO DATABASE ===')
       
       const storeStartTime = Date.now()
       
-      // ✅ FIXED: Clear existing groups FIRST and WAIT for it to complete
+      // ✅ FIXED: Remove duplicates from groupsToStore BEFORE inserting
+      const uniqueGroups = Array.from(
+        new Map(groupsToStore.map(group => [group.group_id, group])).values()
+      )
+      
+      if (uniqueGroups.length < groupsToStore.length) {
+        console.log(`⚠️ Found ${groupsToStore.length - uniqueGroups.length} duplicate groups, removing them`)
+      }
+      
+      console.log(`📊 Unique groups to store: ${uniqueGroups.length}`)
+      
+      // Clear existing groups FIRST and WAIT for it to complete
       console.log('🧹 Clearing existing groups...')
       const { error: deleteError } = await supabase
         .from('whatsapp_groups')
@@ -335,19 +346,19 @@ Deno.serve(async (req) => {
       
       console.log('✅ Existing groups cleared')
       
-      // ✅ FIXED: Use UPSERT to handle any remaining duplicates
+      // Use UPSERT to handle any remaining duplicates
       const dbBatchSize = 50
       let storedCount = 0
       
-      for (let i = 0; i < groupsToStore.length; i += dbBatchSize) {
-        const batch = groupsToStore.slice(i, i + dbBatchSize)
+      for (let i = 0; i < uniqueGroups.length; i += dbBatchSize) {
+        const batch = uniqueGroups.slice(i, i + dbBatchSize)
         
-        // ✅ FIXED: Use upsert with onConflict
+        // Use upsert with onConflict
         const { error: insertError } = await supabase
           .from('whatsapp_groups')
           .upsert(batch, {
-            onConflict: 'user_id,group_id',  // ✅ Handle duplicates
-            ignoreDuplicates: false           // ✅ Update existing records
+            onConflict: 'user_id,group_id',  // Handle duplicates
+            ignoreDuplicates: false           // Update existing records
           })
       
         if (insertError) {
@@ -362,9 +373,9 @@ Deno.serve(async (req) => {
         }
         
         storedCount += batch.length
-        console.log(`💾 Upserted batch: ${storedCount}/${groupsToStore.length}`)
+        console.log(`💾 Upserted batch: ${storedCount}/${uniqueGroups.length}`)
         
-        if (i + dbBatchSize < groupsToStore.length) {
+        if (i + dbBatchSize < uniqueGroups.length) {
           await delay(200)
         }
       }
