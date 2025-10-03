@@ -584,6 +584,7 @@ const MessageComposer = () => {
                       <Input
                         type="time"
                         id="time"
+                        dir="ltr"
                         value={scheduleTime}
                         onChange={(e) => setScheduleTime(e.target.value)}
                         className="flex-1 h-12 text-base"
