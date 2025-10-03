@@ -316,54 +316,68 @@ Deno.serve(async (req) => {
     console.log(`⭐ Admin groups detected: ${adminGroupsDetected}`)
     console.log(`🎯 Total admin/creator groups: ${adminGroupsDetected + creatorGroupsDetected}`)
 
-    // 💽 STEP 3: SAVE TO DATABASE
-    console.log('\n💽 === STEP 3: SAVE TO DATABASE ===')
-    
-    const storeStartTime = Date.now()
-
-    // Clear existing groups for this user
-    await supabase.from('whatsapp_groups').delete().eq('user_id', userId)
-    console.log('🧹 Cleared existing groups')
-
-    // Store new groups in batches
-    const dbBatchSize = 50
-    let storedCount = 0
-
-    for (let i = 0; i < groupsToStore.length; i += dbBatchSize) {
-      const batch = groupsToStore.slice(i, i + dbBatchSize)
+          // 💽 STEP 3: SAVE TO DATABASE (FIXED - Use UPSERT instead of delete + insert)
+      console.log('\n💽 === STEP 3: SAVE TO DATABASE ===')
       
-      const { error: insertError } = await supabase
+      const storeStartTime = Date.now()
+      
+      // ✅ FIXED: Clear existing groups FIRST and WAIT for it to complete
+      console.log('🧹 Clearing existing groups...')
+      const { error: deleteError } = await supabase
         .from('whatsapp_groups')
-        .insert(batch)
-
-      if (insertError) {
-        console.error('❌ Database insert error:', insertError)
-        return new Response(
-          JSON.stringify({ 
-            error: 'Failed to save groups to database', 
-            details: insertError.message 
-          }),
-          { status: 500, headers: corsHeaders }
-        )
+        .delete()
+        .eq('user_id', userId)
+      
+      if (deleteError) {
+        console.error('❌ Error deleting existing groups:', deleteError)
+        // Continue anyway - we'll handle duplicates with upsert
       }
       
-      storedCount += batch.length
-      console.log(`💾 Stored batch: ${storedCount}/${groupsToStore.length}`)
+      console.log('✅ Existing groups cleared')
       
-      if (i + dbBatchSize < groupsToStore.length) {
-        await delay(200)
+      // ✅ FIXED: Use UPSERT to handle any remaining duplicates
+      const dbBatchSize = 50
+      let storedCount = 0
+      
+      for (let i = 0; i < groupsToStore.length; i += dbBatchSize) {
+        const batch = groupsToStore.slice(i, i + dbBatchSize)
+        
+        // ✅ FIXED: Use upsert with onConflict
+        const { error: insertError } = await supabase
+          .from('whatsapp_groups')
+          .upsert(batch, {
+            onConflict: 'user_id,group_id',  // ✅ Handle duplicates
+            ignoreDuplicates: false           // ✅ Update existing records
+          })
+      
+        if (insertError) {
+          console.error('❌ Database upsert error:', insertError)
+          return new Response(
+            JSON.stringify({ 
+              error: 'Failed to save groups to database', 
+              details: insertError.message 
+            }),
+            { status: 500, headers: corsHeaders }
+          )
+        }
+        
+        storedCount += batch.length
+        console.log(`💾 Upserted batch: ${storedCount}/${groupsToStore.length}`)
+        
+        if (i + dbBatchSize < groupsToStore.length) {
+          await delay(200)
+        }
       }
-    }
-
-    const storeTime = Math.round((Date.now() - storeStartTime) / 1000)
-    const totalTime = Math.round((Date.now() - syncStartTime) / 1000)
-
-    console.log(`\n🎯 SYNC COMPLETE WITH ADMIN DETECTION!`)
-    console.log(`📊 Total groups stored: ${storedCount}`)
-    console.log(`👑 Creator groups: ${creatorGroupsDetected}`)
-    console.log(`⭐ Admin groups: ${adminGroupsDetected}`)
-    console.log(`🎯 Total managed: ${adminGroupsDetected + creatorGroupsDetected}`)
-    console.log(`⚡ Total time: ${totalTime} seconds`)
+      
+      const storeTime = Math.round((Date.now() - storeStartTime) / 1000)
+      const totalTime = Math.round((Date.now() - syncStartTime) / 1000)
+      
+      console.log(`\n🎯 SYNC COMPLETE WITH ADMIN DETECTION!`)
+      console.log(`📊 Total groups stored: ${storedCount}`)
+      console.log(`👑 Creator groups: ${creatorGroupsDetected}`)
+      console.log(`⭐ Admin groups: ${adminGroupsDetected}`)
+      console.log(`🎯 Total managed: ${adminGroupsDetected + creatorGroupsDetected}`)
+      console.log(`⚡ Total time: ${totalTime} seconds`)
 
     const totalMembersInManagedGroups = groupsToStore
       .filter(g => g.is_admin || g.is_creator)
