@@ -115,7 +115,7 @@ const AuthPage = () => {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <Logo size="xl" />
+              <Logo size="xl" variant="dark" />
             </div>
             <p className="text-gray-600 mt-2">
               {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}

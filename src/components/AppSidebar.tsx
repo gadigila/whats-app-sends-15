@@ -69,7 +69,7 @@ export function AppSidebar() {
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
           <Link to="/dashboard" className="flex items-center gap-3" onClick={handleSidebarClick}>
-            <Logo size="lg" />
+            <Logo size="md" variant="dark" />
           </Link>
         </div>
       </SidebarHeader>

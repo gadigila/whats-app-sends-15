@@ -12,7 +12,7 @@ const Index = () => {
       <header className="bg-white/80 backdrop-blur-sm border-b border-green-100 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <Logo size="lg" />
+            <Logo size="lg" variant="dark" />
           </div>
           <Link to="/auth">
             <ThreeDButton variant="secondary">
@@ -279,7 +279,7 @@ const Index = () => {
       <footer className="bg-gray-900 text-white py-12 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex items-center justify-center gap-3 mb-6">
-            <Logo size="lg" />
+            <Logo size="lg" variant="light" />
           </div>
           <p className="text-gray-400 mb-8">
             הפתרון החכם לשליחת הודעות מתוזמנות בוואטסאפ
