@@ -4,9 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button, ThreeDButton } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MessageSquare, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
+import { Logo } from '@/components/Logo';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -113,10 +114,9 @@ const AuthPage = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="p-3 bg-green-100 rounded-full w-fit mx-auto mb-4">
-              <MessageSquare className="h-8 w-8 text-green-600" />
+            <div className="flex justify-center mb-4">
+              <Logo size="xl" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Reecher.app</h1>
             <p className="text-gray-600 mt-2">
               {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}
             </p>

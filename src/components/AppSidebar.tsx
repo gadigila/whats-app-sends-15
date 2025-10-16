@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Calendar, Send, Users, BarChart3, CreditCard, LogOut } from 'lucide-react';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Logo } from '@/components/Logo';
 import {
   Sidebar,
   SidebarContent,
@@ -67,9 +68,8 @@ export function AppSidebar() {
     >
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
-          <Link to="/dashboard" className="flex items-center gap-2" onClick={handleSidebarClick}>
-            <MessageSquare className="h-8 w-8 text-green-600 flex-shrink-0" />
-            <span className="text-xl font-bold text-gray-900">WhatsApp Manager</span>
+          <Link to="/dashboard" className="flex items-center gap-3" onClick={handleSidebarClick}>
+            <Logo size="lg" />
           </Link>
         </div>
       </SidebarHeader>

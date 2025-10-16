@@ -1,8 +1,9 @@
 import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { MessageSquare, Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp } from 'lucide-react';
+import { Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
+import { Logo } from '@/components/Logo';
 
 const Index = () => {
   return (
@@ -11,10 +12,7 @@ const Index = () => {
       <header className="bg-white/80 backdrop-blur-sm border-b border-green-100 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-500 rounded-xl">
-              <MessageSquare className="h-6 w-6 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">Reecher.app</h1>
+            <Logo size="lg" />
           </div>
           <Link to="/auth">
             <ThreeDButton variant="secondary">
@@ -281,10 +279,7 @@ const Index = () => {
       <footer className="bg-gray-900 text-white py-12 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="p-2 bg-green-500 rounded-xl">
-              <MessageSquare className="h-6 w-6 text-white" />
-            </div>
-            <h3 className="text-2xl font-bold">Reecher.app</h3>
+            <Logo size="lg" />
           </div>
           <p className="text-gray-400 mb-8">
             הפתרון החכם לשליחת הודעות מתוזמנות בוואטסאפ
