@@ -40,7 +40,7 @@ const WelcomeMessage = ({ onContinue, userAnswers }: WelcomeMessageProps) => {
     if (userAnswers?.community_type) {
       switch (userAnswers.community_type) {
         case 'קבוצה עסקית':
-          return 'מושלם! reacher.app יעזור לך לנהל את התקשורת העסקית שלך ביעילות מקסימלית';
+          return 'מושלם! reecher.app יעזור לך לנהל את התקשורת העסקית שלך ביעילות מקסימלית';
         case 'קבוצת חינוך / בית ספר':
           return 'נהדר! עכשיו תוכל לתקשר עם ההורים והתלמידים שלך בצורה מסודרת ויעילה';
         case 'רשת שיווק שותפים':
@@ -55,7 +55,7 @@ const WelcomeMessage = ({ onContinue, userAnswers }: WelcomeMessageProps) => {
           return 'מעולה! עכשיו תוכל לנהל את כל הקבוצות שלך במקום אחד';
       }
     }
-    return 'ברוך הבא ל-reacher.app! המערכת שתחסוך לך זמן יקר';
+    return 'ברוך הבא ל-reecher.app! המערכת שתחסוך לך זמן יקר';
   };
 
   return (
