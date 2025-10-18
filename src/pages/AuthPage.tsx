@@ -65,7 +65,7 @@ const AuthPage = () => {
       if (isLogin) {
         console.log('🔄 Attempting login with:', email);
         await login(email, password);
-        toast({ title: "ברוך השב!" });
+        toast({ title: "התחברת בהצלחה!" });
         // Don't navigate here - let useEffect handle it after auth state updates
       } else {
         console.log('🔄 Attempting signup with:', email, name);
@@ -117,9 +117,11 @@ const AuthPage = () => {
             <div className="flex justify-center mb-4">
               <Logo size="xl" variant="dark" />
             </div>
-            <p className="text-gray-600 mt-2">
-              {isLogin ? 'ברוא השב!' : 'התחל את הניסיון החינם שלך'}
-            </p>
+            {!isLogin && (
+              <p className="text-gray-600 mt-2">
+                התחל את הניסיון החינם שלך
+              </p>
+            )}
           </div>
 
           {/* Google Sign In */}
