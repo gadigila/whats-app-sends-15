@@ -33,8 +33,7 @@ const Index = () => {
             בלחיצה אחת
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            חסוך שעות, הפץ תוכן לכולם, בבת אחת. 
-            מערכת חכמה לשליחת הודעות מתוזמנות לכל הקבוצות שלך ב-WhatsApp.
+            הפתרון למנהלי קהילות, בעלי עסקים ומדריכים. תזמון אוטומטי, סגמנטים חכמים ואנליטיקס בזמן אמת
           </p>
           <Link to="/auth">
             <ThreeDButton variant="primary" size="lg">
