@@ -126,6 +126,13 @@ const Index = () => {
                 <p className="text-gray-600">שלח מיד או תזמן לזמן מתאים - זה הכל!</p>
               </div>
             </div>
+            
+            <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200">
+              <CheckCircle className="w-12 h-12 text-green-500 flex-shrink-0" />
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">סטטוס בזמן אמת והיסטוריה מלאה של שליחות</h3>
+              </div>
+            </div>
           </div>
         </div>
       </section>
