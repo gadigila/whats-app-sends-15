@@ -1,21 +1,26 @@
-import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { Logo } from '@/components/Logo';
 
 const TermsOfService = () => {
   return (
-    <Layout>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center gap-4 mb-6">
+    <div className="min-h-screen bg-background" dir="rtl">
+      {/* Header */}
+      <header className="border-b bg-background">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+          <Logo size="md" variant="dark" />
           <Link 
-            to="/billing" 
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors"
+            to="/" 
+            className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors"
           >
             <ArrowRight className="h-4 w-4" />
-            חזרה לעמוד התשלום
+            חזרה לדף הבית
           </Link>
         </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-6 py-12 space-y-6">
 
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">תנאי שימוש</h1>
@@ -45,7 +50,7 @@ const TermsOfService = () => {
           </CardContent>
         </Card>
       </div>
-    </Layout>
+    </div>
   );
 };
 
