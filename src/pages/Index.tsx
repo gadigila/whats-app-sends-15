@@ -287,9 +287,22 @@ const Index = () => {
           <div className="flex items-center justify-center gap-3 mb-6">
             <Logo size="lg" variant="light" />
           </div>
-          <p className="text-gray-400 mb-8">
+          <p className="text-gray-400 mb-6">
             הפתרון החכם לשליחת הודעות מתוזמנות בוואטסאפ
           </p>
+          <div className="flex items-center justify-center gap-3 mb-6 text-sm">
+            <Link to="/terms-of-service" className="text-gray-400 hover:text-white transition-colors">
+              תנאי שימוש
+            </Link>
+            <span className="text-gray-600">•</span>
+            <Link to="/privacy-policy" className="text-gray-400 hover:text-white transition-colors">
+              מדיניות פרטיות
+            </Link>
+            <span className="text-gray-600">•</span>
+            <Link to="/refund-policy" className="text-gray-400 hover:text-white transition-colors">
+              מדיניות החזרים
+            </Link>
+          </div>
           <div className="text-sm text-gray-500">
             © 2024 Reecher.app - כל הזכויות שמורות
           </div>
