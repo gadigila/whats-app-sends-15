@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/hooks/use-toast';
 import { Logo } from '@/components/Logo';
+import { trackLead } from '@/lib/fbPixel';
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -70,6 +71,9 @@ const AuthPage = () => {
       } else {
         console.log('🔄 Attempting signup with:', email, name);
         const result = await signup(email, password, name);
+        
+        // Track Lead event for Facebook Pixel
+        trackLead();
         
         if (result.needsEmailConfirmation) {
           toast({ 

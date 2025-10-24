@@ -4,7 +4,8 @@ import { ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Crown, Star, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { trackInitiateCheckout } from '@/lib/fbPixel';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { usePaymentPlans } from '@/hooks/usePaymentPlans';
 
@@ -15,6 +16,13 @@ const Billing = () => {
   const { plans, currentPlan, billingPeriod, setBillingPeriod } = usePaymentPlans();
 
   const isPaid = trialStatus?.isPaid || false;
+
+  // Track InitiateCheckout when user views the billing page
+  useEffect(() => {
+    if (!trialLoading && !isPaid) {
+      trackInitiateCheckout();
+    }
+  }, [trialLoading, isPaid]);
 
   const handleUpgrade = async () => {
     setLoading(true);

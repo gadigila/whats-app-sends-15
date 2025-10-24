@@ -5,6 +5,7 @@ import OnboardingQuiz from '@/components/OnboardingQuiz';
 import WelcomeMessage from '@/components/WelcomeMessage';
 import { Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { trackCompleteRegistration } from '@/lib/fbPixel';
 
 const OnboardingPage = () => {
   const { user, loading } = useAuth();
@@ -45,6 +46,10 @@ const OnboardingPage = () => {
 
   const handleWelcomeCompleteWithNavigation = () => {
     handleWelcomeComplete();
+    
+    // Track CompleteRegistration event for Facebook Pixel
+    trackCompleteRegistration();
+    
     // Navigate to dashboard after welcome is complete
     window.location.href = '/dashboard';
   };
