@@ -30,6 +30,7 @@ const MessageComposer = () => {
   const [scheduleTime, setScheduleTime] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [successDialog, setSuccessDialog] = useState<{
     isOpen: boolean;
@@ -170,6 +171,12 @@ const MessageComposer = () => {
       setAttachedFile(file);
       setMediaUrl(publicUrl);
       
+      // Create preview URL for images
+      if (file.type.startsWith('image/')) {
+        const objectUrl = URL.createObjectURL(file);
+        setPreviewUrl(objectUrl);
+      }
+      
       toast({
         title: "קובץ הועלה בהצלחה! ✅",
         description: `${file.name} מוכן לשליחה.`,
@@ -189,6 +196,11 @@ const MessageComposer = () => {
 
   // ✅ FIXED: Enhanced file removal function
   const removeAttachedFile = async () => {
+    // Revoke preview URL to prevent memory leaks
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     // If we have a media URL, try to delete it from storage
     if (mediaUrl && attachedFile) {
       try {
@@ -215,12 +227,22 @@ const MessageComposer = () => {
     // Clear state
     setAttachedFile(null);
     setMediaUrl(null);
+    setPreviewUrl(null);
     
     toast({
       title: "קובץ הוסר",
       description: "הקובץ המצורף הוסר מההודעה.",
     });
   };
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   // ✅ FIXED: Updated send now function with proper media URL
   const handleSendNow = () => {
@@ -275,6 +297,10 @@ const MessageComposer = () => {
         setSelectedSegmentIds([]);
         setAttachedFile(null);
         setMediaUrl(null);
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
       },
       onError: (error) => {
         console.error('❌ Send message error:', error);
@@ -352,6 +378,10 @@ const MessageComposer = () => {
         setScheduleTime('');
         setAttachedFile(null);
         setMediaUrl(null);
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
       },
       onError: (error) => {
         console.error('❌ Schedule message error:', error);
@@ -478,8 +508,16 @@ const MessageComposer = () => {
                     
                     {attachedFile && (
                       <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
-                        {getFileIcon(attachedFile)}
-                        <div className="flex flex-col">
+                        {previewUrl ? (
+                          <img 
+                            src={previewUrl} 
+                            alt="Preview" 
+                            className="h-12 w-12 object-cover rounded"
+                          />
+                        ) : (
+                          getFileIcon(attachedFile)
+                        )}
+                        <div className="flex flex-col flex-1">
                           <span className="text-sm text-green-700 font-medium">
                             {attachedFile.name}
                           </span>
@@ -646,11 +684,17 @@ const MessageComposer = () => {
               <CardContent>
                 <div className="bg-green-50 p-4 rounded-lg">
                   <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
-                      {message || "ההודעה שלך תופיע כאן..."}
-                    </p>
-                    {attachedFile && (
-                      <div className="mt-2 p-2 bg-gray-50 rounded flex items-center gap-2">
+                    {attachedFile && previewUrl && (
+                      <div className="mb-2">
+                        <img 
+                          src={previewUrl} 
+                          alt="Preview" 
+                          className="w-full max-h-48 object-contain rounded-lg border border-gray-200"
+                        />
+                      </div>
+                    )}
+                    {attachedFile && !previewUrl && (
+                      <div className="mb-2 p-2 bg-gray-50 rounded flex items-center gap-2">
                         {getFileIcon(attachedFile)}
                         <div className="flex flex-col">
                           <span className="text-xs text-gray-600 font-medium">
@@ -662,6 +706,9 @@ const MessageComposer = () => {
                         </div>
                       </div>
                     )}
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                      {message || "ההודעה שלך תופיע כאן..."}
+                    </p>
                   </div>
                 </div>
               </CardContent>
