@@ -304,7 +304,7 @@ const Index = () => {
             </Link>
           </div>
           <div className="text-sm text-gray-500">
-            © 2024 Reecher.app - כל הזכויות שמורות
+            © 2025 Reecher.app - כל הזכויות שמורות
           </div>
         </div>
       </footer>
