@@ -26,7 +26,7 @@ const Index = () => {
       <section className="pt-20 pb-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-            שלח הודעה לכל
+            לשלוח הודעה לכל
             <br />
             <span className="text-green-500">קבוצות הוואטסאפ שלך</span>
             <br />
@@ -58,7 +58,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-3">כל הקבוצות בבת אחת</h3>
                 <p className="text-gray-600">
-                  שלח הודעה לכל קבוצות הוואטסאפ שלך במקום לשלוח אחת אחת
+                  לשלוח הודעה לכל קבוצות הוואטסאפ שלך במקום לשלוח אחת אחת
                 </p>
               </CardContent>
             </Card>
