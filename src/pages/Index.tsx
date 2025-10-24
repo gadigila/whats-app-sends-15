@@ -58,7 +58,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-3">כל הקבוצות בבת אחת</h3>
                 <p className="text-gray-600">
-                  לשלוח הודעה לכל קבוצות הוואטסאפ שלך במקום לשלוח אחת אחת
+                  בלי לפספס אף קבוצה.
                 </p>
               </CardContent>
             </Card>
@@ -70,7 +70,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-3">תזמון מתקדם</h3>
                 <p className="text-gray-600">
-                  תזמן הודעות מראש ותן למערכת לשלוח בזמן המתאים
+                  קובעים פעם אחת והמערכת שולחת בזמן.
                 </p>
               </CardContent>
             </Card>
@@ -82,7 +82,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-3">פשוט וקל</h3>
                 <p className="text-gray-600">
-                  ממשק פשוט וידידותי שכל אחד יכול להשתמש בו
+                  נכנסים ושולחים מיד.
                 </p>
               </CardContent>
             </Card>
