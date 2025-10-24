@@ -24,12 +24,12 @@ const Index = () => {
       </header>
 
       {/* Hero Section */}
-      <section className="pt-20 pb-16 px-4">
+      <section className="pt-12 pb-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <img 
             src={heroPhone} 
             alt="Reecher trophy icon" 
-            className="w-40 h-40 mx-auto mb-8"
+            className="w-40 h-40 mx-auto mb-7"
           />
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
             לשלוח הודעה לכל
