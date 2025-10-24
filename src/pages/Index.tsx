@@ -4,6 +4,7 @@ import { Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp } f
 import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
 import { Logo } from '@/components/Logo';
+import heroPhone from '@/assets/hero-phone.png';
 
 const Index = () => {
   return (
@@ -25,6 +26,11 @@ const Index = () => {
       {/* Hero Section */}
       <section className="pt-20 pb-16 px-4">
         <div className="max-w-4xl mx-auto text-center">
+          <img 
+            src={heroPhone} 
+            alt="Reecher trophy icon" 
+            className="w-40 h-40 mx-auto mb-8"
+          />
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
             לשלוח הודעה לכל
             <br />
