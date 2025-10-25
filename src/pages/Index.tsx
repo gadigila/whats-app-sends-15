@@ -1,6 +1,7 @@
 import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp } from 'lucide-react';
+import { Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp, Target, FileText, BarChart3, Upload, FolderTree } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
 import { Logo } from '@/components/Logo';
@@ -43,10 +44,13 @@ const Index = () => {
           </p>
           <Link to="/auth">
             <ThreeDButton variant="primary" size="lg">
-              התחל עכשיו בחינם
+              התחילו עכשיו בחינם
               <ArrowLeft className="mr-2 h-5 w-5" />
             </ThreeDButton>
           </Link>
+          <p className="text-sm text-gray-500 mt-4">
+            3 ימי ניסיון חינם · בלי כרטיס אשראי
+          </p>
         </div>
       </section>
 
@@ -60,11 +64,23 @@ const Index = () => {
             <Card className="border-green-100 hover:shadow-lg transition-shadow">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">פשוט וקל</h3>
+                <p className="text-gray-600">
+                  נכנסים ושולחים כבר בפעם הראשונה. בלי סיבוכים.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Users className="h-8 w-8 text-green-500" />
                 </div>
                 <h3 className="text-xl font-semibold mb-3">כל הקבוצות בבת אחת</h3>
                 <p className="text-gray-600">
-                  בלי לפספס אף קבוצה.
+                  בלי לפספס אף קבוצה. כולם מקבלים את ההודעה.
                 </p>
               </CardContent>
             </Card>
@@ -76,19 +92,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-3">תזמון מתקדם</h3>
                 <p className="text-gray-600">
-                  קובעים פעם אחת והמערכת שולחת בזמן.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
-              <CardContent className="p-8 text-center">
-                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">פשוט וקל</h3>
-                <p className="text-gray-600">
-                  נכנסים ושולחים מיד.
+                  קובעים פעם אחת וההודעות יוצאות בזמן הנכון.
                 </p>
               </CardContent>
             </Card>
@@ -108,8 +112,8 @@ const Index = () => {
                 1
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">התחבר לוואטסאפ</h3>
-                <p className="text-gray-600">סרוק QR קוד פשוט כדי לחבר את הוואטסאפ שלך</p>
+                <h3 className="text-xl font-semibold mb-2">מתחברים</h3>
+                <p className="text-gray-600">סורקים QR חד פעמי.</p>
               </div>
             </div>
             
@@ -118,8 +122,8 @@ const Index = () => {
                 2
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">כתוב הודעה</h3>
-                <p className="text-gray-600">כתוב הודעה, צרף קבצים ובחר לאילו קבוצות לשלוח</p>
+                <h3 className="text-xl font-semibold mb-2">מכינים</h3>
+                <p className="text-gray-600">כותבים הודעה, מצרפים קבצים ובוחרים קבוצות.</p>
               </div>
             </div>
             
@@ -128,116 +132,139 @@ const Index = () => {
                 3
               </div>
               <div>
-                <h3 className="text-xl font-semibold mb-2">שלח או תזמן</h3>
-                <p className="text-gray-600">שלח מיד או תזמן לזמן מתאים - זה הכל!</p>
+                <h3 className="text-xl font-semibold mb-2">שולחים או מתזמנים</h3>
+                <p className="text-gray-600">עכשיו, יומי או שבועי.</p>
               </div>
             </div>
             
             <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200">
               <CheckCircle className="w-12 h-12 text-green-500 flex-shrink-0" />
               <div>
-                <h3 className="text-xl font-semibold text-gray-900">סטטוס בזמן אמת והיסטוריה מלאה של שליחות</h3>
+                <p className="text-lg text-gray-900">רואים סטטוס בזמן אמת והיסטוריה מלאה של כל השליחות.</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Why Reecher Section */}
+      {/* מה מקבלים במערכת Section */}
       <section className="py-16 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              למה Reecher?
+              מה מקבלים במערכת
             </h2>
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto">
-              הפתרון המתקדם ביותר לשליחת הודעות קבוצתיות בוואטסאפ
-            </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                <Zap className="h-8 w-8 text-green-500" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">מהירות</h3>
-              <p className="text-gray-600 text-sm">
-                שלח לעשרות קבוצות בשניות במקום שעות
-              </p>
-            </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8">
+                <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
+                  <Target className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">סגמנטים חכמים</h3>
+                <p className="text-gray-600">
+                  יוצרים סופר קבוצה שמרכזת קבוצות, מארגנים לקטגוריות ושולחים מדויק לכל פלח.
+                </p>
+              </CardContent>
+            </Card>
 
-            <div className="text-center">
-              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                <Shield className="h-8 w-8 text-green-500" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">אמינות</h3>
-              <p className="text-gray-600 text-sm">
-                חיבור יציב לוואטסאפ ללא הפרעות
-              </p>
-            </div>
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8">
+                <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
+                  <FileText className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">תבניות וטיוטות</h3>
+                <p className="text-gray-600">
+                  שומרים הודעות כתבניות ומשלימים טיוטות מתי שנוח. הכל מסודר במקום אחד.
+                </p>
+              </CardContent>
+            </Card>
 
-            <div className="text-center">
-              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                <TrendingUp className="h-8 w-8 text-green-500" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">יעילות</h3>
-              <p className="text-gray-600 text-sm">
-                חסוך עד 90% מהזמן בשליחת הודעות
-              </p>
-            </div>
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8">
+                <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
+                  <BarChart3 className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">אנליטיקס ברור</h3>
+                <p className="text-gray-600">
+                  דשבורד בזמן אמת שמראה מה נשלח, למי ומתי. נשארים בשליטה מלאה.
+                </p>
+              </CardContent>
+            </Card>
 
-            <div className="text-center">
-              <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                <Users className="h-8 w-8 text-green-500" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">נוחות</h3>
-              <p className="text-gray-600 text-sm">
-                ממשק פשוט שכל אחד יכול להשתמש בו
-              </p>
-            </div>
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8">
+                <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
+                  <Upload className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">קבצים ותמונות</h3>
+                <p className="text-gray-600">
+                  מצרפים בקלות ומפיצים יחד עם ההודעה לכל הקבוצות.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8">
+                <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
+                  <FolderTree className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">ניהול קבוצות וקטגוריות</h3>
+                <p className="text-gray-600">
+                  מסדרים קבוצות לפי נושאים ומנהלים שליחה מרוכזת לכל קטגוריה.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* למי זה מתאים Section */}
+      <section className="py-16 px-4 bg-gray-50">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              למי זה מתאים
+            </h2>
           </div>
 
-          {/* Additional Benefits */}
-          <div className="grid md:grid-cols-2 gap-12 mt-16">
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                🚀 חסוך זמן יקר
-              </h3>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                  <span className="text-gray-700">שלח לכל הקבוצות בלחיצה אחת</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                  <span className="text-gray-700">תזמן הודעות מראש</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                  <span className="text-gray-700">העלה קבצים ותמונות</span>
-                </li>
-              </ul>
-            </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <Users className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">מנהלי קהילות</h3>
+                <p className="text-gray-600">
+                  עדכונים ושגרות קבועות לכולם בזמן.
+                </p>
+              </CardContent>
+            </Card>
 
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                📊 שליטה מלאה
-              </h3>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                  <span className="text-gray-700">עקוב אחר סטטוס השליחה</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                  <span className="text-gray-700">נהל קבוצות בקטגוריות</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-1 flex-shrink-0" />
-                  <span className="text-gray-700">היסטוריה מלאה של הודעות</span>
-                </li>
-              </ul>
-            </div>
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <TrendingUp className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">בעלי עסקים</h3>
+                <p className="text-gray-600">
+                  מבצעים, תוכן ושירות לקבוצות רבות בלחיצה.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <Shield className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">מדריכים</h3>
+                <p className="text-gray-600">
+                  שליחת חומרי לימוד ותזכורות מתוזמנות.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -247,43 +274,213 @@ const Index = () => {
 
       {/* Pricing Preview */}
       <section className="py-16 px-4 bg-white">
-        <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-3xl font-bold mb-6 text-gray-900">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
             מחיר פשוט ושקוף
           </h2>
-          <Card className="border-green-200 bg-green-50/50">
-            <CardContent className="p-8">
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <Star className="h-6 w-6 text-green-500" />
-                <span className="text-lg font-semibold text-green-600">פופולרי</span>
+          
+          <div className="grid md:grid-cols-2 gap-8">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8 text-center">
+                <h3 className="text-2xl font-bold mb-2">חודשי</h3>
+                <div className="text-4xl font-bold text-gray-900 mb-6">₪99</div>
+                <div className="space-y-3 text-right mb-8">
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>הודעות ללא הגבלה</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>תזמון מתקדם</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>קבוצות ללא הגבלה</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>תמיכה מהירה</span>
+                  </p>
+                </div>
+                <Link to="/auth">
+                  <ThreeDButton variant="primary" className="w-full" size="lg">
+                    התחילו עכשיו
+                  </ThreeDButton>
+                </Link>
+                <p className="text-sm text-gray-500 mt-4">מבטלים בכל רגע</p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-200 bg-green-50/50 hover:shadow-lg transition-shadow relative">
+              <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                <div className="flex items-center gap-2 bg-green-500 text-white px-4 py-1 rounded-full">
+                  <Star className="h-4 w-4" />
+                  <span className="text-sm font-semibold">פופולרי</span>
+                </div>
               </div>
-              <div className="text-4xl font-bold text-gray-900 mb-2">₪99</div>
-              <p className="text-gray-600 mb-6">לחודש - ללא הגבלה</p>
-              <ul className="space-y-3 text-right mb-8">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>הודעות ללא הגבלה</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>תזמון מתקדם</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>קבוצות ללא הגבלה</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <span>תמיכה מלאה</span>
-                </li>
-              </ul>
-              <Link to="/auth">
-                <ThreeDButton variant="primary" className="w-full" size="lg">
-                  התחל עכשיו
-                </ThreeDButton>
-              </Link>
-            </CardContent>
-          </Card>
+              <CardContent className="p-8 text-center">
+                <h3 className="text-2xl font-bold mb-2">שנתי</h3>
+                <div className="text-4xl font-bold text-gray-900 mb-2">₪999</div>
+                <p className="text-sm text-gray-500 line-through mb-4">₪1,188</p>
+                <div className="space-y-3 text-right mb-8">
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>הודעות ללא הגבלה</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>תזמון מתקדם</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>קבוצות ללא הגבלה</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>תמיכה מהירה</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span className="font-semibold text-green-700">חיסכון של 17% בתשלום שנתי</span>
+                  </p>
+                </div>
+                <Link to="/auth">
+                  <ThreeDButton variant="primary" className="w-full" size="lg">
+                    התחילו עכשיו
+                  </ThreeDButton>
+                </Link>
+                <p className="text-sm text-gray-500 mt-4">מבטלים בכל רגע</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-16 px-4 bg-gray-50">
+        <div className="max-w-3xl mx-auto">
+          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
+            שאלות נפוצות
+          </h2>
+          
+          <Accordion type="single" collapsible className="w-full space-y-4">
+            <AccordionItem value="item-1" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">זה בטוח?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                כן. עובד עם WhatsApp Web והמידע נשמר בצורה מאובטחת.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-2" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">יש הגבלת קבוצות?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                לא. אפשר להוסיף כמה שצריך.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-3" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">אפשר לצרף קבצים ותמונות?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                כן. מצרפים כמו בהודעה רגילה.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-4" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">יש ניסיון חינם?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                כן. 3 ימים בלי כרטיס אשראי.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-5" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">אפשר לראות סטטוס שליחה?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                כן. יש סטטוס בזמן אמת והיסטוריה מלאה.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-6" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">מה קורה אם יש לי קבוצות חדשות?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                פשוט מסנכרנים את הקבוצות החדשות בקלות. הן מופיעות אוטומטית.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-7" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">אפשר להשתמש מהפלאפון?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                כן. אחרי החיבור הראשוני אפשר לשלוח מכל מכשיר, מכל מקום בעולם.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-8" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">מה ההבדל מלשלוח ידנית?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                חוסכים זמן, נשארים מסודרים ולא שוכחים אף קבוצה.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-9" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">אפשר לערוך הודעה שכבר תוזמנה?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                כן. עד לרגע השליחה אפשר לשנות הכל.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-10" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">כמה זמן לוקח להתחיל?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                פחות מ-3 דקות. סורקים QR ומתחילים לשלוח.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="item-11" className="bg-white rounded-lg px-6 border-none">
+              <AccordionTrigger className="text-right hover:no-underline">
+                <span className="font-semibold">אפשר לבטל מתי שרוצים?</span>
+              </AccordionTrigger>
+              <AccordionContent className="text-right text-gray-600">
+                כן. מבטלים בכל רגע.
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-2xl mx-auto text-center">
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            מוכנים לחסוך זמן ולהישאר מסודרים?
+          </h2>
+          <p className="text-xl text-gray-600 mb-8">
+            התחילו בחינם ותראו תוצאות כבר היום.
+          </p>
+          <Link to="/auth">
+            <ThreeDButton variant="primary" size="lg">
+              התחילו עכשיו בחינם
+              <ArrowLeft className="mr-2 h-5 w-5" />
+            </ThreeDButton>
+          </Link>
         </div>
       </section>
 
