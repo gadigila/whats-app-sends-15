@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, Send, Upload, Image, FileText, X, Loader2, CalendarDays, Save, Sparkles, Wand2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Send, Upload, Image, FileText, X, Loader2, CalendarDays, Save, Sparkles, Wand2, ZoomIn } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
@@ -42,6 +43,7 @@ const MessageComposer = () => {
   
   // AI generation states
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   
   const { trialStatus, isLoading } = useTrialStatus();
   const { groups } = useWhatsAppGroups();
@@ -876,7 +878,18 @@ const MessageComposer = () => {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>תצוגה מקדימה</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>תצוגה מקדימה</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsPreviewExpanded(true)}
+                    className="h-8 w-8"
+                    title="הגדל תצוגה"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="bg-green-50 p-4 rounded-lg">
@@ -910,6 +923,51 @@ const MessageComposer = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Expanded Preview Dialog */}
+            <Dialog open={isPreviewExpanded} onOpenChange={setIsPreviewExpanded}>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>תצוגה מלאה</DialogTitle>
+                </DialogHeader>
+                
+                <div className="bg-green-50 p-6 rounded-lg">
+                  <div className="bg-white p-4 rounded-lg shadow-sm space-y-3">
+                    {attachedFile && previewUrl && (
+                      <div className="mb-3">
+                        <img 
+                          src={previewUrl} 
+                          alt="Preview" 
+                          className="w-full max-h-96 object-contain rounded-lg border border-gray-200"
+                        />
+                      </div>
+                    )}
+                    {attachedFile && !previewUrl && (
+                      <div className="mb-3 p-3 bg-gray-50 rounded flex items-center gap-2">
+                        {getFileIcon(attachedFile)}
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-600 font-medium">
+                            {attachedFile.name}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {formatFileSize(attachedFile.size)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-base text-gray-800 whitespace-pre-wrap break-words">
+                      {message || "ההודעה שלך תופיע כאן..."}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end">
+                  <Button onClick={() => setIsPreviewExpanded(false)}>
+                    סגור
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
 
             <Card>
               <CardHeader>
