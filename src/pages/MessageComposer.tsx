@@ -961,7 +961,7 @@ const MessageComposer = () => {
                         </div>
                       </div>
                     )}
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap break-words line-clamp-6">
                       {message || "ההודעה שלך תופיע כאן..."}
                     </p>
                   </div>
