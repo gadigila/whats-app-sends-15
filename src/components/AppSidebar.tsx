@@ -2,7 +2,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Calendar, Send, Users, BarChart3, CreditCard, LogOut } from 'lucide-react';
+import { MessageSquare, Calendar, Send, Users, BarChart3, CreditCard, LogOut, FileText } from 'lucide-react';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Logo } from '@/components/Logo';
@@ -24,6 +24,7 @@ import {
 const navigation = [
   { name: 'לוח בקרה', href: '/dashboard', icon: BarChart3 },
   { name: 'כתיבת הודעה', href: '/compose', icon: MessageSquare },
+  { name: 'הודעות טיוטה', href: '/drafts', icon: FileText },
   { name: 'הודעות מתוזמנות', href: '/scheduled', icon: Calendar },
   { name: 'הודעות שנשלחו', href: '/sent', icon: Send },
   { name: 'קבוצות', href: '/segments', icon: Users },

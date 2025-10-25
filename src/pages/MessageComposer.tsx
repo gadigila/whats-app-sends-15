@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, Send, Upload, Image, FileText, X, Loader2, CalendarDays } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Send, Upload, Image, FileText, X, Loader2, CalendarDays, Save } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from '@/hooks/use-toast';
@@ -14,12 +14,14 @@ import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useWhatsAppGroups } from '@/hooks/useWhatsAppGroups';
 import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
 import { useSegments } from '@/hooks/useSegments';
+import { useDrafts } from '@/hooks/useDrafts';
 import LockedFeature from '@/components/LockedFeature';
 import SuccessDialog from '@/components/SuccessDialog';
 import MessageRecipientsSelector from '@/components/MessageRecipientsSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 const MessageComposer = () => {
   const location = useLocation();
@@ -32,6 +34,7 @@ const MessageComposer = () => {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [successDialog, setSuccessDialog] = useState<{
     isOpen: boolean;
     type: 'sent' | 'scheduled';
@@ -41,11 +44,51 @@ const MessageComposer = () => {
   const { groups } = useWhatsAppGroups();
   const { segments } = useSegments();
   const { sendImmediateMessage, scheduleMessage } = useWhatsAppMessages();
+  const { saveDraft, updateDraft, deleteDraft } = useDrafts();
+  
+  // Load draft if editing
+  useEffect(() => {
+    const loadDraft = async () => {
+      const draftIdFromState = location.state?.draftId;
+      if (draftIdFromState) {
+        setDraftId(draftIdFromState);
+        
+        // Fetch draft data
+        const { data: draft, error } = await supabase
+          .from('scheduled_messages')
+          .select('*')
+          .eq('id', draftIdFromState)
+          .eq('is_draft', true)
+          .single();
+        
+        if (error || !draft) {
+          toast({
+            title: "שגיאה בטעינת טיוטה",
+            description: "לא הצלחנו לטעון את הטיוטה.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Populate form with draft data
+        setMessage(draft.message);
+        setSelectedGroupIds(draft.group_ids || []);
+        setMediaUrl(draft.media_url);
+        
+        toast({
+          title: "טיוטה נטענה",
+          description: "המשך לערוך את ההודעה.",
+        });
+      }
+    };
+    
+    loadDraft();
+  }, [location.state]);
   
   // Auto-select segment from navigation state
   useEffect(() => {
     const selectedSegmentId = location.state?.selectedSegmentId;
-    if (selectedSegmentId && segments.length > 0) {
+    if (selectedSegmentId && segments.length > 0 && !draftId) {
       const segment = segments.find(s => s.id === selectedSegmentId);
       if (segment && !selectedSegmentIds.includes(selectedSegmentId)) {
         setSelectedSegmentIds([selectedSegmentId]);
@@ -55,7 +98,7 @@ const MessageComposer = () => {
         });
       }
     }
-  }, [location.state, segments, selectedSegmentIds]);
+  }, [location.state, segments, selectedSegmentIds, draftId]);
   
   // Check if user has access to features
   const hasAccess = !isLoading && trialStatus && (!trialStatus.isExpired || trialStatus.isPaid);
@@ -289,7 +332,12 @@ const MessageComposer = () => {
       message,
       mediaUrl: mediaUrl // ✅ Use the Supabase public URL
     }, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // If editing a draft, delete it after sending
+        if (draftId) {
+          await supabase.from('scheduled_messages').delete().eq('id', draftId);
+        }
+        
         setSuccessDialog({ isOpen: true, type: 'sent' });
         // Clear form
         setMessage('');
@@ -297,6 +345,7 @@ const MessageComposer = () => {
         setSelectedSegmentIds([]);
         setAttachedFile(null);
         setMediaUrl(null);
+        setDraftId(null);
         if (previewUrl) {
           URL.revokeObjectURL(previewUrl);
           setPreviewUrl(null);
@@ -368,7 +417,12 @@ const MessageComposer = () => {
       mediaUrl: mediaUrl, // ✅ Use the Supabase public URL
       sendAt
     }, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // If editing a draft, delete it after scheduling
+        if (draftId) {
+          await supabase.from('scheduled_messages').delete().eq('id', draftId);
+        }
+        
         setSuccessDialog({ isOpen: true, type: 'scheduled' });
         // Clear form
         setMessage('');
@@ -378,6 +432,7 @@ const MessageComposer = () => {
         setScheduleTime('');
         setAttachedFile(null);
         setMediaUrl(null);
+        setDraftId(null);
         if (previewUrl) {
           URL.revokeObjectURL(previewUrl);
           setPreviewUrl(null);
@@ -421,6 +476,47 @@ const MessageComposer = () => {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  // Get group names for draft
+  const getSelectedGroupNames = () => {
+    const allGroupIds = getAllSelectedGroupIds();
+    return groups
+      .filter(g => allGroupIds.includes(g.group_id))
+      .map(g => g.name);
+  };
+
+  // Handle save draft
+  const handleSaveDraft = () => {
+    if (!hasAccess) return;
+    
+    if (!message.trim()) {
+      toast({
+        title: "הודעה ריקה",
+        description: "אנא כתוב משהו לפני שמירה כטיוטה.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const allGroupIds = getAllSelectedGroupIds();
+    const groupNames = getSelectedGroupNames();
+
+    const draftData = {
+      message,
+      groupIds: allGroupIds,
+      groupNames,
+      mediaUrl: mediaUrl || undefined,
+      totalGroups: allGroupIds.length
+    };
+
+    if (draftId) {
+      // Update existing draft
+      updateDraft.mutate({ id: draftId, data: draftData });
+    } else {
+      // Save new draft
+      saveDraft.mutate(draftData);
+    }
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -455,7 +551,14 @@ const MessageComposer = () => {
     <Layout>
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">כתיבת הודעה</h1>
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">כתיבת הודעה</h1>
+            {draftId && (
+              <Badge variant="secondary" className="text-sm">
+                עורך טיוטה
+              </Badge>
+            )}
+          </div>
           <p className="text-gray-600">צור ושלח הודעות לקבוצות הוואטסאפ שלך</p>
         </div>
 
@@ -758,6 +861,17 @@ const MessageComposer = () => {
                     </>
                   )}
                 </ThreeDButton>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                  onClick={handleSaveDraft}
+                  disabled={saveDraft.isPending || updateDraft.isPending || isUploading}
+                >
+                  <Save className="h-4 w-4 ml-2" />
+                  {draftId ? 'עדכן טיוטה' : 'שמור כטיוטה'}
+                </Button>
               </CardContent>
             </Card>
 

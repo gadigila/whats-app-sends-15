@@ -13,6 +13,7 @@ import OnboardingPage from "./pages/OnboardingPage";
 import Dashboard from "./pages/Dashboard";
 import WhatsAppConnect from "./pages/WhatsAppConnect";
 import MessageComposer from "./pages/MessageComposer";
+import Drafts from "./pages/Drafts";
 import ScheduledMessages from "./pages/ScheduledMessages";
 import SentMessages from "./pages/SentMessages";
 import Segments from "./pages/Segments";
@@ -47,6 +48,11 @@ const App = () => (
           <Route path="/compose" element={
             <ProtectedRoute>
               <MessageComposer />
+            </ProtectedRoute>
+          } />
+          <Route path="/drafts" element={
+            <ProtectedRoute>
+              <Drafts />
             </ProtectedRoute>
           } />
           <Route path="/scheduled" element={
