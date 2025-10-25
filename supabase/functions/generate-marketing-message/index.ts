@@ -25,7 +25,15 @@ serve(async (req) => {
     let userPrompt = '';
     
     if (type === 'improve') {
-      userPrompt = `שפר את ההודעה השיווקית הבאה לפי העקרונות:\n\n"${currentMessage}"`;
+      // Extract URLs from the message to explicitly preserve them
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const urls = currentMessage?.match(urlRegex);
+      
+      userPrompt = `שפר את ההודעה השיווקית הבאה לפי העקרונות. אם יש קישורים - שמור אותם בדיוק:\n\n"${currentMessage}"`;
+      
+      if (urls && urls.length > 0) {
+        userPrompt += `\n\nחשוב: שמור את הקישורים הבאים בדיוק כמו שהם:\n${urls.join('\n')}`;
+      }
       
       if (productName) userPrompt += `\n\nשם המוצר: ${productName}`;
       if (rating) userPrompt += `\nדירוג: ${rating}`;
@@ -39,6 +47,15 @@ serve(async (req) => {
         if (productName) userPrompt += `\n\nשם המוצר: ${productName}`;
         if (rating) userPrompt += `\nדירוג: ${rating}`;
         if (orders) userPrompt += `\nכמות הזמנות: ${orders}`;
+        
+        // If there's a current message with URLs, preserve them
+        if (currentMessage) {
+          const urlRegex = /(https?:\/\/[^\s]+)/g;
+          const urls = currentMessage.match(urlRegex);
+          if (urls && urls.length > 0) {
+            userPrompt += `\n\nשלב את הקישורים הבאים בהודעה:\n${urls.join('\n')}`;
+          }
+        }
       }
     }
 
@@ -62,7 +79,14 @@ serve(async (req) => {
 - התיאור צריך להיות בין 2-4 משפטים (לא יותר)
 - התמקד בערך למשתמש, לא בתכונות טכניות
 - אל תשתמש באמוג'י אלא אם זה ממש מתאים
-- הקפד על איזון בין משיכה רגשית לאמינות`;
+- הקפד על איזון בין משיכה רגשית לאמינות
+
+קריטי - פורמט התשובה:
+- החזר רק את הטקסט השיווקי הסופי בלבד
+- אין להוסיף הסברים, אפשרויות מרובות, או הערות
+- אין להוסיף "אפשרות 1", "דוגמה", "הנה הטקסט" וכדומה
+- רק את ההודעה השיווקית עצמה - לא פחות, לא יותר
+- אם יש קישור (URL) בהודעה המקורית - שמור אותו בדיוק כמו שהוא`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -105,7 +129,31 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    const generatedMessage = data.choices?.[0]?.message?.content || "";
+    let generatedMessage = data.choices?.[0]?.message?.content || "";
+    
+    // Remove common explanation patterns (safety net)
+    generatedMessage = generatedMessage
+      .replace(/^הנה ההודעה המשופרת:?\s*/i, '')
+      .replace(/^הודעה משופרת:?\s*/i, '')
+      .replace(/^אפשרות \d+:?\s*/gm, '')
+      .replace(/^\*\*אפשרות \d+:.*?\*\*\s*/gm, '')
+      .replace(/^דוגמת איכות.*$/gm, '')
+      .replace(/^\*{1,2}.*?למה התאים.*?\*{1,2}$/gm, '')
+      .trim();
+
+    // If multiple paragraphs, take only the first substantive one (the actual message)
+    const paragraphs = generatedMessage.split('\n\n').filter(p => p.trim().length > 0);
+    if (paragraphs.length > 1) {
+      // Find the first paragraph that doesn't look like a meta-explanation
+      const actualMessage = paragraphs.find(p => 
+        !p.includes('למה') && 
+        !p.includes('הסבר') && 
+        !p.includes('עקרונות') &&
+        !p.startsWith('*') &&
+        p.length > 50 // Actual marketing message should be substantial
+      );
+      generatedMessage = actualMessage || paragraphs[0];
+    }
     
     console.log('Generated message successfully');
 
