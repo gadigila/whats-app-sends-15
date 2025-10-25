@@ -658,7 +658,7 @@ const MessageComposer = () => {
             {/* Recipients */}
             <Card>
               <CardHeader>
-                <CardTitle>נמענים</CardTitle>
+                <CardTitle>למי לשלוח?</CardTitle>
               </CardHeader>
               <CardContent>
                 <MessageRecipientsSelector

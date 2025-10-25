@@ -113,7 +113,7 @@ const MessageRecipientsSelector = ({
   return (
     <div className="space-y-4 text-right" dir="rtl">
       <div className="flex items-center justify-between">
-        <Label className="text-base font-medium">בחר נמענים</Label>
+        <Label className="text-base font-medium">קבוצות יעד</Label>
       </div>
 
       <Tabs defaultValue="segments" className="w-full">
