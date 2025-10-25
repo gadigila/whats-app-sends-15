@@ -56,46 +56,26 @@ const Index = () => {
 
       {/* Features */}
       <section className="py-16 px-4 bg-white">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
+        <div className="max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-12 text-gray-900">
             למה Reecher?
           </h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
-              <CardContent className="p-8 text-center">
-                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">פשוט וקל</h3>
-                <p className="text-gray-600">
-                  נכנסים ושולחים כבר בפעם הראשונה. בלי סיבוכים.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
-              <CardContent className="p-8 text-center">
-                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                  <Users className="h-8 w-8 text-green-500" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">כל הקבוצות בבת אחת</h3>
-                <p className="text-gray-600">
-                  בלי לפספס אף קבוצה. כולם מקבלים את ההודעה.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
-              <CardContent className="p-8 text-center">
-                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
-                  <Clock className="h-8 w-8 text-green-500" />
-                </div>
-                <h3 className="text-xl font-semibold mb-3">תזמון מתקדם</h3>
-                <p className="text-gray-600">
-                  קובעים פעם אחת וההודעות יוצאות בזמן הנכון.
-                </p>
-              </CardContent>
-            </Card>
+          
+          <div className="space-y-6">
+            <h3 className="text-2xl md:text-3xl font-bold text-gray-900">
+              ניהול קבוצות וואטסאפ לא צריך להיות כאב ראש
+            </h3>
+            
+            <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              ריצ׳ר הופך משימה של שעות למשימה של דקות.
+              שליחה מרכזית לכל הקבוצות, תזמון חכם וביקורת מלאה.
+              פשוט, מהיר ועושה בדיוק מה שצריך.
+            </p>
+            
+            {/* Placeholder for future video */}
+            {/* <div className="mt-8">
+              <video or iframe will go here>
+            </div> */}
           </div>
         </div>
       </section>
