@@ -634,33 +634,12 @@ const MessageComposer = () => {
                     עוזר AI למסרים מנצחים
                   </Label>
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAIGenerate('generate')}
-                      disabled={isGenerating || isUploading}
-                      className="flex-1"
-                      type="button"
-                    >
-                      {isGenerating ? (
-                        <>
-                          <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                          מייצר...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="ml-2 h-4 w-4" />
-                          הפתע אותי
-                        </>
-                      )}
-                    </Button>
+                  <div className="flex justify-center">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleAIGenerate('improve')}
                       disabled={isGenerating || isUploading || !message.trim()}
-                      className="flex-1"
                       type="button"
                     >
                       {isGenerating ? (
