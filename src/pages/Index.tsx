@@ -6,8 +6,17 @@ import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
 import { Logo } from '@/components/Logo';
 import heroPhone from '@/assets/hero-phone.png';
+import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const Index = () => {
+  const featuresSection = useScrollAnimation(0.1);
+  const stepsSection = useScrollAnimation(0.1);
+  const systemFeaturesSection = useScrollAnimation(0.1);
+  const targetAudienceSection = useScrollAnimation(0.1);
+  const pricingSection = useScrollAnimation(0.1);
+  const faqSection = useScrollAnimation(0.1);
+  const finalCtaSection = useScrollAnimation(0.1);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white" dir="rtl">
       {/* Header */}
@@ -57,13 +66,13 @@ const Index = () => {
       </section>
 
       {/* Features */}
-      <section className="py-16 px-4 bg-white">
+      <section ref={featuresSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${featuresSection.isVisible ? 'is-visible' : ''}`}>
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900 animate-fade-in-up">
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
             למה Reecher?
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-100">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <CheckCircle className="h-8 w-8 text-green-500" />
@@ -75,7 +84,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-300">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Users className="h-8 w-8 text-green-500" />
@@ -87,7 +96,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-500">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Clock className="h-8 w-8 text-green-500" />
@@ -103,13 +112,13 @@ const Index = () => {
       </section>
 
       {/* How it works */}
-      <section className="py-16 px-4 bg-gray-50">
+      <section ref={stepsSection.ref} className={`py-16 px-4 bg-gray-50 animate-on-scroll ${stepsSection.isVisible ? 'is-visible' : ''}`}>
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900 animate-fade-in-up">
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
             איך זה עובד?
           </h2>
           <div className="space-y-8">
-            <div className="flex items-center gap-6 animate-fade-in-up delay-100">
+            <div className="flex items-center gap-6 animate-on-scroll">
               <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
                 1
               </div>
@@ -119,7 +128,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-6 animate-fade-in-up delay-300">
+            <div className="flex items-center gap-6 animate-on-scroll">
               <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
                 2
               </div>
@@ -129,7 +138,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-6 animate-fade-in-up delay-500">
+            <div className="flex items-center gap-6 animate-on-scroll">
               <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
                 3
               </div>
@@ -139,7 +148,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200 animate-fade-in-up delay-700">
+            <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200 animate-on-scroll">
               <CheckCircle className="w-12 h-12 text-green-500 flex-shrink-0" />
               <div>
                 <p className="text-lg text-gray-900">רואים סטטוס בזמן אמת והיסטוריה מלאה של כל השליחות.</p>
@@ -150,16 +159,16 @@ const Index = () => {
       </section>
 
       {/* מה מקבלים במערכת Section */}
-      <section className="py-16 px-4 bg-white">
+      <section ref={systemFeaturesSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${systemFeaturesSection.isVisible ? 'is-visible' : ''}`}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4 animate-fade-in-up">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
               מה מקבלים במערכת
             </h2>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-100">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <Target className="h-8 w-8 text-green-500" />
@@ -171,7 +180,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-200">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <FileText className="h-8 w-8 text-green-500" />
@@ -183,7 +192,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-300">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <BarChart3 className="h-8 w-8 text-green-500" />
@@ -195,7 +204,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-400">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <Upload className="h-8 w-8 text-green-500" />
@@ -207,7 +216,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-500">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <FolderTree className="h-8 w-8 text-green-500" />
@@ -223,16 +232,16 @@ const Index = () => {
       </section>
 
       {/* למי זה מתאים Section */}
-      <section className="py-16 px-4 bg-gray-50">
+      <section ref={targetAudienceSection.ref} className={`py-16 px-4 bg-gray-50 animate-on-scroll ${targetAudienceSection.isVisible ? 'is-visible' : ''}`}>
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4 animate-fade-in-up">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
               למי זה מתאים
             </h2>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-100">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Users className="h-8 w-8 text-green-500" />
@@ -244,7 +253,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-300">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <TrendingUp className="h-8 w-8 text-green-500" />
@@ -256,7 +265,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-500">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Shield className="h-8 w-8 text-green-500" />
@@ -275,14 +284,14 @@ const Index = () => {
       <TestimonialsSection />
 
       {/* Pricing Preview */}
-      <section className="py-16 px-4 bg-white">
+      <section ref={pricingSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${pricingSection.isVisible ? 'is-visible' : ''}`}>
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900 animate-fade-in-up">
+          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
             מחיר פשוט ושקוף
           </h2>
           
           <div className="grid md:grid-cols-2 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-slide-in-right delay-200">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-on-scroll">
               <CardContent className="p-8 text-center">
                 <h3 className="text-2xl font-bold mb-2">חודשי</h3>
                 <div className="text-4xl font-bold text-gray-900 mb-6">₪99</div>
@@ -313,7 +322,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-200 bg-green-50/50 hover:shadow-lg transition-shadow relative animate-slide-in-left delay-200">
+            <Card className="border-green-200 bg-green-50/50 hover:shadow-lg transition-shadow relative animate-on-scroll">
               <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                 <div className="flex items-center gap-2 bg-green-500 text-white px-4 py-1 rounded-full">
                   <Star className="h-4 w-4" />
@@ -359,9 +368,9 @@ const Index = () => {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16 px-4 bg-gray-50">
+      <section ref={faqSection.ref} className={`py-16 px-4 bg-gray-50 animate-on-scroll ${faqSection.isVisible ? 'is-visible' : ''}`}>
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900 animate-fade-in-up">
+          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
             שאלות נפוצות
           </h2>
           
@@ -469,15 +478,15 @@ const Index = () => {
       </section>
 
       {/* Final CTA */}
-      <section className="py-16 px-4 bg-white">
+      <section ref={finalCtaSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${finalCtaSection.isVisible ? 'is-visible' : ''}`}>
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4 animate-fade-in-up">
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">
             מוכנים לחסוך זמן ולהישאר מסודרים?
           </h2>
-          <p className="text-xl text-gray-600 mb-8 animate-fade-in-up delay-200">
+          <p className="text-xl text-gray-600 mb-8">
             התחילו בחינם ותראו תוצאות כבר היום.
           </p>
-          <div className="animate-scale-in delay-400">
+          <div>
             <Link to="/auth">
               <ThreeDButton variant="primary" size="lg">
                 התחילו עכשיו בחינם
