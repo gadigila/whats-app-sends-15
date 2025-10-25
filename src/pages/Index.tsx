@@ -6,17 +6,8 @@ import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
 import { Logo } from '@/components/Logo';
 import heroPhone from '@/assets/hero-phone.png';
-import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const Index = () => {
-  const featuresSection = useScrollAnimation(0.1);
-  const stepsSection = useScrollAnimation(0.1);
-  const systemFeaturesSection = useScrollAnimation(0.1);
-  const targetAudienceSection = useScrollAnimation(0.1);
-  const pricingSection = useScrollAnimation(0.1);
-  const faqSection = useScrollAnimation(0.1);
-  const finalCtaSection = useScrollAnimation(0.1);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-white" dir="rtl">
       {/* Header */}
@@ -39,34 +30,32 @@ const Index = () => {
           <img 
             src={heroPhone} 
             alt="Reecher trophy icon" 
-            className="w-40 h-40 mx-auto mb-7 animate-fade-in"
+            className="w-40 h-40 mx-auto mb-7"
           />
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight animate-fade-in delay-200">
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
             לשלוח הודעה לכל
             <br />
             <span className="text-green-500">קבוצות הוואטסאפ שלך</span>
             <br />
             בלחיצה אחת
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto animate-fade-in delay-400">
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
             הפתרון למנהלי קהילות, בעלי עסקים ומדריכים. תזמון אוטומטי, סגמנטים חכמים ואנליטיקס בזמן אמת
           </p>
-          <div className="animate-scale-in delay-600">
-            <Link to="/auth">
-              <ThreeDButton variant="primary" size="lg">
-                התחילו עכשיו בחינם
-                <ArrowLeft className="mr-2 h-5 w-5" />
-              </ThreeDButton>
-            </Link>
-          </div>
-          <p className="text-sm text-gray-500 mt-4 animate-fade-in delay-800">
+          <Link to="/auth">
+            <ThreeDButton variant="primary" size="lg">
+              התחילו עכשיו בחינם
+              <ArrowLeft className="mr-2 h-5 w-5" />
+            </ThreeDButton>
+          </Link>
+          <p className="text-sm text-gray-500 mt-4">
             3 ימי ניסיון חינם · בלי כרטיס אשראי
           </p>
         </div>
       </section>
 
       {/* Features */}
-      <section ref={featuresSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${featuresSection.isVisible ? 'is-visible' : ''}`}>
+      <section className="py-16 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
             למה Reecher?
@@ -112,7 +101,7 @@ const Index = () => {
       </section>
 
       {/* How it works */}
-      <section ref={stepsSection.ref} className={`py-16 px-4 bg-gray-50 animate-on-scroll ${stepsSection.isVisible ? 'is-visible' : ''}`}>
+      <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
             איך זה עובד?
@@ -159,7 +148,7 @@ const Index = () => {
       </section>
 
       {/* מה מקבלים במערכת Section */}
-      <section ref={systemFeaturesSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${systemFeaturesSection.isVisible ? 'is-visible' : ''}`}>
+      <section className="py-16 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -232,7 +221,7 @@ const Index = () => {
       </section>
 
       {/* למי זה מתאים Section */}
-      <section ref={targetAudienceSection.ref} className={`py-16 px-4 bg-gray-50 animate-on-scroll ${targetAudienceSection.isVisible ? 'is-visible' : ''}`}>
+      <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -242,11 +231,27 @@ const Index = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             <Card className="border-green-100 hover:shadow-lg transition-shadow">
-...
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <Users className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">מנהלי קהילות</h3>
+                <p className="text-gray-600">
+                  עדכונים ושגרות קבועות לכולם בזמן.
+                </p>
+              </CardContent>
             </Card>
 
             <Card className="border-green-100 hover:shadow-lg transition-shadow">
-...
+              <CardContent className="p-8 text-center">
+                <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
+                  <TrendingUp className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">בעלי עסקים</h3>
+                <p className="text-gray-600">
+                  מבצעים, תוכן ושירות לקבוצות רבות בלחיצה.
+                </p>
+              </CardContent>
             </Card>
 
             <Card className="border-green-100 hover:shadow-lg transition-shadow">
@@ -268,7 +273,7 @@ const Index = () => {
       <TestimonialsSection />
 
       {/* Pricing Preview */}
-      <section ref={pricingSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${pricingSection.isVisible ? 'is-visible' : ''}`}>
+      <section className="py-16 px-4 bg-white">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
             מחיר פשוט ושקוף
@@ -276,7 +281,34 @@ const Index = () => {
           
           <div className="grid md:grid-cols-2 gap-8">
             <Card className="border-green-100 hover:shadow-lg transition-shadow">
-...
+              <CardContent className="p-8 text-center">
+                <h3 className="text-2xl font-bold mb-2">חודשי</h3>
+                <div className="text-4xl font-bold text-gray-900 mb-6">₪99</div>
+                <div className="space-y-3 text-right mb-8">
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>הודעות ללא הגבלה</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>תזמון מתקדם</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>קבוצות ללא הגבלה</span>
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                    <span>תמיכה מהירה</span>
+                  </p>
+                </div>
+                <Link to="/auth">
+                  <ThreeDButton variant="primary" className="w-full" size="lg">
+                    התחילו עכשיו
+                  </ThreeDButton>
+                </Link>
+                <p className="text-sm text-gray-500 mt-4">מבטלים בכל רגע</p>
+              </CardContent>
             </Card>
 
             <Card className="border-green-200 bg-green-50/50 hover:shadow-lg transition-shadow relative">
@@ -325,13 +357,13 @@ const Index = () => {
       </section>
 
       {/* FAQ Section */}
-      <section ref={faqSection.ref} className={`py-16 px-4 bg-gray-50 animate-on-scroll ${faqSection.isVisible ? 'is-visible' : ''}`}>
+      <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
             שאלות נפוצות
           </h2>
           
-          <Accordion type="single" collapsible className="w-full space-y-4 animate-fade-in-up delay-200">
+          <Accordion type="single" collapsible className="w-full space-y-4">
             <AccordionItem value="item-1" className="bg-white rounded-lg px-6 border-none">
               <AccordionTrigger className="text-right hover:no-underline">
                 <span className="font-semibold">זה בטוח?</span>
@@ -435,7 +467,7 @@ const Index = () => {
       </section>
 
       {/* Final CTA */}
-      <section ref={finalCtaSection.ref} className={`py-16 px-4 bg-white animate-on-scroll ${finalCtaSection.isVisible ? 'is-visible' : ''}`}>
+      <section className="py-16 px-4 bg-white">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
             מוכנים לחסוך זמן ולהישאר מסודרים?
@@ -443,14 +475,12 @@ const Index = () => {
           <p className="text-xl text-gray-600 mb-8">
             התחילו בחינם ותראו תוצאות כבר היום.
           </p>
-          <div>
-            <Link to="/auth">
-              <ThreeDButton variant="primary" size="lg">
-                התחילו עכשיו בחינם
-                <ArrowLeft className="mr-2 h-5 w-5" />
-              </ThreeDButton>
-            </Link>
-          </div>
+          <Link to="/auth">
+            <ThreeDButton variant="primary" size="lg">
+              התחילו עכשיו בחינם
+              <ArrowLeft className="mr-2 h-5 w-5" />
+            </ThreeDButton>
+          </Link>
         </div>
       </section>
 

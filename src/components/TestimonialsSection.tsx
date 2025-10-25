@@ -1,9 +1,8 @@
+
 import { Card, CardContent } from '@/components/ui/card';
 import { Star } from 'lucide-react';
-import { useScrollAnimation } from '@/hooks/useScrollAnimation';
 
 const TestimonialsSection = () => {
-  const testimonialsSection = useScrollAnimation(0.1);
   const testimonials = [
     {
       name: "אור",
@@ -32,7 +31,7 @@ const TestimonialsSection = () => {
   };
 
   return (
-    <section ref={testimonialsSection.ref} className={`py-16 px-4 bg-gray-50 animate-on-scroll ${testimonialsSection.isVisible ? 'is-visible' : ''}`}>
+    <section className="py-16 px-4 bg-gray-50">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
