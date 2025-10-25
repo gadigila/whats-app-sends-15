@@ -30,25 +30,27 @@ const Index = () => {
           <img 
             src={heroPhone} 
             alt="Reecher trophy icon" 
-            className="w-40 h-40 mx-auto mb-7"
+            className="w-40 h-40 mx-auto mb-7 animate-fade-in"
           />
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight animate-fade-in delay-200">
             לשלוח הודעה לכל
             <br />
             <span className="text-green-500">קבוצות הוואטסאפ שלך</span>
             <br />
             בלחיצה אחת
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto animate-fade-in delay-400">
             הפתרון למנהלי קהילות, בעלי עסקים ומדריכים. תזמון אוטומטי, סגמנטים חכמים ואנליטיקס בזמן אמת
           </p>
-          <Link to="/auth">
-            <ThreeDButton variant="primary" size="lg">
-              התחילו עכשיו בחינם
-              <ArrowLeft className="mr-2 h-5 w-5" />
-            </ThreeDButton>
-          </Link>
-          <p className="text-sm text-gray-500 mt-4">
+          <div className="animate-scale-in delay-600">
+            <Link to="/auth">
+              <ThreeDButton variant="primary" size="lg">
+                התחילו עכשיו בחינם
+                <ArrowLeft className="mr-2 h-5 w-5" />
+              </ThreeDButton>
+            </Link>
+          </div>
+          <p className="text-sm text-gray-500 mt-4 animate-fade-in delay-800">
             3 ימי ניסיון חינם · בלי כרטיס אשראי
           </p>
         </div>
@@ -57,11 +59,11 @@ const Index = () => {
       {/* Features */}
       <section className="py-16 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900 animate-fade-in-up">
             למה Reecher?
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-100">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <CheckCircle className="h-8 w-8 text-green-500" />
@@ -73,7 +75,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-300">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Users className="h-8 w-8 text-green-500" />
@@ -85,7 +87,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-500">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Clock className="h-8 w-8 text-green-500" />
@@ -103,11 +105,11 @@ const Index = () => {
       {/* How it works */}
       <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
+          <h2 className="text-3xl font-bold text-center mb-12 text-gray-900 animate-fade-in-up">
             איך זה עובד?
           </h2>
           <div className="space-y-8">
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 animate-fade-in-up delay-100">
               <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
                 1
               </div>
@@ -117,7 +119,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 animate-fade-in-up delay-300">
               <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
                 2
               </div>
@@ -127,7 +129,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 animate-fade-in-up delay-500">
               <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
                 3
               </div>
@@ -137,7 +139,7 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200">
+            <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200 animate-fade-in-up delay-700">
               <CheckCircle className="w-12 h-12 text-green-500 flex-shrink-0" />
               <div>
                 <p className="text-lg text-gray-900">רואים סטטוס בזמן אמת והיסטוריה מלאה של כל השליחות.</p>
@@ -151,13 +153,13 @@ const Index = () => {
       <section className="py-16 px-4 bg-white">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4 animate-fade-in-up">
               מה מקבלים במערכת
             </h2>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-100">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <Target className="h-8 w-8 text-green-500" />
@@ -169,7 +171,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-200">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <FileText className="h-8 w-8 text-green-500" />
@@ -181,7 +183,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-300">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <BarChart3 className="h-8 w-8 text-green-500" />
@@ -193,7 +195,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-400">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <Upload className="h-8 w-8 text-green-500" />
@@ -205,7 +207,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-500">
               <CardContent className="p-8">
                 <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
                   <FolderTree className="h-8 w-8 text-green-500" />
@@ -224,13 +226,13 @@ const Index = () => {
       <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4 animate-fade-in-up">
               למי זה מתאים
             </h2>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-100">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Users className="h-8 w-8 text-green-500" />
@@ -242,7 +244,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-300">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <TrendingUp className="h-8 w-8 text-green-500" />
@@ -254,7 +256,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-fade-in-up delay-500">
               <CardContent className="p-8 text-center">
                 <div className="p-4 bg-green-50 rounded-full w-fit mx-auto mb-4">
                   <Shield className="h-8 w-8 text-green-500" />
@@ -275,12 +277,12 @@ const Index = () => {
       {/* Pricing Preview */}
       <section className="py-16 px-4 bg-white">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
+          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900 animate-fade-in-up">
             מחיר פשוט ושקוף
           </h2>
           
           <div className="grid md:grid-cols-2 gap-8">
-            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+            <Card className="border-green-100 hover:shadow-lg transition-shadow animate-slide-in-right delay-200">
               <CardContent className="p-8 text-center">
                 <h3 className="text-2xl font-bold mb-2">חודשי</h3>
                 <div className="text-4xl font-bold text-gray-900 mb-6">₪99</div>
@@ -311,7 +313,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-green-200 bg-green-50/50 hover:shadow-lg transition-shadow relative">
+            <Card className="border-green-200 bg-green-50/50 hover:shadow-lg transition-shadow relative animate-slide-in-left delay-200">
               <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                 <div className="flex items-center gap-2 bg-green-500 text-white px-4 py-1 rounded-full">
                   <Star className="h-4 w-4" />
@@ -359,11 +361,11 @@ const Index = () => {
       {/* FAQ Section */}
       <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900">
+          <h2 className="text-3xl font-bold mb-12 text-center text-gray-900 animate-fade-in-up">
             שאלות נפוצות
           </h2>
           
-          <Accordion type="single" collapsible className="w-full space-y-4">
+          <Accordion type="single" collapsible className="w-full space-y-4 animate-fade-in-up delay-200">
             <AccordionItem value="item-1" className="bg-white rounded-lg px-6 border-none">
               <AccordionTrigger className="text-right hover:no-underline">
                 <span className="font-semibold">זה בטוח?</span>
@@ -469,18 +471,20 @@ const Index = () => {
       {/* Final CTA */}
       <section className="py-16 px-4 bg-white">
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+          <h2 className="text-4xl font-bold text-gray-900 mb-4 animate-fade-in-up">
             מוכנים לחסוך זמן ולהישאר מסודרים?
           </h2>
-          <p className="text-xl text-gray-600 mb-8">
+          <p className="text-xl text-gray-600 mb-8 animate-fade-in-up delay-200">
             התחילו בחינם ותראו תוצאות כבר היום.
           </p>
-          <Link to="/auth">
-            <ThreeDButton variant="primary" size="lg">
-              התחילו עכשיו בחינם
-              <ArrowLeft className="mr-2 h-5 w-5" />
-            </ThreeDButton>
-          </Link>
+          <div className="animate-scale-in delay-400">
+            <Link to="/auth">
+              <ThreeDButton variant="primary" size="lg">
+                התחילו עכשיו בחינם
+                <ArrowLeft className="mr-2 h-5 w-5" />
+              </ThreeDButton>
+            </Link>
+          </div>
         </div>
       </section>
 
