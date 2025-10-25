@@ -634,7 +634,7 @@ const MessageComposer = () => {
                     עוזר AI למסרים מנצחים
                   </Label>
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-start">
                     <Button
                       variant="outline"
                       size="sm"
