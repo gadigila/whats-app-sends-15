@@ -42,7 +42,7 @@ const TestimonialsSection = () => {
 
         <div className="grid md:grid-cols-3 gap-8">
           {testimonials.map((testimonial, index) => (
-            <Card key={index} className="border-gray-200 hover:shadow-lg transition-shadow animate-on-scroll">
+            <Card key={index} className="border-gray-200 hover:shadow-lg transition-shadow">
               <CardContent className="p-6">
                 <div className="flex items-center mb-4">
                   {renderStars(testimonial.rating)}
