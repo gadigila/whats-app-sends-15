@@ -42,10 +42,6 @@ const MessageComposer = () => {
   
   // AI generation states
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showAIInput, setShowAIInput] = useState(false);
-  const [productName, setProductName] = useState('');
-  const [productRating, setProductRating] = useState('');
-  const [productOrders, setProductOrders] = useState('');
   
   const { trialStatus, isLoading } = useTrialStatus();
   const { groups } = useWhatsAppGroups();
@@ -465,9 +461,6 @@ const MessageComposer = () => {
         body: {
           type,
           currentMessage: type === 'improve' ? message : undefined,
-          productName: productName || undefined,
-          rating: productRating || undefined,
-          orders: productOrders || undefined,
         }
       });
 
@@ -483,13 +476,6 @@ const MessageComposer = () => {
         title: type === 'generate' ? "הודעה נוצרה!" : "הודעה שופרה!",
         description: "ההודעה עודכנה בהצלחה. בדוק וערוך לפי הצורך.",
       });
-      
-      // Clear AI input fields after generation
-      if (type === 'generate') {
-        setProductName('');
-        setProductRating('');
-        setProductOrders('');
-      }
     } catch (error: any) {
       console.error('AI generation error:', error);
       toast({
@@ -641,54 +627,10 @@ const MessageComposer = () => {
 
                 {/* AI Message Generator */}
                 <div className="border-t pt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-purple-500" />
-                      עוזר AI למסרים מנצחים
-                    </Label>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAIInput(!showAIInput)}
-                      type="button"
-                    >
-                      {showAIInput ? 'הסתר' : 'הצג אפשרויות'}
-                    </Button>
-                  </div>
-
-                  {showAIInput && (
-                    <div className="space-y-3 bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
-                      <div>
-                        <Label className="text-sm">שם המוצר (אופציונלי)</Label>
-                        <Input
-                          placeholder="לדוגמה: בקבוק מים חכם"
-                          value={productName}
-                          onChange={(e) => setProductName(e.target.value)}
-                          className="mt-1"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-sm">דירוג (אופציונלי)</Label>
-                          <Input
-                            placeholder="4.8"
-                            value={productRating}
-                            onChange={(e) => setProductRating(e.target.value)}
-                            className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm">הזמנות (אופציונלי)</Label>
-                          <Input
-                            placeholder="10,000"
-                            value={productOrders}
-                            onChange={(e) => setProductOrders(e.target.value)}
-                            className="mt-1"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-purple-500" />
+                    עוזר AI למסרים מנצחים
+                  </Label>
 
                   <div className="flex gap-2">
                     <Button
