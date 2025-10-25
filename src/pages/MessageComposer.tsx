@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, Send, Upload, Image, FileText, X, Loader2, CalendarDays, Save } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Send, Upload, Image, FileText, X, Loader2, CalendarDays, Save, Sparkles, Wand2 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from '@/hooks/use-toast';
@@ -39,6 +39,13 @@ const MessageComposer = () => {
     isOpen: boolean;
     type: 'sent' | 'scheduled';
   }>({ isOpen: false, type: 'sent' });
+  
+  // AI generation states
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showAIInput, setShowAIInput] = useState(false);
+  const [productName, setProductName] = useState('');
+  const [productRating, setProductRating] = useState('');
+  const [productOrders, setProductOrders] = useState('');
   
   const { trialStatus, isLoading } = useTrialStatus();
   const { groups } = useWhatsAppGroups();
@@ -449,6 +456,52 @@ const MessageComposer = () => {
     });
   };
 
+  // Handle AI message generation
+  const handleAIGenerate = async (type: 'generate' | 'improve') => {
+    setIsGenerating(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-marketing-message', {
+        body: {
+          type,
+          currentMessage: type === 'improve' ? message : undefined,
+          productName: productName || undefined,
+          rating: productRating || undefined,
+          orders: productOrders || undefined,
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setMessage(data.generatedMessage);
+      
+      toast({
+        title: type === 'generate' ? "הודעה נוצרה!" : "הודעה שופרה!",
+        description: "ההודעה עודכנה בהצלחה. בדוק וערוך לפי הצורך.",
+      });
+      
+      // Clear AI input fields after generation
+      if (type === 'generate') {
+        setProductName('');
+        setProductRating('');
+        setProductOrders('');
+      }
+    } catch (error: any) {
+      console.error('AI generation error:', error);
+      toast({
+        title: "שגיאה ביצירת ההודעה",
+        description: error.message || "נסה שוב או כתוב את ההודעה באופן ידני.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // Generate time options for the time picker
   const generateTimeOptions = () => {
     const options = [];
@@ -583,6 +636,105 @@ const MessageComposer = () => {
                   />
                   <p className="text-sm text-gray-500 mt-1">
                     {message.length}/4096 תווים
+                  </p>
+                </div>
+
+                {/* AI Message Generator */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      עוזר AI למסרים מנצחים
+                    </Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowAIInput(!showAIInput)}
+                      type="button"
+                    >
+                      {showAIInput ? 'הסתר' : 'הצג אפשרויות'}
+                    </Button>
+                  </div>
+
+                  {showAIInput && (
+                    <div className="space-y-3 bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
+                      <div>
+                        <Label className="text-sm">שם המוצר (אופציונלי)</Label>
+                        <Input
+                          placeholder="לדוגמה: בקבוק מים חכם"
+                          value={productName}
+                          onChange={(e) => setProductName(e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-sm">דירוג (אופציונלי)</Label>
+                          <Input
+                            placeholder="4.8"
+                            value={productRating}
+                            onChange={(e) => setProductRating(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm">הזמנות (אופציונלי)</Label>
+                          <Input
+                            placeholder="10,000"
+                            value={productOrders}
+                            onChange={(e) => setProductOrders(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAIGenerate('generate')}
+                      disabled={isGenerating || isUploading}
+                      className="flex-1"
+                      type="button"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                          מייצר...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="ml-2 h-4 w-4" />
+                          הפתע אותי
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAIGenerate('improve')}
+                      disabled={isGenerating || isUploading || !message.trim()}
+                      className="flex-1"
+                      type="button"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                          משפר...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="ml-2 h-4 w-4" />
+                          שפר את ההודעה
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground text-center">
+                    AI יעזור לך לכתוב מסר שיווקי מנצח בהתאם לעקרונות השיווק המובילים
                   </p>
                 </div>
 
