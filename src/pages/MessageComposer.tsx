@@ -634,7 +634,7 @@ const MessageComposer = () => {
                     עוזר AI למסרים מנצחים
                   </Label>
 
-                  <div className="flex justify-center">
+                  <div className="flex justify-end">
                     <Button
                       variant="outline"
                       size="sm"
@@ -656,7 +656,7 @@ const MessageComposer = () => {
                     </Button>
                   </div>
                   
-                  <p className="text-xs text-muted-foreground text-center">
+                  <p className="text-xs text-muted-foreground text-right">
                     AI יעזור לך לכתוב מסר שיווקי מנצח בהתאם לעקרונות השיווק המובילים
                   </p>
                 </div>
