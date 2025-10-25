@@ -5,6 +5,7 @@ import { useDrafts } from "@/hooks/useDrafts";
 import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { he } from "date-fns/locale";
+import Layout from "@/components/Layout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +32,7 @@ const Drafts = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted p-8">
+      <Layout>
         <div className="max-w-4xl mx-auto">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4"></div>
@@ -43,12 +44,12 @@ const Drafts = () => {
             </div>
           </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted p-4 md:p-8">
+    <Layout>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="space-y-2">
@@ -177,7 +178,7 @@ const Drafts = () => {
           </div>
         )}
       </div>
-    </div>
+    </Layout>
   );
 };
 
