@@ -1,6 +1,6 @@
 import { Button, ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp, Target, FileText, BarChart3, Upload, FolderTree } from 'lucide-react';
+import { Users, Clock, CheckCircle, Star, ArrowLeft, Zap, Shield, TrendingUp, Target, FileText, BarChart3, Upload, FolderTree, Sparkles } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
@@ -213,6 +213,18 @@ const Index = () => {
                 <h3 className="text-xl font-semibold mb-3">ניהול קבוצות וקטגוריות</h3>
                 <p className="text-gray-600">
                   מסדרים קבוצות לפי נושאים ומנהלים שליחה מרוכזת לכל קטגוריה.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-100 hover:shadow-lg transition-shadow">
+              <CardContent className="p-8">
+                <div className="p-4 bg-green-50 rounded-full w-fit mb-4">
+                  <Sparkles className="h-8 w-8 text-green-500" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">שדרוג הודעות עם AI</h3>
+                <p className="text-gray-600">
+                  מציע וריאציות להודעה, מבליט קריאה לפעולה ומתאים לאורך ולמבנה של וואטסאפ.
                 </p>
               </CardContent>
             </Card>
