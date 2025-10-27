@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       email: user.email || '',
       company: planType === 'yearly' ? 'yearly_plan' : 'monthly_plan',
       remarks: transactionId,
-      maxpay: planType === 'yearly' ? '12' : '1', // Monthly or yearly recurring
+      maxpay: '1', // Single payment (not installments)
       trBgColor: 'ffffff',
       trTextColor: '000000',
       lang: 'il', // Hebrew
