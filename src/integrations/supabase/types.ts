@@ -55,15 +55,19 @@ export type Database = {
       }
       profiles: {
         Row: {
+          auto_renew: boolean | null
           avatar_url: string | null
           community_type: string | null
           created_at: string
+          failed_payment_attempts: number | null
+          grace_period_ends_at: string | null
           group_count_range: string | null
           id: string
           instance_id: string | null
           instance_status: string | null
           is_active: boolean | null
           is_onboarded: boolean | null
+          last_payment_date: string | null
           name: string | null
           niches: Json | null
           payment_plan: string | null
@@ -72,6 +76,11 @@ export type Database = {
           plan: string | null
           quiz_completed_at: string | null
           role: string | null
+          subscription_cancelled_at: string | null
+          subscription_created_at: string | null
+          subscription_expires_at: string | null
+          subscription_status: string | null
+          tranzila_token: string | null
           trial_expires_at: string | null
           updated_at: string
           user_phone: string | null
@@ -79,15 +88,19 @@ export type Database = {
           whapi_token: string | null
         }
         Insert: {
+          auto_renew?: boolean | null
           avatar_url?: string | null
           community_type?: string | null
           created_at?: string
+          failed_payment_attempts?: number | null
+          grace_period_ends_at?: string | null
           group_count_range?: string | null
           id: string
           instance_id?: string | null
           instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
+          last_payment_date?: string | null
           name?: string | null
           niches?: Json | null
           payment_plan?: string | null
@@ -96,6 +109,11 @@ export type Database = {
           plan?: string | null
           quiz_completed_at?: string | null
           role?: string | null
+          subscription_cancelled_at?: string | null
+          subscription_created_at?: string | null
+          subscription_expires_at?: string | null
+          subscription_status?: string | null
+          tranzila_token?: string | null
           trial_expires_at?: string | null
           updated_at?: string
           user_phone?: string | null
@@ -103,15 +121,19 @@ export type Database = {
           whapi_token?: string | null
         }
         Update: {
+          auto_renew?: boolean | null
           avatar_url?: string | null
           community_type?: string | null
           created_at?: string
+          failed_payment_attempts?: number | null
+          grace_period_ends_at?: string | null
           group_count_range?: string | null
           id?: string
           instance_id?: string | null
           instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
+          last_payment_date?: string | null
           name?: string | null
           niches?: Json | null
           payment_plan?: string | null
@@ -120,6 +142,11 @@ export type Database = {
           plan?: string | null
           quiz_completed_at?: string | null
           role?: string | null
+          subscription_cancelled_at?: string | null
+          subscription_created_at?: string | null
+          subscription_expires_at?: string | null
+          subscription_status?: string | null
+          tranzila_token?: string | null
           trial_expires_at?: string | null
           updated_at?: string
           user_phone?: string | null
