@@ -12,6 +12,9 @@ import TranzilaPaymentModal from '@/components/TranzilaPaymentModal';
 import SubscriptionManagement from '@/components/SubscriptionManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useInvoices } from '@/hooks/useInvoices';
+import { FileText } from 'lucide-react';
+import { format } from 'date-fns';
 
 const Billing = () => {
   const { user } = useAuth();
@@ -21,8 +24,10 @@ const Billing = () => {
   const { trialStatus, isLoading: trialLoading } = useTrialStatus();
   const { plans, currentPlan, billingPeriod, setBillingPeriod } = usePaymentPlans();
   const queryClient = useQueryClient();
+  const { data: invoices } = useInvoices();
 
   const isPaid = trialStatus?.isPaid || false;
+  const latestInvoice = invoices?.[0];
 
   // Track InitiateCheckout when user views the billing page
   useEffect(() => {
@@ -113,13 +118,51 @@ const Billing = () => {
 
         {/* Subscription Management - For paid users */}
         {user && trialStatus && (trialStatus.isPaid || trialStatus.isCancelled || trialStatus.isGracePeriod) && (
-          <SubscriptionManagement
-            subscriptionStatus={trialStatus.status}
-            expiresAt={trialStatus.expiresAt?.toISOString()}
-            planType={trialStatus.planType}
-            gracePeriodEndsAt={trialStatus.gracePeriodEndsAt?.toISOString()}
-            onStatusChange={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
-          />
+          <>
+            <SubscriptionManagement
+              subscriptionStatus={trialStatus.status}
+              expiresAt={trialStatus.expiresAt?.toISOString()}
+              planType={trialStatus.planType}
+              gracePeriodEndsAt={trialStatus.gracePeriodEndsAt?.toISOString()}
+              onStatusChange={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
+            />
+
+            {/* Latest Invoice */}
+            {latestInvoice && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">חשבונית אחרונה</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">מספר חשבונית:</span>
+                    <span className="font-medium">{latestInvoice.invoice_number}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">תאריך:</span>
+                    <span className="font-medium">
+                      {format(new Date(latestInvoice.created_at), 'dd/MM/yyyy')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">סכום:</span>
+                    <span className="font-medium">₪{latestInvoice.amount}</span>
+                  </div>
+                  {latestInvoice.invoice_url && (
+                    <a 
+                      href={latestInvoice.invoice_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full mt-4 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+                    >
+                      <FileText className="h-4 w-4" />
+                      הצג חשבונית
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </>
         )}
 
         {/* Current Status - For trial/expired users */}

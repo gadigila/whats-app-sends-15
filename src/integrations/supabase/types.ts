@@ -53,6 +53,62 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          amount: number
+          created_at: string | null
+          currency: string | null
+          id: string
+          invoice_number: string
+          invoice_url: string | null
+          pdf_url: string | null
+          plan_type: string
+          sent_at: string | null
+          status: string | null
+          transaction_id: string
+          tranzila_invoice_id: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          invoice_number: string
+          invoice_url?: string | null
+          pdf_url?: string | null
+          plan_type: string
+          sent_at?: string | null
+          status?: string | null
+          transaction_id: string
+          tranzila_invoice_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          invoice_number?: string
+          invoice_url?: string | null
+          pdf_url?: string | null
+          plan_type?: string
+          sent_at?: string | null
+          status?: string | null
+          transaction_id?: string
+          tranzila_invoice_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           auto_renew: boolean | null
@@ -67,6 +123,10 @@ export type Database = {
           instance_status: string | null
           is_active: boolean | null
           is_onboarded: boolean | null
+          last_invoice_date: string | null
+          last_invoice_id: string | null
+          last_invoice_number: string | null
+          last_invoice_url: string | null
           last_payment_date: string | null
           name: string | null
           niches: Json | null
@@ -100,6 +160,10 @@ export type Database = {
           instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
+          last_invoice_date?: string | null
+          last_invoice_id?: string | null
+          last_invoice_number?: string | null
+          last_invoice_url?: string | null
           last_payment_date?: string | null
           name?: string | null
           niches?: Json | null
@@ -133,6 +197,10 @@ export type Database = {
           instance_status?: string | null
           is_active?: boolean | null
           is_onboarded?: boolean | null
+          last_invoice_date?: string | null
+          last_invoice_id?: string | null
+          last_invoice_number?: string | null
+          last_invoice_url?: string | null
           last_payment_date?: string | null
           name?: string | null
           niches?: Json | null

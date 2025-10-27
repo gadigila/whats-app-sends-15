@@ -78,6 +78,79 @@ Deno.serve(async (req) => {
               })
               .eq('id', user.id);
 
+            // Create invoice for renewal
+            try {
+              const { data: { user: authUser }, error: userError } = await supabase.auth.admin.getUserById(user.id);
+              
+              if (!userError && authUser?.email) {
+                const itemDescription = user.payment_plan === 'yearly' 
+                  ? 'חידוש מנוי שנתי Reecher Premium' 
+                  : 'חידוש מנוי חודשי Reecher Premium';
+                
+                const invoiceParams = new URLSearchParams({
+                  supplier: terminalName,
+                  TranzilaPW: terminalPassword,
+                  transaction_id: `renewal_${user.id}_${Date.now()}`,
+                  
+                  customer_name: user.name || authUser.email.split('@')[0],
+                  customer_email: authUser.email,
+                  customer_phone: user.phone_number || '',
+                  
+                  item_description: itemDescription,
+                  item_quantity: '1',
+                  item_unit_price: amount.toString(),
+                  item_total: amount.toString(),
+                  
+                  currency: 'ILS',
+                  send_email: 'true',
+                  language: 'he',
+                });
+
+                const invoiceResponse = await fetch(
+                  'https://secure5.tranzila.com/cgi-bin/invoice.cgi',
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: invoiceParams.toString(),
+                  }
+                );
+
+                const invoiceResult = await invoiceResponse.text();
+                const invoiceData: Record<string, string> = {};
+                invoiceResult.split('&').forEach(pair => {
+                  const [key, value] = pair.split('=');
+                  if (key && value) invoiceData[key] = decodeURIComponent(value);
+                });
+
+                if (invoiceData.invoice_id) {
+                  await supabase.from('profiles').update({
+                    last_invoice_id: invoiceData.invoice_id,
+                    last_invoice_number: invoiceData.invoice_number,
+                    last_invoice_url: invoiceData.invoice_url || invoiceData.pdf_url,
+                    last_invoice_date: new Date().toISOString(),
+                  }).eq('id', user.id);
+
+                  await supabase.from('invoices').insert({
+                    user_id: user.id,
+                    tranzila_invoice_id: invoiceData.invoice_id,
+                    invoice_number: invoiceData.invoice_number || invoiceData.invoice_id,
+                    invoice_url: invoiceData.invoice_url,
+                    pdf_url: invoiceData.pdf_url,
+                    amount,
+                    currency: 'ILS',
+                    plan_type: user.payment_plan,
+                    transaction_id: `renewal_${user.id}_${Date.now()}`,
+                    status: 'sent',
+                    sent_at: new Date().toISOString(),
+                  });
+
+                  console.log('✅ Renewal invoice created:', invoiceData.invoice_number);
+                }
+              }
+            } catch (invoiceError) {
+              console.error('⚠️ Error creating renewal invoice:', invoiceError);
+            }
+
             console.log('✅ Renewed subscription for user:', user.id);
           } else {
             // Payment failed - set grace period

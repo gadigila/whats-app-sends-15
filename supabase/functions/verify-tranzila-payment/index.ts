@@ -80,6 +80,103 @@ Deno.serve(async (req) => {
       throw updateError;
     }
 
+    // Create invoice via Tranzila API
+    try {
+      // Get user's email for invoice
+      const { data: { user: authUser }, error: userError } = await supabase.auth.admin.getUserById(userId);
+      
+      if (!userError && authUser?.email) {
+        const terminalName = Deno.env.get('TRANZILA_TERMINAL_NAME')!;
+        const terminalPassword = Deno.env.get('TRANZILA_TERMINAL_PASSWORD')!;
+        
+        const amount = planType === 'yearly' ? 990 : 99;
+        const itemDescription = planType === 'yearly' 
+          ? 'מנוי שנתי Reecher Premium' 
+          : 'מנוי חודשי Reecher Premium';
+        
+        const invoiceParams = new URLSearchParams({
+          supplier: terminalName,
+          TranzilaPW: terminalPassword,
+          transaction_id: transactionId || `${userId}_${Date.now()}`,
+          
+          // Customer details
+          customer_name: profile.name || authUser.email.split('@')[0],
+          customer_email: authUser.email,
+          customer_phone: profile.phone_number || '',
+          
+          // Invoice items
+          item_description: itemDescription,
+          item_quantity: '1',
+          item_unit_price: amount.toString(),
+          item_total: amount.toString(),
+          
+          // Invoice settings
+          currency: 'ILS',
+          send_email: 'true',
+          language: 'he',
+        });
+
+        const invoiceResponse = await fetch(
+          'https://secure5.tranzila.com/cgi-bin/invoice.cgi',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: invoiceParams.toString(),
+          }
+        );
+
+        const invoiceResult = await invoiceResponse.text();
+        console.log('📧 Tranzila invoice response:', invoiceResult);
+
+        // Parse response (key=value format)
+        const invoiceData: Record<string, string> = {};
+        invoiceResult.split('&').forEach(pair => {
+          const [key, value] = pair.split('=');
+          if (key && value) {
+            invoiceData[key] = decodeURIComponent(value);
+          }
+        });
+
+        if (invoiceData.Response === '000' || invoiceData.invoice_id) {
+          // Store invoice in database
+          await supabase.from('profiles').update({
+            last_invoice_id: invoiceData.invoice_id,
+            last_invoice_number: invoiceData.invoice_number,
+            last_invoice_url: invoiceData.invoice_url || invoiceData.pdf_url,
+            last_invoice_date: new Date().toISOString(),
+          }).eq('id', userId);
+
+          // Store full invoice record
+          if (invoiceData.invoice_id) {
+            await supabase.from('invoices').insert({
+              user_id: userId,
+              tranzila_invoice_id: invoiceData.invoice_id,
+              invoice_number: invoiceData.invoice_number || invoiceData.invoice_id,
+              invoice_url: invoiceData.invoice_url,
+              pdf_url: invoiceData.pdf_url,
+              amount,
+              currency: 'ILS',
+              plan_type: planType,
+              transaction_id: transactionId || `${userId}_${Date.now()}`,
+              status: 'sent',
+              sent_at: new Date().toISOString(),
+            });
+          }
+
+          console.log('✅ Invoice created and sent:', invoiceData.invoice_number);
+        } else {
+          console.error('⚠️ Invoice creation failed:', invoiceData);
+        }
+      } else {
+        console.error('⚠️ Could not get user email for invoice:', userError);
+      }
+    } catch (invoiceError) {
+      console.error('⚠️ Error creating invoice:', invoiceError);
+      // Continue despite invoice error - payment was successful
+    }
+
     // Activate WHAPI channel to live mode
     if (profile.whapi_channel_id) {
       const whapiToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!;
