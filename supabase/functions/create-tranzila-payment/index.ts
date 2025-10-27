@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       supplier: terminalName,
       sum: amount.toString(),
       currency: '1', // ILS
-      cred_type: '1', // Regular credit card
+      cred_type: '8', // Tokenized payment for auto-renewal
       tranmode: 'VK', // iFrame mode
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
       success_url_address: 'https://reecher.app/payment-success',
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       email: user.email || '',
       company: planType === 'yearly' ? 'yearly_plan' : 'monthly_plan',
       remarks: transactionId,
-      maxpay: '1', // Single payment
+      maxpay: planType === 'yearly' ? '12' : '1', // Monthly or yearly recurring
       trBgColor: 'ffffff',
       trTextColor: '000000',
       lang: 'il', // Hebrew
