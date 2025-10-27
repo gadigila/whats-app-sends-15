@@ -18,6 +18,8 @@ import ScheduledMessages from "./pages/ScheduledMessages";
 import SentMessages from "./pages/SentMessages";
 import Segments from "./pages/Segments";
 import Billing from "./pages/Billing";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailed from "./pages/PaymentFailed";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RefundPolicy from "./pages/RefundPolicy";
@@ -75,6 +77,8 @@ const App = () => (
               <Billing />
             </ProtectedRoute>
           } />
+          <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/payment-failed" element={<PaymentFailed />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />

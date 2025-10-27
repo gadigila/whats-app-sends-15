@@ -15,9 +15,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useInvoices } from '@/hooks/useInvoices';
 import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 const Billing = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [iframeUrl, setIframeUrl] = useState('');
@@ -36,30 +38,44 @@ const Billing = () => {
     }
   }, [trialLoading, isPaid]);
 
-  // Check for payment status in URL params
+  // Handle postMessage from payment result pages in iframe
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paymentStatus = params.get('payment');
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PAYMENT_SUCCESS') {
+        setShowPaymentModal(false);
+        setIframeUrl('');
+        
+        // Refresh data
+        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+        queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
+        queryClient.invalidateQueries({ queryKey: ['invoices'] });
+        
+        // Show success message
+        toast({
+          title: "התשלום בוצע בהצלחה! 🎉",
+          description: "החשבון שלך שודרג למנוי פרימיום",
+        });
+        
+        // Redirect to WhatsApp connection
+        setTimeout(() => {
+          navigate('/connect');
+        }, 1500);
+        
+      } else if (event.data?.type === 'PAYMENT_FAILED') {
+        setShowPaymentModal(false);
+        setIframeUrl('');
+        
+        toast({
+          title: "התשלום נכשל",
+          description: "אנא נסה שוב או פנה לתמיכה",
+          variant: "destructive",
+        });
+      }
+    };
     
-    if (paymentStatus === 'success') {
-      toast({
-        title: "התשלום בוצע בהצלחה! 🎉",
-        description: "החשבון שלך שודרג למנוי פרימיום",
-      });
-      // Refresh user profile
-      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-      // Clear URL params
-      window.history.replaceState({}, '', '/billing');
-    } else if (paymentStatus === 'failed') {
-      toast({
-        title: "התשלום נכשל",
-        description: "אנא נסה שוב או פנה לתמיכה",
-        variant: "destructive",
-      });
-      // Clear URL params
-      window.history.replaceState({}, '', '/billing');
-    }
-  }, [queryClient]);
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [queryClient, navigate]);
 
   const handleUpgrade = async () => {
     setLoading(true);

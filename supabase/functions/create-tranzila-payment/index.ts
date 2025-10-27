@@ -59,8 +59,8 @@ Deno.serve(async (req) => {
       cred_type: '1', // Regular credit card
       tranmode: 'VK', // iFrame mode
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
-      success_url_address: 'https://reecher.app/billing?payment=success',
-      fail_url_address: 'https://reecher.app/billing?payment=failed',
+      success_url_address: 'https://reecher.app/payment-success',
+      fail_url_address: 'https://reecher.app/payment-failed',
       user_id: user.id,
       contact: profile.name || user.email || '',
       email: user.email || '',
