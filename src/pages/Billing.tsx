@@ -8,12 +8,19 @@ import { useState, useEffect } from 'react';
 import { trackInitiateCheckout } from '@/lib/fbPixel';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { usePaymentPlans } from '@/hooks/usePaymentPlans';
+import TranzilaPaymentModal from '@/components/TranzilaPaymentModal';
+import SubscriptionManagement from '@/components/SubscriptionManagement';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 const Billing = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [iframeUrl, setIframeUrl] = useState('');
   const { trialStatus, isLoading: trialLoading } = useTrialStatus();
   const { plans, currentPlan, billingPeriod, setBillingPeriod } = usePaymentPlans();
+  const queryClient = useQueryClient();
 
   const isPaid = trialStatus?.isPaid || false;
 
@@ -24,28 +31,64 @@ const Billing = () => {
     }
   }, [trialLoading, isPaid]);
 
+  // Check for payment status in URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    
+    if (paymentStatus === 'success') {
+      toast({
+        title: "התשלום בוצע בהצלחה! 🎉",
+        description: "החשבון שלך שודרג למנוי פרימיום",
+      });
+      // Refresh user profile
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      // Clear URL params
+      window.history.replaceState({}, '', '/billing');
+    } else if (paymentStatus === 'failed') {
+      toast({
+        title: "התשלום נכשל",
+        description: "אנא נסה שוב או פנה לתמיכה",
+        variant: "destructive",
+      });
+      // Clear URL params
+      window.history.replaceState({}, '', '/billing');
+    }
+  }, [queryClient]);
+
   const handleUpgrade = async () => {
     setLoading(true);
     try {
-      // כאן נחבר למערכת Grow לתשלום
-      toast({
-        title: "מעבר לתשלום",
-        description: "בקרוב - התשלום יופעל. לבינתיים החשבון שלך שודרג לבדיקות",
+      const { data, error } = await supabase.functions.invoke('create-tranzila-payment', {
+        body: { planType: billingPeriod },
       });
-      
-      // After successful payment, redirect to WhatsApp connection
-      setTimeout(() => {
-        window.location.href = '/connect';
-      }, 2000);
+
+      if (error) throw error;
+
+      if (data?.iframeUrl) {
+        setIframeUrl(data.iframeUrl);
+        setShowPaymentModal(true);
+      }
     } catch (error) {
+      console.error('Error creating payment:', error);
       toast({
         title: "שגיאה",
-        description: "משהו השתבש. אנא נסה שוב.",
+        description: "לא ניתן ליצור תשלום. אנא נסה שוב.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelSubscription = async () => {
+    // This will be handled by SubscriptionManagement component
+    queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+  };
+
+  const handleReactivateSubscription = async () => {
+    // This will be handled by SubscriptionManagement component
+    queryClient.invalidateQueries({ queryKey: ['userProfile'] });
   };
 
   if (trialLoading) {
@@ -68,18 +111,26 @@ const Billing = () => {
           </p>
         </div>
 
-        {/* Current Status */}
-        {user && trialStatus && (
+        {/* Subscription Management - For paid users */}
+        {user && trialStatus && (trialStatus.isPaid || trialStatus.isCancelled || trialStatus.isGracePeriod) && (
+          <SubscriptionManagement
+            subscriptionStatus={trialStatus.status}
+            expiresAt={trialStatus.expiresAt?.toISOString()}
+            planType={trialStatus.planType}
+            gracePeriodEndsAt={trialStatus.gracePeriodEndsAt?.toISOString()}
+            onStatusChange={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
+          />
+        )}
+
+        {/* Current Status - For trial/expired users */}
+        {user && trialStatus && !trialStatus.isPaid && !trialStatus.isCancelled && !trialStatus.isGracePeriod && (
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <div className={`p-3 rounded-full ${
-                  isPaid ? 'bg-green-50' : 
                   trialStatus.isExpired ? 'bg-red-50' : 'bg-orange-50'
                 }`}>
-                  {isPaid ? (
-                    <Crown className="h-6 w-6 text-green-600" />
-                  ) : trialStatus.isExpired ? (
+                  {trialStatus.isExpired ? (
                     <Star className="h-6 w-6 text-red-600" />
                   ) : (
                     <Star className="h-6 w-6 text-orange-600" />
@@ -88,15 +139,12 @@ const Billing = () => {
                 <div className="flex-1">
                   <h3 className="font-semibold text-lg">
                     סטטוס נוכחי: {
-                      isPaid ? 'Premium' : 
                       trialStatus.isExpired ? 'תקופת ניסיון פגה' : 
                       `תקופת ניסיון - ${trialStatus.daysLeft} ימים נותרו`
                     }
                   </h3>
                   <p className="text-gray-600">
-                    {isPaid 
-                      ? 'יש לך גישה מלאה לכל התכונות.'
-                      : trialStatus.isExpired
+                    {trialStatus.isExpired
                       ? 'תקופת הניסיון הסתיימה. שדרג כדי להמשיך.'
                       : 'בחר תוכנית כדי להמשיך לאחר תקופת הניסיון.'
                     }
@@ -255,6 +303,16 @@ const Billing = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Tranzila Payment Modal */}
+        <TranzilaPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => {
+            setShowPaymentModal(false);
+            setIframeUrl('');
+          }}
+          iframeUrl={iframeUrl}
+        />
       </div>
     </Layout>
   );

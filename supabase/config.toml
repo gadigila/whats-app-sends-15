@@ -60,3 +60,18 @@ verify_jwt = false
 
 [functions.generate-marketing-message]
 verify_jwt = true
+
+[functions.create-tranzila-payment]
+verify_jwt = true
+
+[functions.verify-tranzila-payment]
+verify_jwt = false
+
+[functions.cancel-subscription]
+verify_jwt = true
+
+[functions.reactivate-subscription]
+verify_jwt = true
+
+[functions.process-subscription-renewals]
+verify_jwt = false
