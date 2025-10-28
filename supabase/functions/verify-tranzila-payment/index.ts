@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
         subscription_expires_at: expiresAt.toISOString(),
         subscription_created_at: new Date().toISOString(),
         last_payment_date: new Date().toISOString(),
-        tranzila_token: cardToken || null,
+        // tranzila_token: NO LONGER NEEDED - Tranzila handles recurring natively
         failed_payment_attempts: 0,
         trial_expires_at: null, // Clear trial
       })

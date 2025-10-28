@@ -88,26 +88,44 @@ Deno.serve(async (req) => {
 
     console.log('✅ Handshake successful, thtk:', thtk);
     
-    // Build Tranzila iFrame URL
+    // Calculate recurring start date (30 days or 365 days from now)
+    const recurStartDate = new Date();
+    recurStartDate.setDate(recurStartDate.getDate() + (planType === 'yearly' ? 365 : 30));
+    const formattedRecurDate = recurStartDate.toISOString().split('T')[0]; // yyyy-mm-dd
+
+    // Build Tranzila iFrame URL with NATIVE RECURRING PARAMETERS
     const tranzilaParams = new URLSearchParams({
       supplier: terminalName,
       sum: amount.toString(),
       currency: '1', // ILS
-      cred_type: '8', // Tokenized payment for auto-renewal
-      tranmode: 'VK', // iFrame mode
+      
+      // GUIDE SPECIFICATION: Payment type and transaction mode
+      cred_type: '1', // Payment type (explicit in guide)
+      tranmode: 'A', // Standard transaction
       
       // HANDSHAKE FRAUD PREVENTION
       new_process: '1', // Enable handshake verification
       thtk: thtk, // Transaction handshake token
       
+      // NATIVE RECURRING PARAMETERS (from guide)
+      recur_sum: amount.toString(), // Amount for each recurring charge
+      recur_transaction: planType === 'yearly' ? '7_approved' : '4_approved', // 4=monthly, 7=yearly, not customer choice
+      // recur_payments: NOT INCLUDED - omit for unlimited recurring until cancelled
+      recur_start_date: formattedRecurDate, // yyyy-mm-dd format
+      
+      // Webhook URLs
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
       success_url_address: 'https://reecher.app/payment-success',
       fail_url_address: 'https://reecher.app/payment-failed',
+      
+      // Customer information
       user_id: user.id,
       contact: profile.name || user.email || '',
       email: user.email || '',
       company: planType === 'yearly' ? 'yearly_plan' : 'monthly_plan',
       remarks: transactionId,
+      
+      // Display customization
       trBgColor: 'ffffff',
       trTextColor: '000000',
       lang: 'il', // Hebrew

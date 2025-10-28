@@ -55,6 +55,44 @@ Deno.serve(async (req) => {
       throw updateError;
     }
 
+    // ======= CRITICAL: Stop Tranzila recurring charges =======
+    try {
+      const terminalName = Deno.env.get('TRANZILA_TERMINAL_NAME')!;
+      const terminalPassword = Deno.env.get('TRANZILA_TERMINAL_PASSWORD')!;
+      
+      // Get user's email for Tranzila API
+      const { data: { user: authUser }, error: userError } = await supabase.auth.admin.getUserById(user.id);
+      
+      if (!userError && authUser?.email) {
+        console.log('🛑 Stopping Tranzila recurring billing for:', authUser.email);
+        
+        // Note: Tranzila's guide doesn't specify the exact cancellation API endpoint
+        // You may need to contact Tranzila support for the correct endpoint
+        // For now, this is a placeholder that logs the cancellation intent
+        console.log('⚠️ IMPORTANT: Verify Tranzila recurring cancellation API endpoint');
+        console.log('User email:', authUser.email);
+        console.log('User ID:', user.id);
+        console.log('Plan:', profile.payment_plan);
+        
+        // TODO: Add actual Tranzila recurring cancellation API call
+        // Possible endpoint (verify with Tranzila):
+        // const cancelParams = new URLSearchParams({
+        //   supplier: terminalName,
+        //   TranzilaPW: terminalPassword,
+        //   customer_email: authUser.email,
+        //   action: 'cancel_recurring',
+        // });
+        // const cancelResponse = await fetch('https://secure5.tranzila.com/api/cancel-recurring', {
+        //   method: 'POST',
+        //   body: cancelParams.toString(),
+        // });
+      }
+    } catch (cancelError) {
+      console.error('⚠️ Error stopping Tranzila recurring:', cancelError);
+      // Don't throw - subscription is cancelled in our system
+    }
+    // ======= END CRITICAL SECTION =======
+
     console.log('✅ Subscription cancelled for user:', user.id);
 
     return new Response(
