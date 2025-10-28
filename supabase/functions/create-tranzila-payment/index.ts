@@ -51,6 +51,43 @@ Deno.serve(async (req) => {
     const terminalName = Deno.env.get('TRANZILA_TERMINAL_NAME')!;
     const terminalPassword = Deno.env.get('TRANZILA_TERMINAL_PASSWORD')!;
     
+    // STEP 1: Perform handshake for fraud prevention
+    console.log('🤝 Starting Tranzila handshake...');
+    const handshakeUrl = new URL('https://api.tranzila.com/v1/handshake/create');
+    handshakeUrl.searchParams.set('supplier', terminalName);
+    handshakeUrl.searchParams.set('sum', amount.toString());
+    handshakeUrl.searchParams.set('TranzilaPW', terminalPassword);
+
+    const handshakeResponse = await fetch(handshakeUrl.toString(), {
+      method: 'GET',
+    });
+
+    if (!handshakeResponse.ok) {
+      const errorText = await handshakeResponse.text();
+      console.error('❌ Handshake failed:', errorText);
+      throw new Error(`Handshake failed: ${errorText}`);
+    }
+
+    const handshakeResult = await handshakeResponse.text();
+    console.log('🤝 Handshake raw response:', handshakeResult);
+
+    // Parse the response (format: key=value&key=value)
+    const handshakeData: Record<string, string> = {};
+    handshakeResult.split('&').forEach(pair => {
+      const [key, value] = pair.split('=');
+      if (key && value) {
+        handshakeData[key] = decodeURIComponent(value);
+      }
+    });
+
+    const thtk = handshakeData.thtk;
+    if (!thtk) {
+      console.error('❌ No thtk in handshake response:', handshakeData);
+      throw new Error('Handshake did not return thtk parameter');
+    }
+
+    console.log('✅ Handshake successful, thtk:', thtk);
+    
     // Build Tranzila iFrame URL
     const tranzilaParams = new URLSearchParams({
       supplier: terminalName,
@@ -58,6 +95,11 @@ Deno.serve(async (req) => {
       currency: '1', // ILS
       cred_type: '8', // Tokenized payment for auto-renewal
       tranmode: 'VK', // iFrame mode
+      
+      // HANDSHAKE FRAUD PREVENTION
+      new_process: '1', // Enable handshake verification
+      thtk: thtk, // Transaction handshake token
+      
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
       success_url_address: 'https://reecher.app/payment-success',
       fail_url_address: 'https://reecher.app/payment-failed',
