@@ -88,10 +88,9 @@ Deno.serve(async (req) => {
 
     console.log('✅ Handshake successful, thtk:', thtk);
     
-    // Calculate recurring start date (30 days or 365 days from now)
+    // Set recurring to start TODAY so the first payment is part of the subscription
     const recurStartDate = new Date();
-    recurStartDate.setDate(recurStartDate.getDate() + (planType === 'yearly' ? 365 : 30));
-    const formattedRecurDate = recurStartDate.toISOString().split('T')[0]; // yyyy-mm-dd
+    const formattedRecurDate = recurStartDate.toISOString().split('T')[0]; // yyyy-mm-dd (today)
 
     // Build Tranzila iFrame URL with NATIVE RECURRING PARAMETERS
     const tranzilaParams = new URLSearchParams({
