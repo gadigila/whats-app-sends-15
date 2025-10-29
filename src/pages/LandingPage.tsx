@@ -113,12 +113,10 @@ const LandingPage = () => {
                     <Check className="h-5 w-5 text-green-600" />
                     <span>תמיכה בתמונות וקבצים</span>
                   </div>
+                  <div className="flex items-center gap-3 mt-6 pt-6 border-t border-gray-200">
+                    <span className="text-sm text-muted-foreground">• ניתן לבטל בכל רגע - בלי טריקים ובלי אותיות קטנות</span>
+                  </div>
                 </div>
-                <Link to="/auth" className="block w-full mt-6">
-                  <ThreeDButton variant="primary" className="w-full">
-                    התחל ניסיון חינם
-                  </ThreeDButton>
-                </Link>
               </CardContent>
             </Card>
 
@@ -155,14 +153,20 @@ const LandingPage = () => {
                     <Check className="h-5 w-5 text-green-600" />
                     <span>תמיכה עדיפות</span>
                   </div>
+                  <div className="flex items-center gap-3 mt-6 pt-6 border-t border-gray-200">
+                    <span className="text-sm text-muted-foreground">• ניתן לבטל בכל רגע - בלי טריקים ובלי אותיות קטנות</span>
+                  </div>
                 </div>
-                <Link to="/auth" className="block w-full mt-6">
-                  <ThreeDButton variant="secondary" className="w-full">
-                    התחל עם הניסיון החינם
-                  </ThreeDButton>
-                </Link>
               </CardContent>
             </Card>
+          </div>
+          
+          <div className="flex justify-center mt-8">
+            <Link to="/auth">
+              <ThreeDButton variant="primary" size="lg">
+                התחלו עכשיו
+              </ThreeDButton>
+            </Link>
           </div>
         </div>
 
