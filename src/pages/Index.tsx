@@ -290,12 +290,9 @@ const Index = () => {
                     <span>תמיכה מהירה</span>
                   </p>
                 </div>
-                <Link to="/auth">
-                  <ThreeDButton variant="primary" className="w-full" size="lg">
-                    התחילו עכשיו
-                  </ThreeDButton>
-                </Link>
-                <p className="text-sm text-gray-500 mt-4">מבטלים בכל רגע</p>
+                <div className="flex items-center gap-3 mt-6 pt-6 border-t border-gray-200">
+                  <span className="text-sm text-muted-foreground">• ניתן לבטל בכל רגע - בלי טריקים ובלי אותיות קטנות</span>
+                </div>
               </CardContent>
             </Card>
 
@@ -332,14 +329,19 @@ const Index = () => {
                     <span className="font-semibold text-green-700">חיסכון של 17% בתשלום שנתי</span>
                   </p>
                 </div>
-                <Link to="/auth">
-                  <ThreeDButton variant="primary" className="w-full" size="lg">
-                    התחילו עכשיו
-                  </ThreeDButton>
-                </Link>
-                <p className="text-sm text-gray-500 mt-4">מבטלים בכל רגע</p>
+                <div className="flex items-center gap-3 mt-6 pt-6 border-t border-gray-200">
+                  <span className="text-sm text-muted-foreground">• ניתן לבטל בכל רגע - בלי טריקים ובלי אותיות קטנות</span>
+                </div>
               </CardContent>
             </Card>
+          </div>
+          
+          <div className="flex justify-center mt-8">
+            <Link to="/auth">
+              <ThreeDButton variant="primary" size="lg">
+                התחילו עכשיו
+              </ThreeDButton>
+            </Link>
           </div>
         </div>
       </section>
