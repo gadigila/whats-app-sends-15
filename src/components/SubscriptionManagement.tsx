@@ -40,6 +40,32 @@ const SubscriptionManagement = ({
   const handleCancel = async () => {
     setIsLoading(true);
     try {
+      // First, verify the user has a subscription ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('tranzila_sto_id')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      if (!profileData?.tranzila_sto_id) {
+        toast.error('לא ניתן לבטל מנוי', {
+          description: 'לא נמצא מזהה מנוי. אנא פנה לתמיכה.',
+        });
+        setShowCancelDialog(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // Proceed with cancellation
       const { data, error } = await supabase.functions.invoke('cancel-subscription', {
         method: 'POST',
       });
@@ -55,7 +81,7 @@ const SubscriptionManagement = ({
     } catch (error) {
       console.error('Error cancelling subscription:', error);
       toast.error('שגיאה בביטול המנוי', {
-        description: 'אנא נסה שוב או פנה לתמיכה',
+        description: error.message || 'אנא נסה שוב או פנה לתמיכה',
       });
     } finally {
       setIsLoading(false);

@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
     const transactionId = formData.get('remarks')?.toString();
     const company = formData.get('company')?.toString(); // 'yearly_plan' or 'monthly_plan'
     const cardToken = formData.get('TranzilaTK')?.toString(); // For recurring payments
+    const stoId = formData.get('sto_id')?.toString(); // Standing Order ID from Tranzila
 
     console.log('📥 Tranzila webhook received:', {
       response,
@@ -29,6 +30,7 @@ Deno.serve(async (req) => {
       transactionId,
       company,
       hasToken: !!cardToken,
+      stoId,
     });
 
     // Verify successful payment (Response = "000")
@@ -69,7 +71,7 @@ Deno.serve(async (req) => {
         subscription_expires_at: expiresAt.toISOString(),
         subscription_created_at: new Date().toISOString(),
         last_payment_date: new Date().toISOString(),
-        // tranzila_token: NO LONGER NEEDED - Tranzila handles recurring natively
+        tranzila_sto_id: stoId ? parseInt(stoId) : null, // Store STO ID for future cancellations
         failed_payment_attempts: 0,
         trial_expires_at: null, // Clear trial
       })
