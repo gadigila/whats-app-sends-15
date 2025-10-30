@@ -135,8 +135,8 @@ Deno.serve(async (req) => {
       
       // Webhook URLs
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
-      success_url_address: `${origin}/payment-success`,
-      fail_url_address: `${origin}/payment-failed`,
+      success_url_address: `${origin}/billing?payment=success&user_id=${user.id}`,
+      fail_url_address: `${origin}/billing?payment=failed&user_id=${user.id}`,
       
       // Customer information
       user_id: user.id,
@@ -149,6 +149,7 @@ Deno.serve(async (req) => {
       trBgColor: 'ffffff',
       trTextColor: '000000',
       lang: 'il', // Hebrew
+      iframe: '1', // Enable iframe mode
     });
 
     const iframeUrl = `https://direct.tranzila.com/${terminalName}/iframenew.php?${tranzilaParams.toString()}`;

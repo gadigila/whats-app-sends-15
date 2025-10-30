@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
 import { ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Crown, Star, ArrowLeft } from 'lucide-react';
+import { CheckCircle, Crown, Star, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { trackInitiateCheckout } from '@/lib/fbPixel';
@@ -170,6 +170,38 @@ const Billing = () => {
     // This will be handled by SubscriptionManagement component
     queryClient.invalidateQueries({ queryKey: ['userProfile'] });
   };
+
+  // Check if we're in iframe with payment result - show minimal UI
+  const urlParams = new URLSearchParams(window.location.search);
+  const paymentStatus = urlParams.get('payment');
+  const isInIframe = window.self !== window.top;
+
+  if (isInIframe && (paymentStatus === 'success' || paymentStatus === 'failed')) {
+    // Minimal UI for iframe payment result
+    return (
+      <div dir="rtl" className="bg-background flex items-center justify-center p-8">
+        <div className="w-full max-w-md mx-auto text-center space-y-4">
+          <div className="flex justify-center">
+            <div className={`rounded-full ${paymentStatus === 'success' ? 'bg-green-100' : 'bg-destructive/10'} p-6 animate-in zoom-in duration-300`}>
+              {paymentStatus === 'success'
+                ? <CheckCircle2 className="h-16 w-16 text-green-600" />
+                : <AlertCircle className="h-16 w-16 text-destructive" />
+              }
+            </div>
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-foreground">
+              {paymentStatus === 'success' ? 'התשלום בוצע בהצלחה! 🎉' : 'התשלום נכשל'}
+            </h1>
+            <p className="text-base text-muted-foreground">
+              {paymentStatus === 'success' ? 'המנוי שלך שודרג לפרימיום' : 'אנא נסה שוב'}
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground/70 pt-2">סוגר...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (trialLoading) {
     return (
