@@ -133,10 +133,10 @@ Deno.serve(async (req) => {
       // recur_payments: NOT INCLUDED - omit for unlimited recurring until cancelled
       recur_start_date: formattedRecurDate, // yyyy-mm-dd format
       
-      // Webhook URLs (environment-aware)
+      // Webhook URLs (use Edge Function bridge for reliable returns)
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
-      success_url_address: `${origin}/payment-success`,
-      fail_url_address: `${origin}/payment-failed`,
+      success_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/payment-return?status=success`,
+      fail_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/payment-return?status=failed`,
       
       // Customer information
       user_id: user.id,
@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
 
     const iframeUrl = `https://direct.tranzila.com/${terminalName}/iframenew.php?${tranzilaParams.toString()}`;
 
-    console.log('✅ Created Tranzila payment URL for user:', user.id, 'Plan:', planType, 'Return URLs:', `${origin}/payment-success`, `${origin}/payment-failed`);
+    console.log('✅ Created Tranzila payment URL for user:', user.id, 'Plan:', planType, 'Return URLs:', 'https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/payment-return');
 
     return new Response(
       JSON.stringify({
