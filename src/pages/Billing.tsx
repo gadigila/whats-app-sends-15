@@ -82,41 +82,54 @@ const Billing = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const paymentStatus = urlParams.get('payment');
     
-    if (paymentStatus === 'success') {
-      setShowPaymentModal(false);
-      setIframeUrl('');
+    if (paymentStatus === 'success' || paymentStatus === 'failed') {
+      // Check if we're inside an iframe
+      const isInIframe = window.self !== window.top;
       
-      // Refresh data
-      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-      queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      
-      // Show success message
-      toast({
-        title: "התשלום בוצע בהצלחה! 🎉",
-        description: "החשבון שלך שודרג למנוי פרימיום",
-      });
-      
-      // Clean up URL
-      window.history.replaceState({}, '', '/billing');
-      
-      // Redirect to WhatsApp connection
-      setTimeout(() => {
-        navigate('/connect');
-      }, 1500);
-      
-    } else if (paymentStatus === 'failed') {
-      setShowPaymentModal(false);
-      setIframeUrl('');
-      
-      toast({
-        title: "התשלום נכשל",
-        description: "אנא נסה שוב או פנה לתמיכה",
-        variant: "destructive",
-      });
-      
-      // Clean up URL
-      window.history.replaceState({}, '', '/billing');
+      if (isInIframe) {
+        // Send message to parent window to handle the result
+        window.parent.postMessage({
+          type: paymentStatus === 'success' ? 'PAYMENT_SUCCESS' : 'PAYMENT_FAILED'
+        }, '*');
+      } else {
+        // Handle normally when not in iframe
+        if (paymentStatus === 'success') {
+          setShowPaymentModal(false);
+          setIframeUrl('');
+          
+          // Refresh data
+          queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+          queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
+          queryClient.invalidateQueries({ queryKey: ['invoices'] });
+          
+          // Show success message
+          toast({
+            title: "התשלום בוצע בהצלחה! 🎉",
+            description: "החשבון שלך שודרג למנוי פרימיום",
+          });
+          
+          // Clean up URL
+          window.history.replaceState({}, '', '/billing');
+          
+          // Redirect to WhatsApp connection
+          setTimeout(() => {
+            navigate('/connect');
+          }, 1500);
+          
+        } else if (paymentStatus === 'failed') {
+          setShowPaymentModal(false);
+          setIframeUrl('');
+          
+          toast({
+            title: "התשלום נכשל",
+            description: "אנא נסה שוב או פנה לתמיכה",
+            variant: "destructive",
+          });
+          
+          // Clean up URL
+          window.history.replaceState({}, '', '/billing');
+        }
+      }
     }
   }, [queryClient, navigate]);
 
