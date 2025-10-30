@@ -40,39 +40,17 @@ const SubscriptionManagement = ({
   const handleCancel = async () => {
     setIsLoading(true);
     try {
-      // First, verify the user has a subscription ID
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('tranzila_sto_id')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      if (!profileData?.tranzila_sto_id) {
-        toast.error('לא ניתן לבטל מנוי', {
-          description: 'לא נמצא מזהה מנוי. אנא פנה לתמיכה.',
-        });
-        setShowCancelDialog(false);
-        setIsLoading(false);
-        return;
-      }
-
-      // Proceed with cancellation
       const { data, error } = await supabase.functions.invoke('cancel-subscription', {
         method: 'POST',
       });
 
       if (error) throw error;
 
-      toast.success('המנוי בוטל בהצלחה', {
+      const warningNote = !data?.tranzila_cancelled 
+        ? ' (ייתכן שיהיה צורך לבטל ידנית בטרנזילה)'
+        : '';
+        
+      toast.success('המנוי בוטל בהצלחה' + warningNote, {
         description: 'תוכל להמשיך להשתמש בשירות עד תום תקופת המנוי',
       });
       

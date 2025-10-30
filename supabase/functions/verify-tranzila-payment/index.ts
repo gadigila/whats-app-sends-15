@@ -107,6 +107,18 @@ Deno.serve(async (req) => {
           }),
         });
 
+        // Check if response is actually JSON before parsing
+        const contentType = stoGetResponse.headers.get('content-type');
+        if (!contentType?.includes('application/json')) {
+          const errorBody = await stoGetResponse.text();
+          console.error('⚠️ Tranzila STO API returned non-JSON response:', {
+            status: stoGetResponse.status,
+            contentType,
+            bodyPreview: errorBody.substring(0, 500),
+          });
+          throw new Error('Tranzila API returned HTML instead of JSON');
+        }
+
         const stoData = await stoGetResponse.json();
         console.log('📡 Tranzila STO Get API response:', stoData);
         
@@ -118,13 +130,14 @@ Deno.serve(async (req) => {
         }
       } catch (error) {
         console.error('⚠️ Error fetching STO ID from Tranzila:', error);
+        console.log('📝 Will store card token instead. Payment was successful.');
         // Continue without sto_id - payment was successful
       }
     }
 
-    console.log('💾 Storing subscription with STO ID:', actualStoId);
+    console.log('💾 Storing subscription with STO ID:', actualStoId, 'Card Token:', cardToken ? '✓' : '✗');
 
-    // Update user profile with subscription
+    // Update user profile with subscription - store BOTH sto_id and card token
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
@@ -135,6 +148,7 @@ Deno.serve(async (req) => {
         subscription_created_at: new Date().toISOString(),
         last_payment_date: new Date().toISOString(),
         tranzila_sto_id: actualStoId, // Store STO ID for future cancellations
+        tranzila_token: cardToken, // Store card token as backup
         failed_payment_attempts: 0,
         trial_expires_at: null, // Clear trial
       })
