@@ -17,40 +17,29 @@ const PaymentSuccess = () => {
   };
 
   return (
-    <div dir="rtl" className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md mx-auto text-center space-y-6">
+    <div dir="rtl" className="bg-background flex items-center justify-center p-8">
+      <div className="w-full max-w-md mx-auto text-center space-y-4">
         {/* Success Icon */}
         <div className="flex justify-center">
           <div className="rounded-full bg-green-100 p-6 animate-in zoom-in duration-300">
-            <CheckCircle2 className="h-20 w-20 text-green-600" />
+            <CheckCircle2 className="h-16 w-16 text-green-600" />
           </div>
         </div>
 
         {/* Title */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl font-bold text-foreground">
             התשלום בוצע בהצלחה! 🎉
           </h1>
-          <p className="text-lg text-muted-foreground">
-            תודה על התשלום. המנוי שלך שודרג לפרימיום!
+          <p className="text-base text-muted-foreground">
+            המנוי שלך שודרג לפרימיום
           </p>
         </div>
 
-        {/* Additional Info */}
-        <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
-          בדוק את המייל שלך לקבלת אישור תשלום וחשבונית
-        </div>
-
-        {/* Action Button */}
-        <div className="pt-4">
-          <Button 
-            onClick={handleGoToDashboard}
-            size="lg"
-            className="w-full"
-          >
-            חזור לדף הראשי
-          </Button>
-        </div>
+        {/* Closing indicator */}
+        <p className="text-sm text-muted-foreground/70 pt-2">
+          סוגר...
+        </p>
       </div>
     </div>
   );
