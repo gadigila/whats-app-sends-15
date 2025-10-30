@@ -67,9 +67,6 @@ verify_jwt = true
 [functions.verify-tranzila-payment]
 verify_jwt = false
 
-[functions.payment-return]
-verify_jwt = false
-
 [functions.cancel-subscription]
 verify_jwt = true
 

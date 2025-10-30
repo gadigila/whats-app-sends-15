@@ -33,7 +33,7 @@ const TranzilaPaymentModal = ({ isOpen, onClose, iframeUrl }: TranzilaPaymentMod
               src={iframeUrl}
               className="w-full h-full border-0"
               title="Tranzila Payment"
-              sandbox="allow-scripts allow-same-origin"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-top-navigation"
             />
           ) : (
             <div className="flex items-center justify-center h-full">

@@ -133,10 +133,10 @@ Deno.serve(async (req) => {
       // recur_payments: NOT INCLUDED - omit for unlimited recurring until cancelled
       recur_start_date: formattedRecurDate, // yyyy-mm-dd format
       
-      // Webhook URLs (use Edge Function bridge for reliable returns)
+      // Webhook URLs
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
-      success_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/payment-return?status=success`,
-      fail_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/payment-return?status=failed`,
+      success_url_address: `${origin}/payment-success`,
+      fail_url_address: `${origin}/payment-failed`,
       
       // Customer information
       user_id: user.id,
