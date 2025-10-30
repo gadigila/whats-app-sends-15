@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     console.log('🤝 Starting Tranzila handshake...');
     const handshakeUrl = new URL('https://api.tranzila.com/v1/handshake/create');
     handshakeUrl.searchParams.set('supplier', terminalName);
-    handshakeUrl.searchParams.set('sum', amount.toString());
+    handshakeUrl.searchParams.set('sum', '0'); // No initial charge - first payment is part of subscription
     handshakeUrl.searchParams.set('TranzilaPW', terminalPassword);
 
     const handshakeResponse = await fetch(handshakeUrl.toString(), {
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
     // Build Tranzila iFrame URL with NATIVE RECURRING PARAMETERS
     const tranzilaParams = new URLSearchParams({
       supplier: terminalName,
-      sum: amount.toString(),
+      sum: '0', // No initial charge - first payment is part of subscription
       currency: '1', // ILS
       
       // GUIDE SPECIFICATION: Payment type and transaction mode
