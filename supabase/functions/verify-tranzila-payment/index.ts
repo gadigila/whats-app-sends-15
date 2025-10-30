@@ -61,6 +61,69 @@ Deno.serve(async (req) => {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + daysToAdd);
 
+    // If webhook doesn't have sto_id, fetch it from Tranzila STO Get API
+    let actualStoId = stoId ? parseInt(stoId) : null;
+    
+    if (!actualStoId && cardToken) {
+      console.log('🔍 STO ID not in webhook, fetching from Tranzila API...');
+      try {
+        const terminalName = Deno.env.get('TRANZILA_TERMINAL_NAME')!;
+        const appKey = Deno.env.get('TRANZILA_API_APP_KEY')!;
+        const secret = Deno.env.get('TRANZILA_API_SECRET')!;
+        
+        // Generate HMAC authentication
+        const nonce = crypto.randomUUID().replace(/-/g, '').substring(0, 40);
+        const timestamp = Date.now().toString();
+        
+        const encoder = new TextEncoder();
+        const keyData = encoder.encode(secret);
+        const messageData = encoder.encode(appKey + timestamp + nonce);
+        const cryptoKey = await crypto.subtle.importKey(
+          'raw',
+          keyData,
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+        const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+        const accessToken = Array.from(new Uint8Array(signature))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        // Call Tranzila STO Get API
+        const stoGetResponse = await fetch('https://api.tranzila.com/v1/sto/get', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-tranzila-api-access-token': accessToken,
+            'X-tranzila-api-app-key': appKey,
+            'X-tranzila-api-nonce': nonce,
+            'X-tranzila-api-request-time': timestamp,
+          },
+          body: JSON.stringify({
+            terminal_name: terminalName,
+            card_token: cardToken,
+            response_language: 'english',
+          }),
+        });
+
+        const stoData = await stoGetResponse.json();
+        console.log('📡 Tranzila STO Get API response:', stoData);
+        
+        if (stoData.error_code === 0 && stoData.sto_id) {
+          actualStoId = parseInt(stoData.sto_id);
+          console.log('✅ Retrieved STO ID from Tranzila API:', actualStoId);
+        } else {
+          console.warn('⚠️ Could not retrieve STO ID from API:', stoData.message);
+        }
+      } catch (error) {
+        console.error('⚠️ Error fetching STO ID from Tranzila:', error);
+        // Continue without sto_id - payment was successful
+      }
+    }
+
+    console.log('💾 Storing subscription with STO ID:', actualStoId);
+
     // Update user profile with subscription
     const { error: updateError } = await supabase
       .from('profiles')
@@ -71,7 +134,7 @@ Deno.serve(async (req) => {
         subscription_expires_at: expiresAt.toISOString(),
         subscription_created_at: new Date().toISOString(),
         last_payment_date: new Date().toISOString(),
-        tranzila_sto_id: stoId ? parseInt(stoId) : null, // Store STO ID for future cancellations
+        tranzila_sto_id: actualStoId, // Store STO ID for future cancellations
         failed_payment_attempts: 0,
         trial_expires_at: null, // Clear trial
       })

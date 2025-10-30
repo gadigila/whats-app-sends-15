@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     console.log('🤝 Starting Tranzila handshake...');
     const handshakeUrl = new URL('https://api.tranzila.com/v1/handshake/create');
     handshakeUrl.searchParams.set('supplier', terminalName);
-    handshakeUrl.searchParams.set('sum', '0'); // Set to 0 to avoid double charge display
+    handshakeUrl.searchParams.set('sum', amount.toString()); // Full amount for handshake
     handshakeUrl.searchParams.set('TranzilaPW', terminalPassword);
 
     const handshakeResponse = await fetch(handshakeUrl.toString(), {

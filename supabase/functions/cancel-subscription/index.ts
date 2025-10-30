@@ -59,7 +59,12 @@ Deno.serve(async (req) => {
     try {
       // Get user's STO ID
       if (!profile.tranzila_sto_id) {
-        throw new Error('No subscription ID found. Cannot cancel recurring payments.');
+        console.error('❌ Missing tranzila_sto_id for user:', user.id, 'Profile:', {
+          subscription_status: profile.subscription_status,
+          payment_plan: profile.payment_plan,
+          subscription_created_at: profile.subscription_created_at,
+        });
+        throw new Error('מידע המנוי לא נמצא במערכת. אנא צור קשר עם התמיכה.');
       }
 
       console.log('🛑 Stopping Tranzila recurring billing, STO ID:', profile.tranzila_sto_id);
