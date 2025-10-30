@@ -135,8 +135,8 @@ Deno.serve(async (req) => {
       
       // Webhook URLs
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
-      success_url_address: `${origin}/billing?payment=success`,
-      fail_url_address: `${origin}/billing?payment=failed`,
+      success_url_address: `${origin}/payment-success`,
+      fail_url_address: `${origin}/payment-failed`,
       
       // Customer information
       user_id: user.id,
