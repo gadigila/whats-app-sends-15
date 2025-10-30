@@ -77,6 +77,49 @@ const Billing = () => {
     return () => window.removeEventListener('message', handleMessage);
   }, [queryClient, navigate]);
 
+  // Handle query parameters for payment result (from Tranzila redirect)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get('payment');
+    
+    if (paymentStatus === 'success') {
+      setShowPaymentModal(false);
+      setIframeUrl('');
+      
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      
+      // Show success message
+      toast({
+        title: "התשלום בוצע בהצלחה! 🎉",
+        description: "החשבון שלך שודרג למנוי פרימיום",
+      });
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/billing');
+      
+      // Redirect to WhatsApp connection
+      setTimeout(() => {
+        navigate('/connect');
+      }, 1500);
+      
+    } else if (paymentStatus === 'failed') {
+      setShowPaymentModal(false);
+      setIframeUrl('');
+      
+      toast({
+        title: "התשלום נכשל",
+        description: "אנא נסה שוב או פנה לתמיכה",
+        variant: "destructive",
+      });
+      
+      // Clean up URL
+      window.history.replaceState({}, '', '/billing');
+    }
+  }, [queryClient, navigate]);
+
   const handleUpgrade = async () => {
     setLoading(true);
     try {
