@@ -1,28 +1,29 @@
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
-import { ThreeDButton } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Crown, Star, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { CheckCircle, Crown, Star, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { trackInitiateCheckout } from '@/lib/fbPixel';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { usePaymentPlans } from '@/hooks/usePaymentPlans';
-// import TranzilaPaymentModal from '@/components/TranzilaPaymentModal'; // Replaced with PayPal
 import SubscriptionManagement from '@/components/SubscriptionManagement';
-import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useInvoices } from '@/hooks/useInvoices';
 import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
+declare global {
+  interface Window {
+    paypal: any;
+  }
+}
+
 const Billing = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [iframeUrl, setIframeUrl] = useState('');
+  const [paypalLoaded, setPaypalLoaded] = useState(false);
   const { trialStatus, isLoading: trialLoading } = useTrialStatus();
   const { plans, currentPlan, billingPeriod, setBillingPeriod } = usePaymentPlans();
   const queryClient = useQueryClient();
@@ -31,6 +32,21 @@ const Billing = () => {
   const isPaid = trialStatus?.isPaid || false;
   const latestInvoice = invoices?.[0];
 
+  // Load PayPal SDK
+  useEffect(() => {
+    if (!isPaid && !paypalLoaded) {
+      const script = document.createElement('script');
+      script.src = 'https://www.paypal.com/sdk/js?client-id=AR10sbKefx7DpNKT7y827_fC8tsV53kBseOQxhx-qFxE1b10ODFkFuQYYeTRHYiyKjBuuLFh7F9cuIe1&vault=true&intent=subscription';
+      script.async = true;
+      script.onload = () => setPaypalLoaded(true);
+      document.body.appendChild(script);
+      
+      return () => {
+        document.body.removeChild(script);
+      };
+    }
+  }, [isPaid, paypalLoaded]);
+
   // Track InitiateCheckout when user views the billing page
   useEffect(() => {
     if (!trialLoading && !isPaid) {
@@ -38,44 +54,66 @@ const Billing = () => {
     }
   }, [trialLoading, isPaid]);
 
-  // Handle postMessage from payment result pages in iframe
+  // Initialize PayPal button when SDK loads
   useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'PAYMENT_SUCCESS') {
-        setShowPaymentModal(false);
-        setIframeUrl('');
-        
-        // Refresh data
-        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-        queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
-        queryClient.invalidateQueries({ queryKey: ['invoices'] });
-        
-        // Show success message
-        toast({
-          title: "התשלום בוצע בהצלחה! 🎉",
-          description: "החשבון שלך שודרג למנוי פרימיום",
-        });
-        
-        // Redirect to WhatsApp connection
-        setTimeout(() => {
-          navigate('/connect');
-        }, 1500);
-        
-      } else if (event.data?.type === 'PAYMENT_FAILED') {
-        setShowPaymentModal(false);
-        setIframeUrl('');
-        
-        toast({
-          title: "התשלום נכשל",
-          description: "אנא נסה שוב או פנה לתמיכה",
-          variant: "destructive",
-        });
+    if (paypalLoaded && window.paypal && !isPaid) {
+      const planId = billingPeriod === 'monthly' 
+        ? 'P-8AN74902GS080034XNEB4T6Y'
+        : 'P-1SD395240G565594LNEB5QQA';
+      
+      // Clear previous button
+      const container = document.getElementById('paypal-button-container');
+      if (container) {
+        container.innerHTML = '';
       }
-    };
-    
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [queryClient, navigate]);
+      
+      window.paypal.Buttons({
+        style: {
+          shape: 'pill',
+          color: 'gold',
+          layout: 'vertical',
+          label: 'subscribe',
+          height: 48
+        },
+        createSubscription: function(data: any, actions: any) {
+          return actions.subscription.create({
+            plan_id: planId
+          });
+        },
+        onApprove: function(data: any, actions: any) {
+          console.log('✅ PayPal subscription approved:', data.subscriptionID);
+          
+          toast({
+            title: "מנוי נוצר בהצלחה! 🎉",
+            description: "המערכת מעדכנת את המנוי שלך...",
+          });
+          
+          // Refresh data
+          queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+          queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
+          
+          // Redirect to WhatsApp connection
+          setTimeout(() => {
+            navigate('/connect');
+          }, 2000);
+        },
+        onError: function(err: any) {
+          console.error('❌ PayPal error:', err);
+          toast({
+            title: "שגיאה ביצירת מנוי",
+            description: "אנא נסה שוב או צור קשר עם התמיכה",
+            variant: "destructive",
+          });
+        },
+        onCancel: function() {
+          toast({
+            title: "התשלום בוטל",
+            description: "לא בוצע חיוב. אתה יכול לנסות שוב מתי שתרצה.",
+          });
+        }
+      }).render('#paypal-button-container');
+    }
+  }, [paypalLoaded, billingPeriod, isPaid, queryClient, navigate]);
 
   // Handle query parameters for payment result (from PayPal redirect)
   useEffect(() => {
@@ -118,55 +156,6 @@ const Billing = () => {
     }
   }, [queryClient, navigate]);
 
-  const handleUpgrade = async () => {
-    setLoading(true);
-    
-    try {
-      console.log('🚀 Creating PayPal subscription for plan:', billingPeriod);
-      
-      const { data, error } = await supabase.functions.invoke('create-paypal-subscription', {
-        body: { 
-          planType: billingPeriod, // 'monthly' or 'yearly'
-          returnUrl: `${window.location.origin}/billing?payment=success`,
-          cancelUrl: `${window.location.origin}/billing?payment=cancelled`,
-        },
-      });
-
-      if (error) {
-        console.error('❌ PayPal subscription creation error:', error);
-        throw error;
-      }
-
-      console.log('✅ PayPal subscription created:', data);
-
-      if (data?.approvalUrl) {
-        // Direct redirect to PayPal approval page
-        console.log('🔗 Redirecting to PayPal approval:', data.approvalUrl);
-        window.location.href = data.approvalUrl;
-      } else {
-        throw new Error('No approval URL received from PayPal');
-      }
-    } catch (error: any) {
-      console.error('❌ Error creating PayPal subscription:', error);
-      toast({
-        title: "שגיאה ביצירת מנוי",
-        description: error.message || "לא ניתן ליצור מנוי. אנא נסה שוב.",
-        variant: "destructive",
-      });
-      setLoading(false);
-    }
-    // Don't set loading to false on success - we're redirecting
-  };
-
-  const handleCancelSubscription = async () => {
-    // This will be handled by SubscriptionManagement component
-    queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-  };
-
-  const handleReactivateSubscription = async () => {
-    // This will be handled by SubscriptionManagement component
-    queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-  };
 
   // Check if we're in iframe with payment result - show minimal UI
   const urlParams = new URLSearchParams(window.location.search);
@@ -368,28 +357,28 @@ const Billing = () => {
                     </li>
                   ))}
                 </ul>
-                <ThreeDButton 
-                  onClick={handleUpgrade}
-                  disabled={loading || isPaid}
-                  variant="primary"
-                  className="w-full"
-                >
-                  {loading ? (
-                    "מעבד..."
-                  ) : isPaid ? (
-                    "התוכנית הנוכחית שלך"
-                  ) : (
-                    <>
-                      התחל עכשיו
-                      <ArrowLeft className="mr-2 h-5 w-5" />
-                    </>
-                  )}
-                </ThreeDButton>
                 
-                {!isPaid && (
-                  <p className="text-center text-sm text-gray-500 mt-4">
-                    לאחר התשלום תועבר לחיבור וואטסאפ
-                  </p>
+                {isPaid ? (
+                  <div className="text-center py-3 bg-green-100 text-green-800 rounded-md font-medium">
+                    התוכנית הנוכחית שלך
+                  </div>
+                ) : (
+                  <>
+                    <div 
+                      id="paypal-button-container" 
+                      className="w-full min-h-[48px]"
+                    />
+                    
+                    {!paypalLoaded && (
+                      <div className="text-center py-3 text-gray-500">
+                        טוען כפתור תשלום...
+                      </div>
+                    )}
+                    
+                    <p className="text-center text-sm text-gray-500 mt-4">
+                      לאחר התשלום תועבר לחיבור וואטסאפ
+                    </p>
+                  </>
                 )}
               </CardContent>
             </Card>
