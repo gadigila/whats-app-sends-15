@@ -135,8 +135,8 @@ Deno.serve(async (req) => {
       
       // Webhook URLs (environment-aware)
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
-      success_url_address: `${origin}/payment-success.html`,
-      fail_url_address: `${origin}/payment-failed.html`,
+      success_url_address: `${origin}/payment-success`,
+      fail_url_address: `${origin}/payment-failed`,
       
       // Customer information
       user_id: user.id,
@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
 
     const iframeUrl = `https://direct.tranzila.com/${terminalName}/iframenew.php?${tranzilaParams.toString()}`;
 
-    console.log('✅ Created Tranzila payment URL for user:', user.id, 'Plan:', planType, 'Return URLs:', `${origin}/payment-success.html`, `${origin}/payment-failed.html`);
+    console.log('✅ Created Tranzila payment URL for user:', user.id, 'Plan:', planType, 'Return URLs:', `${origin}/payment-success`, `${origin}/payment-failed`);
 
     return new Response(
       JSON.stringify({

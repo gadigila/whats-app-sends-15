@@ -78,7 +78,9 @@ const App = () => (
             </ProtectedRoute>
           } />
           <Route path="/payment-success" element={<PaymentSuccess />} />
+          <Route path="/payment-success/*" element={<PaymentSuccess />} />
           <Route path="/payment-failed" element={<PaymentFailed />} />
+          <Route path="/payment-failed/*" element={<PaymentFailed />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/refund-policy" element={<RefundPolicy />} />
