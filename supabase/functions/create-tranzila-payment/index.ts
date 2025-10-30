@@ -47,6 +47,21 @@ Deno.serve(async (req) => {
     // Generate unique transaction ID
     const transactionId = `${user.id}_${Date.now()}`;
 
+    // Determine the origin for redirect URLs (environment-aware)
+    let origin = req.headers.get('origin') || '';
+    if (!origin) {
+      const referer = req.headers.get('referer') || '';
+      try {
+        origin = new URL(referer).origin;
+      } catch {
+        // Ignore parsing errors
+      }
+    }
+    if (!origin) {
+      origin = 'https://reecher.app'; // Fallback to production
+    }
+    console.log('🔗 Using redirect origin:', origin);
+
     // Tranzila configuration
     const terminalName = Deno.env.get('TRANZILA_TERMINAL_NAME')!;
     const terminalPassword = Deno.env.get('TRANZILA_TERMINAL_PASSWORD')!;
@@ -55,7 +70,7 @@ Deno.serve(async (req) => {
     console.log('🤝 Starting Tranzila handshake...');
     const handshakeUrl = new URL('https://api.tranzila.com/v1/handshake/create');
     handshakeUrl.searchParams.set('supplier', terminalName);
-    handshakeUrl.searchParams.set('sum', amount.toString());
+    handshakeUrl.searchParams.set('sum', '0'); // Set to 0 to avoid double charge display
     handshakeUrl.searchParams.set('TranzilaPW', terminalPassword);
 
     const handshakeResponse = await fetch(handshakeUrl.toString(), {
@@ -95,7 +110,7 @@ Deno.serve(async (req) => {
     // Build Tranzila iFrame URL with NATIVE RECURRING PARAMETERS
     const tranzilaParams = new URLSearchParams({
       supplier: terminalName,
-      sum: amount.toString(),
+      sum: '0', // Set to 0 to avoid double charge display
       currency: '1', // ILS
       
       // GUIDE SPECIFICATION: Payment type and transaction mode
@@ -112,10 +127,10 @@ Deno.serve(async (req) => {
       // recur_payments: NOT INCLUDED - omit for unlimited recurring until cancelled
       recur_start_date: formattedRecurDate, // yyyy-mm-dd format
       
-      // Webhook URLs
+      // Webhook URLs (environment-aware)
       notify_url_address: `https://ifxvwettmgixfbivlzzl.supabase.co/functions/v1/verify-tranzila-payment`,
-      success_url_address: 'https://reecher.app/payment-success',
-      fail_url_address: 'https://reecher.app/payment-failed',
+      success_url_address: `${origin}/payment-success`,
+      fail_url_address: `${origin}/payment-failed`,
       
       // Customer information
       user_id: user.id,
