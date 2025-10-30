@@ -14,12 +14,6 @@ import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
-declare global {
-  interface Window {
-    paypal: any;
-  }
-}
-
 const Billing = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -56,7 +50,8 @@ const Billing = () => {
 
   // Initialize PayPal button when SDK loads
   useEffect(() => {
-    if (paypalLoaded && window.paypal && !isPaid) {
+    const win = window as any;
+    if (paypalLoaded && win.paypal && !isPaid) {
       const planId = billingPeriod === 'monthly' 
         ? 'P-8AN74902GS080034XNEB4T6Y'
         : 'P-1SD395240G565594LNEB5QQA';
@@ -67,7 +62,7 @@ const Billing = () => {
         container.innerHTML = '';
       }
       
-      window.paypal.Buttons({
+      win.paypal.Buttons({
         style: {
           shape: 'pill',
           color: 'gold',
@@ -374,6 +369,17 @@ const Billing = () => {
                         טוען כפתור תשלום...
                       </div>
                     )}
+                    
+                    <a
+                      href={billingPeriod === 'monthly'
+                        ? 'https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-8AN74902GS080034XNEB4T6Y'
+                        : 'https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-1SD395240G565594LNEB5QQA'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block text-center text-sm text-blue-600 hover:underline mt-3"
+                    >
+                      אם כפתור PayPal לא נטען, לחץ כאן לתשלום ישיר
+                    </a>
                     
                     <p className="text-center text-sm text-gray-500 mt-4">
                       לאחר התשלום תועבר לחיבור וואטסאפ

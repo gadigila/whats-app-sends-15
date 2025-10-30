@@ -1,8 +1,7 @@
 
-import { ThreeDButton } from '@/components/ui/button';
 import { MessageSquare, Clock, Users, Zap, Check } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import PayPalSubscribeButton from '@/components/PayPalSubscribeButton';
 
 const LandingPage = () => {
   return (
@@ -27,14 +26,21 @@ const LandingPage = () => {
             חסוך זמן והגע לכולם מיידית.
           </p>
           
-          <Link to="/auth">
-            <ThreeDButton variant="primary" size="lg">
-              התחל ניסיון 3 ימים חינם
-            </ThreeDButton>
-          </Link>
+          <div className="max-w-xs mx-auto space-y-3">
+            <PayPalSubscribeButton
+              planId="P-8AN74902GS080034XNEB4T6Y"
+              label="הצטרפות חודשית - ₪99"
+              className="w-full"
+            />
+            <PayPalSubscribeButton
+              planId="P-1SD395240G565594LNEB5QQA"
+              label="הצטרפות שנתית - ₪990 (חיסכון 17%)"
+              className="w-full"
+            />
+          </div>
           
           <p className="text-sm text-gray-500 mt-4">
-            3 ימי ניסיון חינם • ללא צורך בכרטיס אשראי
+            תשלום מאובטח דרך PayPal
           </p>
         </div>
 
@@ -161,12 +167,17 @@ const LandingPage = () => {
             </Card>
           </div>
           
-          <div className="flex justify-center mt-8">
-            <Link to="/auth">
-              <ThreeDButton variant="primary" size="lg">
-                התחלו עכשיו
-              </ThreeDButton>
-            </Link>
+          <div className="max-w-xs mx-auto space-y-3 mt-8">
+            <PayPalSubscribeButton
+              planId="P-8AN74902GS080034XNEB4T6Y"
+              label="הצטרפות חודשית - ₪99"
+              className="w-full"
+            />
+            <PayPalSubscribeButton
+              planId="P-1SD395240G565594LNEB5QQA"
+              label="הצטרפות שנתית - ₪990 (חיסכון 17%)"
+              className="w-full"
+            />
           </div>
         </div>
 
@@ -178,11 +189,18 @@ const LandingPage = () => {
           <p className="text-gray-600 mb-6">
             הצטרף לאלפי משתמשים שחוסכים שעות כל שבוע עם הודעות וואטסאפ אוטומטיות.
           </p>
-          <Link to="/auth">
-            <ThreeDButton variant="primary" size="lg">
-              התחל את הניסיון החינם שלך - 3 ימים
-            </ThreeDButton>
-          </Link>
+          <div className="max-w-xs mx-auto space-y-3">
+            <PayPalSubscribeButton
+              planId="P-8AN74902GS080034XNEB4T6Y"
+              label="הצטרפות חודשית - ₪99"
+              className="w-full"
+            />
+            <PayPalSubscribeButton
+              planId="P-1SD395240G565594LNEB5QQA"
+              label="הצטרפות שנתית - ₪990 (חיסכון 17%)"
+              className="w-full"
+            />
+          </div>
         </div>
       </div>
     </div>
