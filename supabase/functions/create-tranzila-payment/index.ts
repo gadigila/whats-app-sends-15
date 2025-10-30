@@ -103,14 +103,19 @@ Deno.serve(async (req) => {
 
     console.log('✅ Handshake successful, thtk:', thtk);
     
-    // Set recurring to start TODAY so the first payment is part of the subscription
+    // Set recurring to start NEXT period (charge immediately now, then recurring later)
     const recurStartDate = new Date();
-    const formattedRecurDate = recurStartDate.toISOString().split('T')[0]; // yyyy-mm-dd (today)
+    if (planType === 'yearly') {
+      recurStartDate.setFullYear(recurStartDate.getFullYear() + 1);
+    } else {
+      recurStartDate.setMonth(recurStartDate.getMonth() + 1);
+    }
+    const formattedRecurDate = recurStartDate.toISOString().split('T')[0]; // yyyy-mm-dd
 
     // Build Tranzila iFrame URL with NATIVE RECURRING PARAMETERS
     const tranzilaParams = new URLSearchParams({
       supplier: terminalName,
-      sum: '0', // Set to 0 to avoid double charge display
+      sum: amount.toString(), // Charge immediately for first period
       currency: '1', // ILS
       
       // GUIDE SPECIFICATION: Payment type and transaction mode
