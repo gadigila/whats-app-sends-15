@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { trackInitiateCheckout } from '@/lib/fbPixel';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { usePaymentPlans } from '@/hooks/usePaymentPlans';
-import TranzilaPaymentModal from '@/components/TranzilaPaymentModal';
+// import TranzilaPaymentModal from '@/components/TranzilaPaymentModal'; // Replaced with PayPal
 import SubscriptionManagement from '@/components/SubscriptionManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -77,88 +77,85 @@ const Billing = () => {
     return () => window.removeEventListener('message', handleMessage);
   }, [queryClient, navigate]);
 
-  // Handle query parameters for payment result (from Tranzila redirect)
+  // Handle query parameters for payment result (from PayPal redirect)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const paymentStatus = urlParams.get('payment');
     
-    if (paymentStatus === 'success' || paymentStatus === 'failed') {
-      // Check if we're inside an iframe
-      const isInIframe = window.self !== window.top;
+    if (paymentStatus === 'success') {
+      console.log('✅ Payment success callback received from PayPal');
       
-      if (isInIframe) {
-        // Send message to parent window to handle the result
-        window.parent.postMessage({
-          type: paymentStatus === 'success' ? 'PAYMENT_SUCCESS' : 'PAYMENT_FAILED'
-        }, '*');
-      } else {
-        // Handle normally when not in iframe
-        if (paymentStatus === 'success') {
-          setShowPaymentModal(false);
-          setIframeUrl('');
-          
-          // Refresh data
-          queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-          queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
-          queryClient.invalidateQueries({ queryKey: ['invoices'] });
-          
-          // Show success message
-          toast({
-            title: "התשלום בוצע בהצלחה! 🎉",
-            description: "החשבון שלך שודרג למנוי פרימיום",
-          });
-          
-          // Clean up URL
-          window.history.replaceState({}, '', '/billing');
-          
-          // Redirect to WhatsApp connection
-          setTimeout(() => {
-            navigate('/connect');
-          }, 1500);
-          
-        } else if (paymentStatus === 'failed') {
-          setShowPaymentModal(false);
-          setIframeUrl('');
-          
-          toast({
-            title: "התשלום נכשל",
-            description: "אנא נסה שוב או פנה לתמיכה",
-            variant: "destructive",
-          });
-          
-          // Clean up URL
-          window.history.replaceState({}, '', '/billing');
-        }
-      }
+      // Show success message
+      toast({
+        title: "תשלום בוצע בהצלחה! 🎉",
+        description: "המנוי שלך מופעל. מעביר אותך להתחברות...",
+      });
+
+      // Refresh data to get updated subscription status
+      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      
+      // Clean URL
+      window.history.replaceState({}, '', '/billing');
+      
+      // Redirect to WhatsApp connection after short delay
+      setTimeout(() => {
+        navigate('/connect');
+      }, 2000);
+      
+    } else if (paymentStatus === 'cancelled') {
+      console.log('⚠️ Payment cancelled by user');
+      
+      toast({
+        title: "התשלום בוטל",
+        description: "לא בוצע חיוב. אתה יכול לנסות שוב מתי שתרצה.",
+        variant: "default",
+      });
+
+      // Clean URL
+      window.history.replaceState({}, '', '/billing');
     }
   }, [queryClient, navigate]);
 
   const handleUpgrade = async () => {
     setLoading(true);
+    
     try {
-      const { data, error } = await supabase.functions.invoke('create-tranzila-payment', {
+      console.log('🚀 Creating PayPal subscription for plan:', billingPeriod);
+      
+      const { data, error } = await supabase.functions.invoke('create-paypal-subscription', {
         body: { 
-          planType: billingPeriod,
-          redirectOrigin: window.location.origin 
+          planType: billingPeriod, // 'monthly' or 'yearly'
+          returnUrl: `${window.location.origin}/billing?payment=success`,
+          cancelUrl: `${window.location.origin}/billing?payment=cancelled`,
         },
       });
 
-      if (error) throw error;
-
-      if (data?.iframeUrl) {
-        setIframeUrl(data.iframeUrl);
-        setShowPaymentModal(true);
+      if (error) {
+        console.error('❌ PayPal subscription creation error:', error);
+        throw error;
       }
-    } catch (error) {
-      console.error('Error creating payment:', error);
+
+      console.log('✅ PayPal subscription created:', data);
+
+      if (data?.approvalUrl) {
+        // Direct redirect to PayPal approval page
+        console.log('🔗 Redirecting to PayPal approval:', data.approvalUrl);
+        window.location.href = data.approvalUrl;
+      } else {
+        throw new Error('No approval URL received from PayPal');
+      }
+    } catch (error: any) {
+      console.error('❌ Error creating PayPal subscription:', error);
       toast({
-        title: "שגיאה",
-        description: "לא ניתן ליצור תשלום. אנא נסה שוב.",
+        title: "שגיאה ביצירת מנוי",
+        description: error.message || "לא ניתן ליצור מנוי. אנא נסה שוב.",
         variant: "destructive",
       });
-    } finally {
       setLoading(false);
     }
+    // Don't set loading to false on success - we're redirecting
   };
 
   const handleCancelSubscription = async () => {
@@ -454,15 +451,8 @@ const Billing = () => {
           </CardContent>
         </Card>
 
-        {/* Tranzila Payment Modal */}
-        <TranzilaPaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setIframeUrl('');
-          }}
-          iframeUrl={iframeUrl}
-        />
+        {/* PayPal Payment Modal - Not needed since we redirect directly */}
+        {/* Modal functionality removed as PayPal requires direct redirect to their page */}
       </div>
     </Layout>
   );

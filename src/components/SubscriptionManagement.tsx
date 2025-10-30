@@ -39,25 +39,29 @@ const SubscriptionManagement = ({
 
   const handleCancel = async () => {
     setIsLoading(true);
+    
     try {
-      const { data, error } = await supabase.functions.invoke('cancel-subscription', {
+      console.log('🚫 Cancelling PayPal subscription');
+      
+      const { data, error } = await supabase.functions.invoke('cancel-paypal-subscription', {
         method: 'POST',
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error cancelling PayPal subscription:', error);
+        throw error;
+      }
 
-      const warningNote = !data?.tranzila_cancelled 
-        ? ' (ייתכן שיהיה צורך לבטל ידנית בטרנזילה)'
-        : '';
-        
-      toast.success('המנוי בוטל בהצלחה' + warningNote, {
-        description: 'תוכל להמשיך להשתמש בשירות עד תום תקופת המנוי',
+      console.log('✅ PayPal subscription cancelled successfully:', data);
+
+      toast.success('המנוי בוטל בהצלחה', {
+        description: 'תוכל להמשיך להשתמש בשירות עד תום תקופת המנוי הנוכחית',
       });
       
       setShowCancelDialog(false);
-      onStatusChange();
-    } catch (error) {
-      console.error('Error cancelling subscription:', error);
+      onStatusChange(); // Refresh parent component
+    } catch (error: any) {
+      console.error('❌ Error cancelling subscription:', error);
       toast.error('שגיאה בביטול המנוי', {
         description: error.message || 'אנא נסה שוב או פנה לתמיכה',
       });

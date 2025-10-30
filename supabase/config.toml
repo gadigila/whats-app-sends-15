@@ -75,3 +75,12 @@ verify_jwt = true
 
 [functions.process-subscription-renewals]
 verify_jwt = false
+
+[functions.create-paypal-subscription]
+verify_jwt = true
+
+[functions.verify-paypal-webhook]
+verify_jwt = false
+
+[functions.cancel-paypal-subscription]
+verify_jwt = true

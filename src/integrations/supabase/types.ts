@@ -131,6 +131,8 @@ export type Database = {
           name: string | null
           niches: Json | null
           payment_plan: string | null
+          payment_provider: string | null
+          paypal_subscription_id: string | null
           phone_detected_at: string | null
           phone_number: string | null
           plan: string | null
@@ -169,6 +171,8 @@ export type Database = {
           name?: string | null
           niches?: Json | null
           payment_plan?: string | null
+          payment_provider?: string | null
+          paypal_subscription_id?: string | null
           phone_detected_at?: string | null
           phone_number?: string | null
           plan?: string | null
@@ -207,6 +211,8 @@ export type Database = {
           name?: string | null
           niches?: Json | null
           payment_plan?: string | null
+          payment_provider?: string | null
+          paypal_subscription_id?: string | null
           phone_detected_at?: string | null
           phone_number?: string | null
           plan?: string | null
