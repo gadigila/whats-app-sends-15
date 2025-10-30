@@ -81,7 +81,10 @@ const Billing = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('create-tranzila-payment', {
-        body: { planType: billingPeriod },
+        body: { 
+          planType: billingPeriod,
+          redirectOrigin: window.location.origin 
+        },
       });
 
       if (error) throw error;

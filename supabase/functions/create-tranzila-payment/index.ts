@@ -7,6 +7,7 @@ const corsHeaders = {
 
 interface PaymentRequest {
   planType: 'monthly' | 'yearly';
+  redirectOrigin?: string;
 }
 
 Deno.serve(async (req) => {
@@ -28,7 +29,7 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { planType }: PaymentRequest = await req.json();
+    const { planType, redirectOrigin }: PaymentRequest = await req.json();
 
     // Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -47,8 +48,8 @@ Deno.serve(async (req) => {
     // Generate unique transaction ID
     const transactionId = `${user.id}_${Date.now()}`;
 
-    // Determine the origin for redirect URLs (environment-aware)
-    let origin = req.headers.get('origin') || '';
+    // Determine the origin for redirect URLs (priority: body param, origin header, referer, fallback)
+    let origin = redirectOrigin || req.headers.get('origin') || '';
     if (!origin) {
       const referer = req.headers.get('referer') || '';
       try {
