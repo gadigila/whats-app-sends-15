@@ -119,28 +119,6 @@ const Billing = () => {
     }
   }, [paypalLoaded, billingPeriod, isPaid, queryClient, navigate]);
 
-  // Listen for payment success from iframe/modal
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'PAYMENT_SUCCESS') {
-        console.log('✅ Received PAYMENT_SUCCESS message, refreshing data...');
-        
-        // Invalidate all queries to fetch fresh data
-        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-        queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
-        queryClient.invalidateQueries({ queryKey: ['invoices'] });
-        
-        toast({
-          title: "תשלום בוצע בהצלחה! 🎉",
-          description: "המנוי שלך עודכן",
-        });
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [queryClient]);
-
   // Handle query parameters for payment result (from PayPal redirect)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

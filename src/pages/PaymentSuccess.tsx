@@ -2,23 +2,14 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useQueryClient } from '@tanstack/react-query';
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Notify parent window about successful payment
     window.parent.postMessage({ type: 'PAYMENT_SUCCESS' }, '*');
-    
-    // Invalidate queries to refetch fresh data
-    setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-      queryClient.invalidateQueries({ queryKey: ['trialStatus'] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    }, 1000);
-  }, [queryClient]);
+  }, []);
 
   const handleGoToDashboard = () => {
     // This will be handled by the parent window, but we can also navigate
