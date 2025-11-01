@@ -81,3 +81,6 @@ verify_jwt = false
 
 [functions.cancel-paypal-subscription]
 verify_jwt = true
+
+[functions.upgrade-whapi-channel]
+verify_jwt = true
