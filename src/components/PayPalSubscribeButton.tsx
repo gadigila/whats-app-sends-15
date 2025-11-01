@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Props = {
   planId: string;
@@ -9,6 +10,7 @@ type Props = {
 export default function PayPalSubscribeButton({ planId, className, label = 'הצטרפות עם PayPal' }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -25,7 +27,12 @@ export default function PayPalSubscribeButton({ planId, className, label = 'הצ
             label: 'subscribe',
             height: 48 
           },
-          createSubscription: (_data: any, actions: any) => actions.subscription.create({ plan_id: planId }),
+          createSubscription: (_data: any, actions: any) => {
+            return actions.subscription.create({ 
+              plan_id: planId,
+              custom_id: user?.id // Track user ID in PayPal
+            });
+          },
           onApprove: (data: any) => {
             console.log('✅ PayPal subscription approved:', data.subscriptionID);
             window.location.href = '/billing?payment=success';

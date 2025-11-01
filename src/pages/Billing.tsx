@@ -72,7 +72,8 @@ const Billing = () => {
         },
         createSubscription: function(data: any, actions: any) {
           return actions.subscription.create({
-            plan_id: planId
+            plan_id: planId,
+            custom_id: user?.id // Track user ID in PayPal
           });
         },
         onApprove: function(data: any, actions: any) {

@@ -83,19 +83,58 @@ serve(async (req) => {
     console.log('📦 Event type:', webhookEvent.event_type);
     console.log('📦 Event ID:', webhookEvent.id);
 
-    // Note: For production, you should verify the webhook signature
-    // const isValid = await verifyWebhookSignature(WEBHOOK_ID, req.headers, rawBody);
-    // if (!isValid) {
-    //   console.error('❌ Invalid webhook signature');
-    //   return new Response('Invalid signature', { status: 401 });
-    // }
-
     // Create Supabase admin client (service role)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // PHASE 2: Idempotency - Check if webhook already processed
+    const eventId = webhookEvent.id;
     const eventType = webhookEvent.event_type;
+
+    const { data: alreadyProcessed } = await supabase
+      .from('processed_webhook_events')
+      .select('id')
+      .eq('paypal_event_id', eventId)
+      .maybeSingle();
+
+    if (alreadyProcessed) {
+      console.log('✅ Webhook already processed:', eventId);
+      return new Response(JSON.stringify({ 
+        received: true, 
+        cached: true 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // PHASE 3: Signature Verification (Live mode only)
+    if (Deno.env.get('PAYPAL_MODE') === 'live') {
+      const webhookId = Deno.env.get('PAYPAL_WEBHOOK_ID');
+      
+      if (!webhookId) {
+        console.error('⚠️ PAYPAL_WEBHOOK_ID not set in Live mode!');
+        return new Response('Webhook ID not configured', { 
+          status: 500,
+          headers: corsHeaders 
+        });
+      }
+      
+      const isValid = await verifyWebhookSignature(webhookId, req.headers, rawBody);
+      
+      if (!isValid) {
+        console.error('❌ Invalid webhook signature');
+        return new Response('Invalid signature', { 
+          status: 401,
+          headers: corsHeaders 
+        });
+      }
+      
+      console.log('✅ Webhook signature verified');
+    } else {
+      console.log('ℹ️ Sandbox mode: skipping signature verification');
+    }
+
     const resource = webhookEvent.resource;
 
     // Handle different webhook events
@@ -112,29 +151,36 @@ serve(async (req) => {
         const expiresAt = new Date();
         expiresAt.setMonth(expiresAt.getMonth() + (isYearly ? 12 : 1));
 
-        // Find user by email or subscription ID
-        let userId: string | null = null;
-
-        if (subscriberEmail) {
-          const { data: authUser } = await supabase.auth.admin.listUsers();
-          const user = authUser?.users.find(u => u.email === subscriberEmail);
-          userId = user?.id || null;
-        }
-
-        if (!userId) {
-          // Try to find by subscription ID
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('paypal_subscription_id', subscriptionId)
-            .maybeSingle();
+        // PHASE 1: Use custom_id for direct user lookup
+        let userId: string | null = resource.custom_id || null;
+        
+        if (userId) {
+          console.log('✅ Found user ID from custom_id:', userId);
+        } else {
+          console.log('⚠️ No custom_id, falling back to email lookup');
           
-          userId = profile?.id || null;
-        }
+          // Fallback to email lookup
+          if (subscriberEmail) {
+            const { data: authUser } = await supabase.auth.admin.listUsers();
+            const user = authUser?.users.find(u => u.email === subscriberEmail);
+            userId = user?.id || null;
+          }
 
-        if (!userId) {
-          console.error('❌ User not found for subscription:', subscriptionId);
-          break;
+          if (!userId) {
+            // Last resort: find by subscription ID
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('paypal_subscription_id', subscriptionId)
+              .maybeSingle();
+            
+            userId = profile?.id || null;
+          }
+
+          if (!userId) {
+            console.error('❌ User not found for subscription:', subscriptionId);
+            break;
+          }
         }
 
         // Update profile
@@ -276,6 +322,17 @@ serve(async (req) => {
       default:
         console.log('ℹ️ Unhandled event type:', eventType);
     }
+
+    // Mark webhook as processed (after successful processing)
+    await supabase
+      .from('processed_webhook_events')
+      .insert({
+        paypal_event_id: eventId,
+        event_type: eventType,
+        processed_at: new Date().toISOString()
+      });
+
+    console.log('✅ Webhook marked as processed');
 
     // Always return 200 to PayPal
     return new Response(

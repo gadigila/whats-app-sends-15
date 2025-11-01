@@ -109,6 +109,30 @@ export type Database = {
           },
         ]
       }
+      processed_webhook_events: {
+        Row: {
+          created_at: string | null
+          event_type: string
+          id: string
+          paypal_event_id: string
+          processed_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_type: string
+          id?: string
+          paypal_event_id: string
+          processed_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_type?: string
+          id?: string
+          paypal_event_id?: string
+          processed_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           auto_renew: boolean | null
