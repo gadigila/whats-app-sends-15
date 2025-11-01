@@ -78,9 +78,9 @@ Deno.serve(async (req) => {
         .eq('id', userId)
     }
 
-    // Generate unique friendly channel name
-    const channelName = `REECHER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
-    console.log('🆔 Generated friendly channel name:', channelName)
+    // Generate unique channel ID
+    const channelId = `REECHER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+    console.log('🆔 Generated channel ID:', channelId)
 
     // Step 1: Create channel using Partner API
     console.log('📱 Creating channel with Partner API...')
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        name: channelName,
+        name: channelId,
         projectId: whapiProjectId
       })
     });
@@ -119,35 +119,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // 🔑 CRITICAL: Extract canonical WHAPI ChannelID
-    const WHAPI_ID_REGEX = /^(?:[A-Z]{6}-[A-Z0-9]{5}|[A-Z0-9]{12})$/
-    const idCandidates = [
-      channelData?.id,
-      channelData?.channel?.id,
-      channelData?.result?.id,
-      channelData?.data?.id,
-      channelData?.ChannelID,
-      channelData?.channelId
-    ]
-    
-    const whapiChannelId = idCandidates.find(
-      (v) => typeof v === 'string' && WHAPI_ID_REGEX.test(v)
-    )
-
-    if (!whapiChannelId) {
-      console.error('❌ No valid canonical WHAPI ChannelID found in response:', channelData)
-      return new Response(
-        JSON.stringify({ 
-          error: 'Failed to extract canonical WHAPI ChannelID from response',
-          received: channelData 
-        }),
-        { status: 500, headers: corsHeaders }
-      )
-    }
-
-    console.log('✅ Channel created successfully')
-    console.log('📋 Canonical WHAPI ChannelID:', whapiChannelId)
-    console.log('📋 Friendly channel name:', channelName)
+    console.log('✅ Channel created successfully with token')
 
     // Step 2: Setup webhooks with notification fix
     console.log('🔗 Setting up webhooks with complete notification fix...')
@@ -213,10 +185,9 @@ Deno.serve(async (req) => {
     })
 
     // Prepare update data - preserve payment plan if user already paid
-    // 🔑 CRITICAL: Store canonical WHAPI ChannelID, not friendly name
     const updateData: any = {
-      instance_id: whapiChannelId,
-      whapi_channel_id: whapiChannelId,
+      instance_id: channelId,
+      whapi_channel_id: channelId,
       whapi_token: channelToken,
       instance_status: 'initializing',
       updated_at: new Date().toISOString()
@@ -324,10 +295,9 @@ Deno.serve(async (req) => {
     let channelUpgradedToLive = false
     if (['unauthorized', 'connected'].includes(finalStatus) && hasPaidSubscription) {
       console.log('💰 User has paid subscription - upgrading channel to LIVE mode...')
-      console.log('🔑 Using canonical WHAPI ChannelID:', whapiChannelId)
       
       try {
-        const upgradeResponse = await fetch(`https://manager.whapi.cloud/channels/${whapiChannelId}/mode`, {
+        const upgradeResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}/mode`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${whapiPartnerToken}`,
@@ -363,8 +333,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        channel_id: whapiChannelId,
-        channel_name: channelName,
+        channel_id: channelId,
         final_status: finalStatus,
         health_polls: pollAttempts,
         is_paid_user: hasPaidSubscription,

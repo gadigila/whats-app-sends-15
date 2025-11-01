@@ -84,6 +84,3 @@ verify_jwt = true
 
 [functions.upgrade-whapi-channel]
 verify_jwt = true
-
-[functions.repair-whapi-channel]
-verify_jwt = true
