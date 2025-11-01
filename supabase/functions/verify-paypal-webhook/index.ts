@@ -67,8 +67,63 @@ async function verifyWebhookSignature(
   }
 }
 
-async function upgradeWhapiChannelToLive(channelId: string): Promise<boolean> {
+// Helper: Validate if string matches canonical WHAPI ChannelID format
+function isValidWhapiId(id: string | null | undefined): boolean {
+  if (!id) return false;
+  const WHAPI_ID_REGEX = /^(?:[A-Z]{6}-[A-Z0-9]{5}|[A-Z0-9]{12})$/;
+  return WHAPI_ID_REGEX.test(id);
+}
+
+// Helper: Find canonical ChannelID by friendly name via Manager API
+async function findChannelIdByName(
+  friendlyName: string,
+  whapiToken: string,
+  projectId: string
+): Promise<string | null> {
+  try {
+    console.log('🔍 Searching for canonical ChannelID by name:', friendlyName);
+    
+    const response = await fetch(
+      `https://manager.whapi.cloud/channels?projectId=${projectId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${whapiToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.error('⚠️ Failed to list channels:', await response.text());
+      return null;
+    }
+
+    const data = await response.json();
+    const channels = data?.items || data?.data || data?.channels || data || [];
+    
+    const channel = channels.find((ch: any) => ch.name === friendlyName);
+    
+    if (channel && isValidWhapiId(channel.id)) {
+      console.log('✅ Found canonical ChannelID:', channel.id);
+      return channel.id;
+    }
+    
+    console.error('⚠️ Channel not found by name:', friendlyName);
+    return null;
+  } catch (error) {
+    console.error('⚠️ Error finding channel by name:', error);
+    return null;
+  }
+}
+
+async function upgradeWhapiChannelToLive(
+  channelId: string,
+  supabase: any,
+  userId?: string
+): Promise<boolean> {
   const whapiToken = Deno.env.get('WHAPI_PARTNER_TOKEN');
+  const projectId = Deno.env.get('WHAPI_PROJECT_ID');
   
   if (!whapiToken) {
     console.error('⚠️ WHAPI_PARTNER_TOKEN not configured');
@@ -76,10 +131,44 @@ async function upgradeWhapiChannelToLive(channelId: string): Promise<boolean> {
   }
   
   try {
-    console.log('🔄 Upgrading WHAPI channel to live mode:', channelId);
+    // Validate channelId format
+    let validChannelId = channelId;
+    
+    if (!isValidWhapiId(channelId)) {
+      console.log('⚠️ Invalid ChannelID format detected:', channelId);
+      
+      // Attempt recovery by name if it looks like our friendly name
+      if (channelId.startsWith('REECHER-') && projectId) {
+        console.log('🔄 Attempting to recover canonical ChannelID by name...');
+        const recoveredId = await findChannelIdByName(channelId, whapiToken, projectId);
+        
+        if (recoveredId && userId) {
+          // Update profile with canonical ID
+          console.log('💾 Updating profile with canonical ChannelID:', recoveredId);
+          await supabase
+            .from('profiles')
+            .update({
+              instance_id: recoveredId,
+              whapi_channel_id: recoveredId,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+          
+          validChannelId = recoveredId;
+        } else {
+          console.error('❌ Could not recover canonical ChannelID');
+          return false;
+        }
+      } else {
+        console.error('❌ Cannot upgrade with invalid ChannelID');
+        return false;
+      }
+    }
+    
+    console.log('🔄 Upgrading WHAPI channel to live mode:', validChannelId);
     
     const response = await fetch(
-      `https://manager.whapi.cloud/channels/${channelId}/mode`,
+      `https://manager.whapi.cloud/channels/${validChannelId}/mode`,
       {
         method: 'PATCH',
         headers: {
@@ -241,20 +330,33 @@ serve(async (req) => {
         } else {
           console.log('✅ Profile updated for user:', userId);
           
-          // Fetch the updated profile to get whapi_channel_id (with fallback to instance_id)
+          // Fetch the updated profile to get channel ID
           const { data: updatedProfile } = await supabase
             .from('profiles')
             .select('whapi_channel_id, instance_id')
             .eq('id', userId)
             .single();
           
-          // Use whapi_channel_id if exists, fallback to instance_id
-          const channelId = updatedProfile?.whapi_channel_id || updatedProfile?.instance_id;
+          // Find valid canonical ChannelID
+          let channelId: string | null = null;
+          
+          if (isValidWhapiId(updatedProfile?.whapi_channel_id)) {
+            channelId = updatedProfile.whapi_channel_id;
+            console.log('✅ Using valid whapi_channel_id:', channelId);
+          } else if (isValidWhapiId(updatedProfile?.instance_id)) {
+            channelId = updatedProfile.instance_id;
+            console.log('✅ Using valid instance_id:', channelId);
+          } else if (updatedProfile?.whapi_channel_id || updatedProfile?.instance_id) {
+            // Attempt recovery by name
+            const nameToRecover = updatedProfile.whapi_channel_id || updatedProfile.instance_id;
+            console.log('⚠️ No valid ChannelID found, attempting recovery for:', nameToRecover);
+            channelId = nameToRecover; // Will be handled by upgradeWhapiChannelToLive
+          }
           
           // Upgrade WHAPI channel to live mode
           if (channelId) {
             console.log('🔄 Upgrading channel to live:', channelId);
-            await upgradeWhapiChannelToLive(channelId);
+            await upgradeWhapiChannelToLive(channelId, supabase, userId);
           } else {
             console.log('ℹ️ No WHAPI channel to upgrade for user:', userId);
           }
@@ -351,20 +453,28 @@ serve(async (req) => {
             } else {
               console.log('✅ Payment recorded, subscription extended');
               
-              // Fetch profile to get whapi_channel_id (with fallback to instance_id)
+              // Fetch profile to get channel ID
               const { data: profileWithChannel } = await supabase
                 .from('profiles')
-                .select('whapi_channel_id, instance_id')
+                .select('whapi_channel_id, instance_id, id')
                 .eq('paypal_subscription_id', billingAgreementId)
                 .single();
               
-              // Use whapi_channel_id if exists, fallback to instance_id
-              const channelId = profileWithChannel?.whapi_channel_id || profileWithChannel?.instance_id;
+              // Find valid canonical ChannelID
+              let channelId: string | null = null;
+              
+              if (isValidWhapiId(profileWithChannel?.whapi_channel_id)) {
+                channelId = profileWithChannel.whapi_channel_id;
+              } else if (isValidWhapiId(profileWithChannel?.instance_id)) {
+                channelId = profileWithChannel.instance_id;
+              } else if (profileWithChannel?.whapi_channel_id || profileWithChannel?.instance_id) {
+                channelId = profileWithChannel.whapi_channel_id || profileWithChannel.instance_id;
+              }
               
               // Ensure channel is in live mode (in case it was downgraded)
-              if (channelId) {
+              if (channelId && profileWithChannel?.id) {
                 console.log('🔄 Ensuring channel is live:', channelId);
-                await upgradeWhapiChannelToLive(channelId);
+                await upgradeWhapiChannelToLive(channelId, supabase, profileWithChannel.id);
               }
             }
           }
