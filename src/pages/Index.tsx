@@ -5,6 +5,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
 import { Logo } from '@/components/Logo';
+import { YouTubePlayer } from '@/components/YouTubePlayer';
 import heroPhone from '@/assets/hero-phone.png';
 import howItWorksImage from '@/assets/how-it-works.png';
 
@@ -70,13 +71,12 @@ const Index = () => {
             </p>
             
             <div className="mt-8">
-              <div className="relative w-full max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-xl" style={{ paddingBottom: '56.25%' }}>
-                <iframe
-                  className="absolute top-0 left-0 w-full h-full"
-                  src="https://www.youtube.com/embed/9UOF2tRQxGc?autoplay=1&mute=1&loop=1&rel=0&playlist=9UOF2tRQxGc"
-                  title="Reecher Demo Video"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
+              <div className="max-w-4xl mx-auto">
+                <YouTubePlayer 
+                  videoId="9UOF2tRQxGc"
+                  autoplay={true}
+                  mute={true}
+                  controls={false}
                 />
               </div>
             </div>
