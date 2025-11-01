@@ -7,7 +7,6 @@ import { Link } from 'react-router-dom';
 import { useMessageStats } from '@/hooks/useMessageStats';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { useSegments } from '@/hooks/useSegments';
-import { ManualChannelUpgrade } from '@/components/ManualChannelUpgrade';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -364,10 +363,6 @@ const Dashboard = () => {
           </Card>
         </div>
 
-        {/* Manual Channel Upgrade - Admin Tool */}
-        {userProfile?.payment_plan && userProfile.payment_plan !== 'trial' && (
-          <ManualChannelUpgrade />
-        )}
       </div>
     </Layout>
   );
