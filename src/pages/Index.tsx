@@ -33,7 +33,7 @@ const Index = () => {
             alt="Reecher trophy icon" 
             className="w-40 h-40 mx-auto mb-7"
           />
-          <h1 className="text-[2.5rem] md:text-[4.75rem] font-bold text-gray-900 mb-6 leading-tight">
+          <h1 className="text-[2.5rem] md:text-[4.75rem] font-bold text-gray-900 mb-6 leading-[1]">
             לשלוח הודעה לכל
             <br />
             <span className="text-green-500">קבוצות הוואטסאפ שלך</span>
