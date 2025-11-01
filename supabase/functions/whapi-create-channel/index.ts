@@ -157,20 +157,55 @@ Deno.serve(async (req) => {
       console.log('✅ Webhook configured with offline_mode')
     }
 
-    // Step 3: Save to database with 'initializing' status
-    const trialExpiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
-    
+    // Step 3: Check existing subscription status before saving
+    console.log('🔍 Checking user subscription status before channel setup...')
+
+    const { data: existingProfile, error: profileCheckError } = await supabase
+      .from('profiles')
+      .select('payment_plan, subscription_status, subscription_expires_at')
+      .eq('id', userId)
+      .single()
+
+    if (profileCheckError) {
+      console.error('❌ Error checking profile:', profileCheckError)
+      return new Response(
+        JSON.stringify({ error: 'Failed to check user profile' }),
+        { status: 500, headers: corsHeaders }
+      )
+    }
+
+    // Determine if user has active paid subscription
+    const hasPaidSubscription = existingProfile?.subscription_status === 'active' && 
+                                ['monthly', 'yearly'].includes(existingProfile.payment_plan || '')
+
+    console.log('📊 User subscription status:', {
+      subscription_status: existingProfile?.subscription_status,
+      payment_plan: existingProfile?.payment_plan,
+      hasPaidSubscription
+    })
+
+    // Prepare update data - preserve payment plan if user already paid
+    const updateData: any = {
+      instance_id: channelId,
+      whapi_channel_id: channelId,
+      whapi_token: channelToken,
+      instance_status: 'initializing',
+      updated_at: new Date().toISOString()
+    }
+
+    // Only set trial data if user is NOT already paid
+    if (!hasPaidSubscription) {
+      console.log('📝 Setting trial plan (user has not paid yet)')
+      updateData.payment_plan = 'trial'
+      updateData.trial_expires_at = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+    } else {
+      console.log('✅ Preserving existing paid plan:', existingProfile.payment_plan)
+      // Don't override payment_plan or trial_expires_at - keep existing values
+    }
+
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({
-        instance_id: channelId,
-        whapi_channel_id: channelId,
-        whapi_token: channelToken,
-        instance_status: 'initializing',
-        payment_plan: 'trial',
-        trial_expires_at: trialExpiresAt,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', userId)
 
     if (updateError) {
@@ -256,6 +291,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Step 7: 🚀 AUTO-UPGRADE to LIVE if user has paid subscription
+    let channelUpgradedToLive = false
+    if (['unauthorized', 'connected'].includes(finalStatus) && hasPaidSubscription) {
+      console.log('💰 User has paid subscription - upgrading channel to LIVE mode...')
+      
+      try {
+        const upgradeResponse = await fetch(`https://manager.whapi.cloud/channels/${channelId}/mode`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${whapiPartnerToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            mode: 'live'
+          })
+        })
+
+        if (upgradeResponse.ok) {
+          console.log('✅ Channel automatically upgraded to LIVE mode!')
+          channelUpgradedToLive = true
+        } else {
+          const upgradeError = await upgradeResponse.text()
+          console.log('⚠️ Failed to auto-upgrade channel:', upgradeError)
+        }
+      } catch (upgradeError) {
+        console.log('⚠️ Error auto-upgrading channel:', upgradeError)
+      }
+    }
+
     await supabase
       .from('profiles')
       .update({
@@ -272,7 +336,12 @@ Deno.serve(async (req) => {
         channel_id: channelId,
         final_status: finalStatus,
         health_polls: pollAttempts,
-        message: finalStatus === 'connected' ? 'Channel created and already connected' : 'Channel created and ready for QR code',
+        is_paid_user: hasPaidSubscription,
+        channel_mode: hasPaidSubscription ? 'live' : 'trial',
+        auto_upgraded_to_live: channelUpgradedToLive,
+        message: finalStatus === 'connected' 
+          ? (hasPaidSubscription ? 'Channel created, connected, and upgraded to LIVE' : 'Channel created and already connected') 
+          : (hasPaidSubscription ? 'Channel created as LIVE, ready for QR code' : 'Channel created as TRIAL, ready for QR code'),
         next_step: finalStatus === 'connected' ? 'Already connected' : 'Get QR code',
         webhook_configured: true,
         notification_fix_applied: true,
