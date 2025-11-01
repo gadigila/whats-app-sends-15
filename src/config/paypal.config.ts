@@ -1,7 +1,7 @@
 // PayPal Configuration - Switch between Sandbox and Live easily
 export const PAYPAL_CONFIG = {
   // 🔧 Change this line to switch environments
-  mode: 'sandbox' as 'sandbox' | 'live',
+  mode: 'live' as 'sandbox' | 'live',
   
   sandbox: {
     clientId: 'AcaSanosVJM-vrExYYaL5mbfFtNS-WVY9Bl5ybGXHFioClYh_7C7z64ZSkMhYGP3H7wqsOYty9Bo30S6',
