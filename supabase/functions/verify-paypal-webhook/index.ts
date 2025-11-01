@@ -146,8 +146,15 @@ serve(async (req) => {
         const subscriberEmail = resource.subscriber?.email_address;
         const planId = resource.plan_id;
 
+        // Debug: Log plan detection
+        console.log('🔍 Plan ID from PayPal:', planId);
+        console.log('🔍 Expected yearly plan ID:', Deno.env.get('PAYPAL_YEARLY_PLAN_ID'));
+        console.log('🔍 Expected monthly plan ID:', Deno.env.get('PAYPAL_MONTHLY_PLAN_ID'));
+
         // Determine plan type and expiration
         const isYearly = planId === Deno.env.get('PAYPAL_YEARLY_PLAN_ID');
+        console.log('🔍 Is yearly?', isYearly);
+        
         const expiresAt = new Date();
         expiresAt.setMonth(expiresAt.getMonth() + (isYearly ? 12 : 1));
 
