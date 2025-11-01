@@ -327,7 +327,7 @@ const Billing = () => {
         )}
 
         {/* Main Pricing Plan */}
-        {currentPlan && (
+        {currentPlan && !isPaid && (
           <div className="max-w-md mx-auto">
             <Card className={`border-green-200 bg-green-50/50 ${
               currentPlan.popular ? 'ring-2 ring-green-500' : ''
