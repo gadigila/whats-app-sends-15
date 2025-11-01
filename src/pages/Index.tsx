@@ -60,17 +60,7 @@ const Index = () => {
       <section className="py-16 px-4 bg-white">
         <div className="max-w-4xl mx-auto text-center">
           <div className="space-y-6">
-            <h3 className="text-2xl md:text-3xl font-bold text-gray-900">
-              ניהול קבוצות וואטסאפ לא צריך להיות כאב ראש
-            </h3>
-            
-            <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              ריצ׳ר הופך משימה של שעות למשימה של דקות.
-              שליחה מרכזית לכל הקבוצות, תזמון חכם וביקורת מלאה.
-              פשוט, מהיר ועושה בדיוק מה שצריך.
-            </p>
-            
-            <div className="mt-8">
+            <div>
               <div className="max-w-2xl mx-auto">
                 <YouTubePlayer 
                   videoId="9UOF2tRQxGc"
@@ -80,6 +70,16 @@ const Index = () => {
                 />
               </div>
             </div>
+            
+            <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mt-8">
+              ניהול קבוצות וואטסאפ לא צריך להיות כאב ראש
+            </h3>
+            
+            <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              ריצ׳ר הופך משימה של שעות למשימה של דקות.
+              שליחה מרכזית לכל הקבוצות, תזמון חכם וביקורת מלאה.
+              פשוט, מהיר ועושה בדיוק מה שצריך.
+            </p>
           </div>
         </div>
       </section>
