@@ -122,86 +122,88 @@ const Dashboard = () => {
             })}
           </div>
 
-          {/* Features Preview */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-green-500" />
-                  פעולות מהירות
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-500">שלח הודעה חדשה</span>
+          {/* Features Preview - Only show for non-paid users */}
+          {!hasPaidPlan && (
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-green-500" />
+                    פעולות מהירות
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <MessageSquare className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-500">שלח הודעה חדשה</span>
+                      </div>
+                      <Crown className="h-4 w-4 text-gray-400" />
                     </div>
-                    <Crown className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-500">הודעות מתוזמנות</span>
+                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-500">הודעות מתוזמנות</span>
+                      </div>
+                      <Crown className="h-4 w-4 text-gray-400" />
                     </div>
-                    <Crown className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <Users className="h-4 w-4 text-gray-400" />
-                      <span className="text-gray-500">נהל קבוצות</span>
+                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
+                      <div className="flex items-center gap-3">
+                        <Users className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-500">נהל קבוצות</span>
+                      </div>
+                      <Crown className="h-4 w-4 text-gray-400" />
                     </div>
-                    <Crown className="h-4 w-4 text-gray-400" />
                   </div>
-                </div>
-                <div className="pt-3">
-                  <p className="text-center text-sm text-gray-500 mb-3">
-                    כל הפעולות יהיו זמינות לאחר הרכישה
-                  </p>
-                  <Link to="/billing" className="block">
-                    <ThreeDButton variant="primary" className="w-full">
-                      <Crown className="mr-2 h-4 w-4" />
-                      שדרג עכשיו
-                    </ThreeDButton>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="pt-3">
+                    <p className="text-center text-sm text-gray-500 mb-3">
+                      כל הפעולות יהיו זמינות לאחר הרכישה
+                    </p>
+                    <Link to="/billing" className="block">
+                      <ThreeDButton variant="primary" className="w-full">
+                        <Crown className="mr-2 h-4 w-4" />
+                        שדרג עכשיו
+                      </ThreeDButton>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-500" />
-                  מה תקבל אחרי הרכישה?
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm">שליחה ללא הגבלה לכל הקבוצות</span>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-orange-500" />
+                    מה תקבל אחרי הרכישה?
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm">שליחה ללא הגבלה לכל הקבוצות</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm">תזמון הודעות מתקדם</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm">העלאת קבצים ותמונות</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm">סטטיסטיקות מפורטות</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm">תמיכה טכנית מהירה</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm">תזמון הודעות מתקדם</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm">העלאת קבצים ותמונות</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm">סטטיסטיקות מפורטות</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm">תמיכה טכנית מהירה</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Steps Guide */}
           <Card>
