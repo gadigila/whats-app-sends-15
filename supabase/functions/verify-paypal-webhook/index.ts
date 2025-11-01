@@ -67,6 +67,43 @@ async function verifyWebhookSignature(
   }
 }
 
+async function upgradeWhapiChannelToLive(channelId: string): Promise<boolean> {
+  const whapiToken = Deno.env.get('WHAPI_PARTNER_TOKEN');
+  
+  if (!whapiToken) {
+    console.error('⚠️ WHAPI_PARTNER_TOKEN not configured');
+    return false;
+  }
+  
+  try {
+    console.log('🔄 Upgrading WHAPI channel to live mode:', channelId);
+    
+    const response = await fetch(
+      `https://manager.whapi.cloud/channels/${channelId}/mode`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${whapiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ mode: 'live' }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('⚠️ WHAPI channel upgrade failed:', errorText);
+      return false;
+    }
+
+    console.log('✅ WHAPI channel upgraded to live mode successfully');
+    return true;
+  } catch (error) {
+    console.error('⚠️ Error upgrading WHAPI channel:', error);
+    return false;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -203,6 +240,20 @@ serve(async (req) => {
           console.error('❌ Error updating profile:', updateError);
         } else {
           console.log('✅ Profile updated for user:', userId);
+          
+          // Fetch the updated profile to get whapi_channel_id
+          const { data: updatedProfile } = await supabase
+            .from('profiles')
+            .select('whapi_channel_id')
+            .eq('id', userId)
+            .single();
+          
+          // Upgrade WHAPI channel to live mode
+          if (updatedProfile?.whapi_channel_id) {
+            await upgradeWhapiChannelToLive(updatedProfile.whapi_channel_id);
+          } else {
+            console.log('ℹ️ No WHAPI channel to upgrade for user:', userId);
+          }
         }
         break;
       }
@@ -295,6 +346,18 @@ serve(async (req) => {
               console.error('❌ Error updating payment:', updateError);
             } else {
               console.log('✅ Payment recorded, subscription extended');
+              
+              // Fetch profile to get whapi_channel_id
+              const { data: profileWithChannel } = await supabase
+                .from('profiles')
+                .select('whapi_channel_id')
+                .eq('paypal_subscription_id', billingAgreementId)
+                .single();
+              
+              // Ensure channel is in live mode (in case it was downgraded)
+              if (profileWithChannel?.whapi_channel_id) {
+                await upgradeWhapiChannelToLive(profileWithChannel.whapi_channel_id);
+              }
             }
           }
         }
