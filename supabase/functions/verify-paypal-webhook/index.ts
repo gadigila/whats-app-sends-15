@@ -241,16 +241,20 @@ serve(async (req) => {
         } else {
           console.log('✅ Profile updated for user:', userId);
           
-          // Fetch the updated profile to get whapi_channel_id
+          // Fetch the updated profile to get whapi_channel_id (with fallback to instance_id)
           const { data: updatedProfile } = await supabase
             .from('profiles')
-            .select('whapi_channel_id')
+            .select('whapi_channel_id, instance_id')
             .eq('id', userId)
             .single();
           
+          // Use whapi_channel_id if exists, fallback to instance_id
+          const channelId = updatedProfile?.whapi_channel_id || updatedProfile?.instance_id;
+          
           // Upgrade WHAPI channel to live mode
-          if (updatedProfile?.whapi_channel_id) {
-            await upgradeWhapiChannelToLive(updatedProfile.whapi_channel_id);
+          if (channelId) {
+            console.log('🔄 Upgrading channel to live:', channelId);
+            await upgradeWhapiChannelToLive(channelId);
           } else {
             console.log('ℹ️ No WHAPI channel to upgrade for user:', userId);
           }
@@ -347,16 +351,20 @@ serve(async (req) => {
             } else {
               console.log('✅ Payment recorded, subscription extended');
               
-              // Fetch profile to get whapi_channel_id
+              // Fetch profile to get whapi_channel_id (with fallback to instance_id)
               const { data: profileWithChannel } = await supabase
                 .from('profiles')
-                .select('whapi_channel_id')
+                .select('whapi_channel_id, instance_id')
                 .eq('paypal_subscription_id', billingAgreementId)
                 .single();
               
+              // Use whapi_channel_id if exists, fallback to instance_id
+              const channelId = profileWithChannel?.whapi_channel_id || profileWithChannel?.instance_id;
+              
               // Ensure channel is in live mode (in case it was downgraded)
-              if (profileWithChannel?.whapi_channel_id) {
-                await upgradeWhapiChannelToLive(profileWithChannel.whapi_channel_id);
+              if (channelId) {
+                console.log('🔄 Ensuring channel is live:', channelId);
+                await upgradeWhapiChannelToLive(channelId);
               }
             }
           }

@@ -164,6 +164,7 @@ Deno.serve(async (req) => {
       .from('profiles')
       .update({
         instance_id: channelId,
+        whapi_channel_id: channelId,
         whapi_token: channelToken,
         instance_status: 'initializing',
         payment_plan: 'trial',
