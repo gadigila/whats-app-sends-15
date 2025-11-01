@@ -1,6 +1,6 @@
-
 import { Card, CardContent } from '@/components/ui/card';
 import { Star } from 'lucide-react';
+import trophyIcon from '@/assets/trophy-icon.png';
 
 const TestimonialsSection = () => {
   const testimonials = [
@@ -34,8 +34,13 @@ const TestimonialsSection = () => {
     <section className="py-16 px-4 bg-gray-50">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-12">
+          <img 
+            src={trophyIcon} 
+            alt="Trophy" 
+            className="w-40 h-40 mx-auto mb-6"
+          />
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            מה אומרים המשתמשים
+            ומה הם אומרים
           </h2>
         </div>
 
