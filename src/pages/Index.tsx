@@ -8,6 +8,7 @@ import { Logo } from '@/components/Logo';
 import { YouTubePlayer } from '@/components/YouTubePlayer';
 import heroPhone from '@/assets/hero-phone.png';
 import howItWorksImage from '@/assets/how-it-works.png';
+import peaceIcon from '@/assets/peace-icon.png';
 
 const Index = () => {
   return (
@@ -233,6 +234,11 @@ const Index = () => {
       <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
+            <img 
+              src={peaceIcon} 
+              alt="Peace Sign" 
+              className="w-40 h-40 mx-auto mb-6"
+            />
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               למי זה מתאים
             </h2>
