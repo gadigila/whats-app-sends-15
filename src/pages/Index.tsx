@@ -60,7 +60,7 @@ const Index = () => {
       <section className="py-16 px-4 bg-white">
         <div className="max-w-4xl mx-auto text-center">
           <div className="space-y-6">
-            <div>
+            <div className="mb-8">
               <div className="max-w-2xl mx-auto">
                 <YouTubePlayer 
                   videoId="9UOF2tRQxGc"
