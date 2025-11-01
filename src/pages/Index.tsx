@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import TestimonialsSection from '@/components/TestimonialsSection';
 import { Logo } from '@/components/Logo';
 import heroPhone from '@/assets/hero-phone.png';
+import howItWorksImage from '@/assets/how-it-works.png';
 
 const Index = () => {
   return (
@@ -78,45 +79,58 @@ const Index = () => {
 
       {/* How it works */}
       <section className="py-16 px-4 bg-gray-50">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12 text-gray-900">
             איך זה עובד?
           </h2>
-          <div className="space-y-8">
-            <div className="flex items-center gap-6">
-              <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
-                1
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">מתחברים</h3>
-                <p className="text-gray-600">סורקים QR חד פעמי.</p>
-              </div>
+          
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Left: Image */}
+            <div className="hidden md:block">
+              <img 
+                src={howItWorksImage} 
+                alt="איך זה עובד - תהליך העבודה עם ריצ׳ר" 
+                className="w-full rounded-2xl shadow-lg"
+              />
             </div>
             
-            <div className="flex items-center gap-6">
-              <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
-                2
+            {/* Right: Steps */}
+            <div className="space-y-8">
+              <div className="flex items-center gap-6">
+                <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0">
+                  1
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">מתחברים</h3>
+                  <p className="text-gray-600">סורקים QR חד פעמי.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">מכינים</h3>
-                <p className="text-gray-600">כותבים הודעה, מצרפים קבצים ובוחרים קבוצות.</p>
+              
+              <div className="flex items-center gap-6">
+                <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0">
+                  2
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">מכינים</h3>
+                  <p className="text-gray-600">כותבים הודעה, מצרפים קבצים ובוחרים קבוצות.</p>
+                </div>
               </div>
-            </div>
-            
-            <div className="flex items-center gap-6">
-              <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold">
-                3
+              
+              <div className="flex items-center gap-6">
+                <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center text-xl font-bold flex-shrink-0">
+                  3
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold mb-2">שולחים או מתזמנים</h3>
+                  <p className="text-gray-600">עכשיו, יומי או שבועי.</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-xl font-semibold mb-2">שולחים או מתזמנים</h3>
-                <p className="text-gray-600">עכשיו, יומי או שבועי.</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200">
-              <CheckCircle className="w-12 h-12 text-green-500 flex-shrink-0" />
-              <div>
-                <p className="text-lg text-gray-900">רואים סטטוס בזמן אמת והיסטוריה מלאה של כל השליחות.</p>
+              
+              <div className="flex items-center gap-6 pt-6 mt-6 border-t border-gray-200">
+                <CheckCircle className="w-12 h-12 text-green-500 flex-shrink-0" />
+                <div>
+                  <p className="text-lg text-gray-900">רואים סטטוס בזמן אמת והיסטוריה מלאה של כל השליחות.</p>
+                </div>
               </div>
             </div>
           </div>
