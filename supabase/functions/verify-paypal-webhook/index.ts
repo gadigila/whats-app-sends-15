@@ -258,14 +258,23 @@ serve(async (req) => {
           // Update last payment date and extend subscription
           const { data: profile } = await supabase
             .from('profiles')
-            .select('payment_plan, subscription_expires_at')
+            .select('payment_plan, subscription_expires_at, subscription_created_at')
             .eq('paypal_subscription_id', billingAgreementId)
             .maybeSingle();
 
           if (profile) {
+            // Skip if this is the first payment (subscription just created)
+            const createdAt = new Date(profile.subscription_created_at);
+            const now = new Date();
+            const minutesSinceCreation = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+            
+            if (minutesSinceCreation < 5) {
+              console.log('⏭️ Skipping first payment extension (already handled by ACTIVATED event)');
+              break;
+            }
+
             const isYearly = profile.payment_plan === 'yearly';
             const currentExpiry = new Date(profile.subscription_expires_at || new Date());
-            const now = new Date();
             
             // Extend from current expiry or now, whichever is later
             const baseDate = currentExpiry > now ? currentExpiry : now;
