@@ -86,7 +86,7 @@ const Index = () => {
           
           <div className="grid md:grid-cols-2 gap-12 items-center">
             {/* Left: Image */}
-            <div className="hidden md:block">
+            <div>
               <img 
                 src={howItWorksImage} 
                 alt="איך זה עובד - תהליך העבודה עם ריצ׳ר" 
