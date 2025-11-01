@@ -72,7 +72,7 @@ const Index = () => {
             </div>
             
             <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mt-12">
-              ניהול קבוצות וואטסאפ לא צריך להיות כאב ראש
+              ניהול קבוצות וואטסאפ מעולם לא היה כל כך פשוט
             </h3>
             
             <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
