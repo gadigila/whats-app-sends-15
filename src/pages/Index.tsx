@@ -71,7 +71,7 @@ const Index = () => {
             </p>
             
             <div className="mt-8">
-              <div className="max-w-4xl mx-auto">
+              <div className="max-w-2xl mx-auto">
                 <YouTubePlayer 
                   videoId="9UOF2tRQxGc"
                   autoplay={true}
