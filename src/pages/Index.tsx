@@ -69,10 +69,17 @@ const Index = () => {
               פשוט, מהיר ועושה בדיוק מה שצריך.
             </p>
             
-            {/* Placeholder for future video */}
-            {/* <div className="mt-8">
-              <video or iframe will go here>
-            </div> */}
+            <div className="mt-8">
+              <div className="relative w-full max-w-4xl mx-auto rounded-2xl overflow-hidden shadow-xl" style={{ paddingBottom: '56.25%' }}>
+                <iframe
+                  className="absolute top-0 left-0 w-full h-full"
+                  src="https://www.youtube.com/embed/9UOF2tRQxGc?autoplay=1&mute=1&loop=1&controls=0&showinfo=0&rel=0&modestbranding=1&playlist=9UOF2tRQxGc"
+                  title="Reecher Demo Video"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
