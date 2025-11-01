@@ -37,7 +37,7 @@ const TestimonialsSection = () => {
           <img 
             src={trophyIcon} 
             alt="Trophy" 
-            className="w-30 h-30 mx-auto mb-6"
+            className="w-[120px] h-[120px] mx-auto mb-6"
           />
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
             ומה הם אומרים
