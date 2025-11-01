@@ -237,7 +237,7 @@ const Index = () => {
             <img 
               src={peaceIcon} 
               alt="Peace Sign" 
-              className="w-30 h-30 mx-auto mb-6"
+              className="w-40 h-40 mx-auto mb-6"
             />
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               למי זה מתאים
