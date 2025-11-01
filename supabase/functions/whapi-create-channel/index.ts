@@ -341,6 +341,32 @@ Deno.serve(async (req) => {
         if (upgradeResponse.ok) {
           console.log('✅ Channel automatically upgraded to LIVE mode!')
           channelUpgradedToLive = true
+          
+          // Extend channel duration based on plan type
+          const isYearly = existingProfile.payment_plan === 'yearly'
+          const extensionDays = isYearly ? 365 : 30
+          
+          console.log(`⏰ Extending channel by ${extensionDays} days for ${existingProfile.payment_plan} plan...`)
+          
+          const extendResponse = await fetch(`https://manager.whapi.cloud/channels/${whapiChannelId}/extend`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${whapiPartnerToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              days: extensionDays,
+              comment: `Initial ${existingProfile.payment_plan} subscription`
+            })
+          })
+          
+          if (extendResponse.ok) {
+            const extendResult = await extendResponse.json()
+            console.log('✅ Channel duration extended! New expiry:', extendResult?.channel?.expiresAt || extendResult?.expiresAt)
+          } else {
+            const extendError = await extendResponse.text()
+            console.log('⚠️ Failed to extend channel duration:', extendError)
+          }
         } else {
           const upgradeError = await upgradeResponse.text()
           console.log('⚠️ Failed to auto-upgrade channel:', upgradeError)

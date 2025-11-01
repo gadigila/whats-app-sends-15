@@ -117,6 +117,46 @@ async function findChannelIdByName(
   }
 }
 
+// Helper: Extend WHAPI channel duration (add days)
+async function extendWhapiChannel(
+  channelId: string,
+  days: number,
+  comment: string,
+  whapiToken: string
+): Promise<boolean> {
+  try {
+    console.log(`⏰ Extending channel ${channelId} by ${days} days: ${comment}`);
+    
+    const response = await fetch(
+      `https://manager.whapi.cloud/channels/${channelId}/extend`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${whapiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          days,
+          comment
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('⚠️ Channel extension failed:', errorText);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log('✅ Channel extended successfully. New expiry:', result?.channel?.expiresAt || result?.expiresAt);
+    return true;
+  } catch (error) {
+    console.error('⚠️ Error extending channel:', error);
+    return false;
+  }
+}
+
 async function upgradeWhapiChannelToLive(
   channelId: string,
   supabase: any,
@@ -353,10 +393,22 @@ serve(async (req) => {
             channelId = nameToRecover; // Will be handled by upgradeWhapiChannelToLive
           }
           
-          // Upgrade WHAPI channel to live mode
+          // Upgrade WHAPI channel to live mode and extend duration
           if (channelId) {
             console.log('🔄 Upgrading channel to live:', channelId);
-            await upgradeWhapiChannelToLive(channelId, supabase, userId);
+            const upgraded = await upgradeWhapiChannelToLive(channelId, supabase, userId);
+            
+            if (upgraded) {
+              // Extend channel duration based on plan type
+              const whapiToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!;
+              const extensionDays = isYearly ? 365 : 30;
+              await extendWhapiChannel(
+                channelId, 
+                extensionDays, 
+                `Initial PayPal subscription - ${isYearly ? 'yearly' : 'monthly'}`,
+                whapiToken
+              );
+            }
           } else {
             console.log('ℹ️ No WHAPI channel to upgrade for user:', userId);
           }
@@ -471,10 +523,22 @@ serve(async (req) => {
                 channelId = profileWithChannel.whapi_channel_id || profileWithChannel.instance_id;
               }
               
-              // Ensure channel is in live mode (in case it was downgraded)
+              // Ensure channel is in live mode and extend duration for renewal
               if (channelId && profileWithChannel?.id) {
                 console.log('🔄 Ensuring channel is live:', channelId);
-                await upgradeWhapiChannelToLive(channelId, supabase, profileWithChannel.id);
+                const upgraded = await upgradeWhapiChannelToLive(channelId, supabase, profileWithChannel.id);
+                
+                if (upgraded) {
+                  // Extend channel duration for renewal payment
+                  const whapiToken = Deno.env.get('WHAPI_PARTNER_TOKEN')!;
+                  const extensionDays = isYearly ? 365 : 30;
+                  await extendWhapiChannel(
+                    channelId,
+                    extensionDays,
+                    `PayPal subscription renewal - ${isYearly ? 'yearly' : 'monthly'}`,
+                    whapiToken
+                  );
+                }
               }
             }
           }

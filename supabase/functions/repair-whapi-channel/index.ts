@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('whapi_channel_id, instance_id, payment_plan')
+      .select('whapi_channel_id, instance_id, payment_plan, subscription_expires_at, subscription_status')
       .eq('id', userId)
       .single();
 
@@ -121,11 +121,13 @@ Deno.serve(async (req) => {
 
     console.log('✅ Database updated successfully');
 
-    // Upgrade to live mode if user has paid plan
+    // Upgrade to live mode and extend duration if user has paid plan
     const isPaidUser = profile.payment_plan && 
                        profile.payment_plan !== 'trial' && 
                        profile.payment_plan !== 'free' &&
                        profile.payment_plan !== 'none';
+
+    let channelExtended = false;
 
     if (isPaidUser) {
       console.log('💎 User has paid plan, upgrading to live mode...');
@@ -160,6 +162,38 @@ Deno.serve(async (req) => {
       }
 
       console.log('✅ Channel upgraded to live mode');
+
+      // Extend channel duration based on subscription
+      if (profile.subscription_status === 'active' && profile.subscription_expires_at) {
+        const isYearly = profile.payment_plan === 'yearly';
+        const extensionDays = isYearly ? 365 : 30;
+        
+        console.log(`⏰ Extending channel by ${extensionDays} days for active ${profile.payment_plan} subscription...`);
+        
+        const extendResponse = await fetch(
+          `https://manager.whapi.cloud/channels/${realChannelId}/extend`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${whapiToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              days: extensionDays,
+              comment: `Repair: ${profile.payment_plan} subscription extension`
+            }),
+          }
+        );
+
+        if (extendResponse.ok) {
+          const extendResult = await extendResponse.json();
+          console.log('✅ Channel duration extended! New expiry:', extendResult?.channel?.expiresAt || extendResult?.expiresAt);
+          channelExtended = true;
+        } else {
+          const extendError = await extendResponse.text();
+          console.error('⚠️ Extension failed:', extendError);
+        }
+      }
     } else {
       console.log('ℹ️ User on trial/free plan, skipping upgrade');
     }
@@ -171,6 +205,7 @@ Deno.serve(async (req) => {
         channelId: realChannelId,
         oldId: storedId,
         upgraded: isPaidUser,
+        extended: channelExtended,
         paymentPlan: profile.payment_plan
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
