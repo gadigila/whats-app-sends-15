@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Calendar, Crown, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -160,7 +160,7 @@ const SubscriptionManagement = ({
                 {subscriptionStatus === 'cancelled' ? 'תאריך סיום גישה:' : 'מתחדש ב:'}
               </span>
               <span className="font-medium">
-                {format(new Date(expiresAt), 'PPP', { locale: he })}
+                {format(parseISO(expiresAt), 'd MMMM yyyy', { locale: he })}
               </span>
             </div>
           )}
@@ -169,7 +169,7 @@ const SubscriptionManagement = ({
             <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
               <p className="text-sm text-orange-800">
                 <AlertTriangle className="h-4 w-4 inline ml-1" />
-                תקופת החסד מסתיימת ב-{format(new Date(gracePeriodEndsAt), 'PPP', { locale: he })}
+                תקופת החסד מסתיימת ב-{format(parseISO(gracePeriodEndsAt), 'd MMMM yyyy', { locale: he })}
               </p>
               <p className="text-xs text-orange-700 mt-1">
                 אנא עדכן את פרטי התשלום כדי להמשיך להשתמש בשירות
@@ -206,7 +206,7 @@ const SubscriptionManagement = ({
             <AlertDialogTitle>ביטול מנוי</AlertDialogTitle>
             <AlertDialogDescription>
               האם אתה בטוח שברצונך לבטל את המנוי? תוכל להמשיך להשתמש בשירות עד תום תקופת המנוי הנוכחית 
-              ({expiresAt && format(new Date(expiresAt), 'PPP', { locale: he })}).
+              ({expiresAt && format(parseISO(expiresAt), 'd MMMM yyyy', { locale: he })}).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -225,7 +225,7 @@ const SubscriptionManagement = ({
             <AlertDialogTitle>הפעלת מנוי מחדש</AlertDialogTitle>
             <AlertDialogDescription>
               המנוי שלך יופעל מחדש והחידוש האוטומטי יחזור לפעול. 
-              התשלום הבא יתבצע ב-{expiresAt && format(new Date(expiresAt), 'PPP', { locale: he })}.
+              התשלום הבא יתבצע ב-{expiresAt && format(parseISO(expiresAt), 'd MMMM yyyy', { locale: he })}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
