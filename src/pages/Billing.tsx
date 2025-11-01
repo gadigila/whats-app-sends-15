@@ -13,6 +13,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { getClientId, getPlanId, PAYPAL_CONFIG } from '@/config/paypal.config';
 
 const Billing = () => {
   const { user } = useAuth();
@@ -26,11 +27,20 @@ const Billing = () => {
   const isPaid = trialStatus?.isPaid || false;
   const latestInvoice = invoices?.[0];
 
+  // Debug: Log PayPal mode
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('🔧 PayPal Mode:', PAYPAL_CONFIG.mode);
+      console.log('🔑 Client ID:', getClientId().slice(0, 20) + '...');
+    }
+  }, []);
+
   // Load PayPal SDK
   useEffect(() => {
     if (!isPaid && !paypalLoaded) {
+      const clientId = getClientId();
       const script = document.createElement('script');
-      script.src = 'https://www.paypal.com/sdk/js?client-id=AR10sbKefx7DpNKT7y827_fC8tsV53kBseOQxhx-qFxE1b10ODFkFuQYYeTRHYiyKjBuuLFh7F9cuIe1&vault=true&intent=subscription';
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription`;
       script.async = true;
       script.onload = () => setPaypalLoaded(true);
       document.body.appendChild(script);
@@ -52,9 +62,7 @@ const Billing = () => {
   useEffect(() => {
     const win = window as any;
     if (paypalLoaded && win.paypal && !isPaid) {
-      const planId = billingPeriod === 'monthly' 
-        ? 'P-8AN74902GS080034XNEB4T6Y'
-        : 'P-1SD395240G565594LNEB5QQA';
+      const planId = getPlanId(billingPeriod);
       
       // Clear previous button
       const container = document.getElementById('paypal-button-container');
@@ -372,9 +380,7 @@ const Billing = () => {
                     )}
                     
                     <a
-                      href={billingPeriod === 'monthly'
-                        ? 'https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-8AN74902GS080034XNEB4T6Y'
-                        : 'https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=P-1SD395240G565594LNEB5QQA'}
+                      href={`https://www.paypal.com/webapps/billing/plans/subscribe?plan_id=${getPlanId(billingPeriod)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block text-center text-sm text-blue-600 hover:underline mt-3"
